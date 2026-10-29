@@ -1,0 +1,108 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "ATF",
+  "scopeName": "source.atf",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#core" },
+    { "match": "[()\\]]", "name": "invalid.illegal.bare-bracket.atf" }
+  ],
+  "repository": {
+    "comment": {
+      "match": "^#.*$",
+      "name": "comment.line.number-sign.atf"
+    },
+    "core": {
+      "patterns": [
+        { "include": "#escape" },
+        { "include": "#field" },
+        { "include": "#literal" },
+        { "include": "#call-control" },
+        { "include": "#call-variable" },
+        { "include": "#call" },
+        { "include": "#conditional" }
+      ]
+    },
+    "escape": {
+      "match": "%%|\\$\\$|''",
+      "name": "constant.character.escape.atf"
+    },
+    "field": {
+      "match": "(%)([^%]+)(%)",
+      "captures": {
+        "1": { "name": "punctuation.definition.variable.begin.atf" },
+        "2": { "name": "variable.other.field.atf" },
+        "3": { "name": "punctuation.definition.variable.end.atf" }
+      }
+    },
+    "literal": {
+      "begin": "'",
+      "end": "'",
+      "name": "string.quoted.single.atf",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.atf" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.atf" } }
+    },
+    "call-control": {
+      "begin": "(\\$)((?i:if3|if2|if|decode|ifgreater|iflonger|ifstrequal2|ifstrequal|ifstrnotequal|select))(\\()",
+      "end": "\\)",
+      "name": "meta.function-call.atf",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.function.atf" },
+        "2": { "name": "keyword.control.conditional.atf" },
+        "3": { "name": "punctuation.section.arguments.begin.atf" }
+      },
+      "endCaptures": { "0": { "name": "punctuation.section.arguments.end.atf" } },
+      "patterns": [{ "include": "#arguments" }]
+    },
+    "call-variable": {
+      "begin": "(\\$)((?i:puts|put|get))(\\()([A-Za-z_][A-Za-z0-9_]*(?=[,)]))?",
+      "end": "\\)",
+      "name": "meta.function-call.atf",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.function.atf" },
+        "2": { "name": "storage.type.variable.atf" },
+        "3": { "name": "punctuation.section.arguments.begin.atf" },
+        "4": { "name": "variable.other.readwrite.atf" }
+      },
+      "endCaptures": { "0": { "name": "punctuation.section.arguments.end.atf" } },
+      "patterns": [{ "include": "#arguments" }]
+    },
+    "call": {
+      "begin": "(\\$)([^($%'\\[\\]]*)(\\()",
+      "end": "\\)",
+      "name": "meta.function-call.atf",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.function.atf" },
+        "2": { "name": "entity.name.function.atf" },
+        "3": { "name": "punctuation.section.arguments.begin.atf" }
+      },
+      "endCaptures": { "0": { "name": "punctuation.section.arguments.end.atf" } },
+      "patterns": [{ "include": "#arguments" }]
+    },
+    "arguments": {
+      "patterns": [
+        { "match": "(?<=[(,])-?[0-9]+(?=[,)])", "name": "constant.numeric.integer.atf" },
+        { "match": ",", "name": "punctuation.separator.arguments.atf" },
+        { "include": "#core" },
+        {
+          "begin": "\\(",
+          "end": "\\)",
+          "name": "invalid.illegal.bare-paren.atf",
+          "patterns": [{ "include": "#arguments" }]
+        },
+        { "match": "\\]", "name": "invalid.illegal.bare-bracket.atf" }
+      ]
+    },
+    "conditional": {
+      "begin": "\\[",
+      "end": "\\]",
+      "name": "meta.conditional.atf",
+      "beginCaptures": { "0": { "name": "keyword.other.conditional.begin.atf" } },
+      "endCaptures": { "0": { "name": "keyword.other.conditional.end.atf" } },
+      "patterns": [
+        { "include": "#core" },
+        { "match": "[()]", "name": "invalid.illegal.bare-paren.atf" }
+      ]
+    }
+  }
+}

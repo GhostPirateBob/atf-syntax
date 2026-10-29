@@ -1,0 +1,22 @@
+# Changelog
+
+## 0.2.1 — 2026-10-30
+
+- Non-affiliation and trademark notice in the README and THIRD_PARTY_NOTICES.
+- Source comments describe WACUP-compatible behaviour rather than implementation details; the compiled JavaScript ships without comments.
+- MIT licence; repository, author, keywords, gallery banner and workspace-trust metadata for the Marketplace.
+
+## 0.2.0 — 2026-10-30
+
+- **Formatter**: Format Document wraps blocks at top-level boundaries without changing their output; `atf.format.lineWidth` (`0` = one line per block).
+- **Copy Format as Single Line** command (editor context menu and Command Palette).
+- New rule `empty-number`: empty numeric arguments such as `$left(%artist%,)`.
+- Settings `atf.lint.enable` and `atf.lint.rules` (per-rule severity or `off`), with help text in the Settings UI.
+- Hovers document WACUP changelog semantics for `$strbetween`, `$padout`/`$lpadout`, `$is_stream`, `$rating`, `$substr` and `$cut`, plus ten more fields.
+- Linting is linear in the size of the input (a 1 MB string went from 4.2 s to 80 ms). Each document version is parsed once, shared by diagnostics, hovers and commands.
+- `SyntaxErrorCode` enum, the `RULES` table and TSDoc throughout the source.
+- New file and extension icons.
+
+## 0.1.0 — 2026-10-30
+
+- First version: TextMate grammar, a WACUP-compatible parser (error codes 2–9), lint rules, hovers and completion.

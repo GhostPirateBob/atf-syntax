@@ -1,0 +1,27 @@
+# LATEST (2026-10-30: one $strstr -- ft->feat replace keeps indices, so no fi/fj/$min)
+.  ⇢  $puts(t,$if2(%title%,$filepart(%filename%)))$puts(araw,$if2(%albumartist%,%artist%))$puts(fp,$strstr($replace($replace($lower($get(araw)),'(',' '),' ft',' feat'),' feat'))$puts(a,$trim($ifgreater($get(fp),0,$left($get(araw),$sub($get(fp),1)),$get(araw))))$if($get(a),$abbr($get(a),20) ▹ ,)[$abbr(%album%,13) ▹ ]$iflonger($get(t),30,$left($get(t),29)…,$get(t))
+
+# PREVIOUS (fi/fj/$min version, identical output)
+.  ⇢  $puts(t,$if2(%title%,$filepart(%filename%)))$puts(araw,$if2(%albumartist%,%artist%))$puts(L,$replace($lower($get(araw)),'(',' '))$puts(fi,$strstr($get(L),' feat'))$puts(fj,$strstr($get(L),' ft'))$puts(fp,$ifgreater($get(fi),0,$ifgreater($get(fj),0,$min($get(fi),$get(fj)),$get(fi)),$get(fj)))$puts(a,$trim($ifgreater($get(fp),0,$left($get(araw),$sub($get(fp),1)),$get(araw))))$if($get(a),$abbr($get(a),20) ▹ ,)[$abbr(%album%,13) ▹ ]$iflonger($get(t),30,$left($get(t),29)…,$get(t))
+
+# GOOOOD
+[$trim($replace($trim($iflonger(%artist%,20,$left(%artist%,20),%artist%)),-,)) ▹ ]
+$trim($replace($left($trim([$if2(%title%,$filepart(%filename%))]),32),-,))
+
+# GOOOOD
+[$if2(%albumartist%,%artist%) - ][%album% - ]
+$IfStrNotEqual(%artist%,$if2(%albumartist%,%artist%),[%artist% - ])
+[%title%]
+[$if($fileext(%filename%),'   [  ',)]
+[%year%  |  ][$fileext(%filename%) ][$if(%bitrate%, '|'  ,)][%bitrate% 'kbps' ]
+[$if($fileext(%filename%),']',)]
+[   $repeat(*,%rating%) ]
+
+# OTHER
+$iflonger(%artist%,9,$left($replace(%artist%, ,),11),%artist%) ▸$if(%album%, $iflonger(%album%,11,$left($replace(%album%, ,),13),%album%) ▹ , )$if(%title%,$iflonger(%title%,11,$left($replace(%title%, ,),15),%title%),$left($filepart($replace(%filename%, ,)),15))
+
+$if(%title%,$iflonger(%title%,11,$left($replace(%title%, ,),11),%title%),$left($filepart($replace(%filename%, ,)),11))$if(%album%, $iflonger(%album%,11,$left($replace(%album%, ,),11),%album%) ▹ , )$if2(%title%,$filepart(%filename%))
+
+[$trim($iflonger(%artist%,15,$left(%artist%,15),%artist%)) ▹ ]$left($trim([$if2(%title%,$filepart(%filename%))]),15)
+
+[$trim($replace($trim($iflonger(%artist%,20,$left(%artist%,20),%artist%)),-,)) ▹ ]$trim($replace($left($trim([$if2(%title%,$filepart(%filename%))]),32),-,))

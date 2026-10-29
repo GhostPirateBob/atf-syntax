@@ -1,0 +1,335 @@
+{
+  "name": "atf-syntax",
+  "displayName": "ATF — Advanced Title Formatting",
+  "description": "Syntax highlighting, WACUP-accurate linting, hovers, completion and lossless formatting for WACUP / Winamp Advanced Title Formatting (ATF / tagz) strings.",
+  "author": {
+    "name": "GhostPirateBob",
+    "url": "https://github.com/GhostPirateBob"
+  },
+  "version": "0.2.1",
+  "publisher": "GhostPirateBob",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GhostPirateBob/atf-syntax.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GhostPirateBob/atf-syntax/issues"
+  },
+  "homepage": "https://github.com/GhostPirateBob/atf-syntax#readme",
+  "qna": "https://github.com/GhostPirateBob/atf-syntax/issues",
+  "pricing": "Free",
+  "galleryBanner": {
+    "color": "#010f17",
+    "theme": "dark"
+  },
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Formatters"
+  ],
+  "keywords": [
+    "atf",
+    "advanced title formatting",
+    "tagz",
+    "wacup",
+    "winamp",
+    "title formatting",
+    "playlist"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out/*.js",
+    "syntaxes/atf.tmLanguage.json",
+    "language-configuration.json",
+    "images/icon.png",
+    "images/atf-dark.svg",
+    "images/atf-light.svg",
+    "THIRD_PARTY_NOTICES.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "atf",
+        "aliases": [
+          "ATF",
+          "Advanced Title Formatting",
+          "atf"
+        ],
+        "extensions": [
+          ".atf"
+        ],
+        "icon": {
+          "light": "./images/atf-light.svg",
+          "dark": "./images/atf-dark.svg"
+        },
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "atf",
+        "scopeName": "source.atf",
+        "path": "./syntaxes/atf.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "ATF",
+      "properties": {
+        "atf.dialect": {
+          "type": "string",
+          "enum": [
+            "wacup",
+            "winamp"
+          ],
+          "enumDescriptions": [
+            "WACUP 1.99.x: `$if`/`$if2`/`$if3` test for a non-empty string; WACUP-only functions such as `$strbetween` are allowed.",
+            "Classic Winamp 5 tagz: `$if`/`$if2`/`$if3` test whether a `%field%` resolved; WACUP-only functions are errors."
+          ],
+          "default": "wacup",
+          "scope": "resource",
+          "markdownDescription": "Which ATF implementation to lint against. The parser and its error codes are the same for both; they differ in `$if` semantics and the available functions."
+        },
+        "atf.lint.enable": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "Show ATF diagnostics. Highlighting, hovers and completion still work when this is off."
+        },
+        "atf.lint.rules": {
+          "type": "object",
+          "default": {},
+          "scope": "resource",
+          "additionalProperties": false,
+          "properties": {
+            "syntax": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "error",
+              "markdownDescription": "A syntax error. WACUP replaces the whole title with `[SYNTAX ERROR IN FORMATTING STRING (n)]`."
+            },
+            "unknown-function": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "error",
+              "markdownDescription": "Function not in the WACUP/tagz function table; prints `[UNKNOWN FUNCTION -> $name]`."
+            },
+            "removed-function": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "error",
+              "markdownDescription": "Documented but not callable (`$and`, `$greater`, `$fill`)."
+            },
+            "dialect-function": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "error",
+              "markdownDescription": "Function that only exists in the other dialect (e.g. `$strbetween` under `winamp`)."
+            },
+            "arity-strict": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "error",
+              "markdownDescription": "Wrong argument count for `$if`, `$if2`, `$ifgreater`, `$iflonger` or `$IfStrEqual*`; prints `[INVALID $name() SYNTAX]`."
+            },
+            "arity-min": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "warning",
+              "markdownDescription": "Too few arguments; the function silently outputs nothing."
+            },
+            "arity-max": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "warning",
+              "markdownDescription": "Too many arguments; the function silently outputs nothing."
+            },
+            "too-many-args": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "warning",
+              "markdownDescription": "More than 16 arguments; WACUP ignores the rest."
+            },
+            "empty-number": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "warning",
+              "markdownDescription": "An empty numeric argument (e.g. `$left(%artist%,)`), which counts as 0."
+            },
+            "always-true-condition": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "warning",
+              "markdownDescription": "WACUP: `$if($strstr(…),…)` and similar always take the first branch, because the result is never empty."
+            },
+            "always-false-condition": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "warning",
+              "markdownDescription": "Winamp 5: a condition with no `%field%` always takes the else branch."
+            },
+            "get-before-put": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "warning",
+              "markdownDescription": "`$get(x)` before any `$puts`/`$put` sets `x`."
+            },
+            "unknown-field": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "hint",
+              "markdownDescription": "Field not known to WACUP (input plugins may still provide it)."
+            },
+            "cond-without-field": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "hint",
+              "markdownDescription": "`[…]` containing no `%field%`, so it is never displayed."
+            }
+          },
+          "markdownDescription": "Override the severity of individual rules, or turn them `off`, e.g. `{ \"unknown-field\": \"off\", \"get-before-put\": \"error\" }`. The rule id is shown as the diagnostic code."
+        },
+        "atf.format.lineWidth": {
+          "type": "integer",
+          "default": 100,
+          "minimum": 0,
+          "scope": "resource",
+          "markdownDescription": "**Format Document** wraps each format block at top-level boundaries (between `$calls`, `[sections]`, `%fields%` and text) to about this many characters. Lines are joined back with nothing between them, so the result is identical. `0` joins every block onto one line. Blocks with syntax errors are never touched."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "atf.copySingleLine",
+        "title": "Copy Format as Single Line",
+        "category": "ATF"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "atf.copySingleLine",
+          "when": "editorLangId == atf"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "atf.copySingleLine",
+          "when": "editorLangId == atf",
+          "group": "9_cutcopypaste"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "test": "tsc -p . && node --test test/",
+    "package": "npx --yes @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "~1.90.0",
+    "typescript": "^5.9.0"
+  },
+  "extensionKind": [
+    "workspace",
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  }
+}
