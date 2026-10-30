@@ -7,7 +7,7 @@
 #   1. git tag -s vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
 #      The draft job tests, packages and attests the .vsix, then creates a draft release.
 #   2. gh release download vX.Y.Z --pattern '*.vsix'
-#      gpg --armor --detach-sign atf-syntax-X.Y.Z.vsix
+#      gpg --local-user AAA8C53492CF204D5C21FC575964B4371F8298E1 --armor --detach-sign atf-syntax-X.Y.Z.vsix
 #      gh release upload vX.Y.Z atf-syntax-X.Y.Z.vsix.asc
 #   3. gh release edit vX.Y.Z --draft=false
 #      The publish job sends the attested .vsix from the release to the Marketplace, so the
