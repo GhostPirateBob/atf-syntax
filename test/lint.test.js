@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { parse } = require('../out/parser');
 const { lint } = require('../out/lint');
 const { splitBlocks, toLineChar } = require('../out/blocks');
+const { formatBlock } = require('../out/format');
 
 const BOB_LATEST =
   ".  ⇢  $puts(t,$if2(%title%,$filepart(%filename%)))$puts(araw,$if2(%albumartist%,%artist%))$puts(fp,$strstr($replace($replace($lower($get(araw)),'(',' '),' ft',' feat'),' feat'))$puts(a,$trim($ifgreater($get(fp),0,$left($get(araw),$sub($get(fp),1)),$get(araw))))$if($get(a),$abbr($get(a),20) ▹ ,)[$abbr(%album%,13) ▹ ]$iflonger($get(t),30,$left($get(t),29)…,$get(t))";
@@ -71,6 +72,15 @@ test('formats that freeze WACUP', () => {
   assert.deepEqual(rules('$tab(-1)'), ['negative-count']);
   assert.deepEqual(rules('$directory(%filename%,-2)'), ['negative-count']);
   assert.deepEqual(rules('$tab(2)$directory(%filename%,1)$repeat(x,-1)'), []);
+});
+
+test('formats nested deeper than MAX_DEPTH are skipped, not parsed', () => {
+  const nest = (n) => '$trim('.repeat(n) + 'x' + ')'.repeat(n);
+  assert.deepEqual(rules(nest(128)), []);
+  assert.deepEqual(rules(nest(129)), ['too-deep']);
+  assert.deepEqual(rules(nest(20000)), ['too-deep']);
+  assert.deepEqual(rules("'" + '('.repeat(500) + "'"), []);
+  assert.equal(formatBlock(nest(129), { lineWidth: 10 }), undefined);
 });
 
 test('variables, fields, conditionals', () => {

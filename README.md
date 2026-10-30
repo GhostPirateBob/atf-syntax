@@ -23,7 +23,7 @@ code --install-extension gpb.atf-syntax
 
 - **Highlighting**: fields, functions (control flow, variables and the rest are coloured separately), `'literals'`, the `%% $$ ''` escapes, `[conditional]` sections and integer arguments. Bare `(` `)` `]` are marked invalid.
 - **WACUP-accurate errors**: the same error codes as WACUP, plus the culprit, e.g. *no balanced ')' for $puts( — unclosed '[' at column 61*.
-- **17 lint rules**: formats that freeze WACUP, unknown and removed functions, argument counts, empty numeric arguments, always-true/always-false `$if` conditions, `$get` before `$puts`, unknown fields, `[…]` with no field. Each rule's severity is configurable.
+- **18 lint rules**: formats that freeze WACUP, unknown and removed functions, argument counts, empty numeric arguments, always-true/always-false `$if` conditions, `$get` before `$puts`, unknown fields, `[…]` with no field. Each rule's severity is configurable.
 - **Hovers and completion**: signatures and docs after `$`, the field list after `%`. They cover the documented functions and the undocumented WACUP extras (`$strbetween`, `$padout`, `$is_stream`, `$leftbracket()`…).
 - **Lossless formatting**: wraps long formats onto several lines without changing their output.
 - **Copy Format as Single Line**: puts the format at the cursor on the clipboard as one line, ready to paste into WACUP's preferences box.
@@ -107,6 +107,7 @@ Winamp 5's title formatting has the same loops.
 | Rule | Default | What it catches |
 |---|---|---|
 | `syntax` | error | A syntax error (table above). |
+| `too-deep` | warning | Nested more than 128 levels deep; the format isn't checked. |
 | `unknown-function` | error | Function not in WACUP's function table. |
 | `removed-function` | error | Documented but not callable: `$and`, `$greater`, `$fill`. |
 | `dialect-function` | error | Function that only exists in the other dialect. |
@@ -176,7 +177,8 @@ The parser follows WACUP's algorithm: one pass, where each call re-scans its own
 | a 2 KB `.atf` file | ~0.2 ms |
 | a 4.5 MB file (56,000 lines) | ~0.5 s |
 | one 1 MB format string | ~80 ms |
-| nesting 1,000 levels deep (real formats nest under 10) | ~40 ms |
+| nesting 128 levels deep (the limit; real formats nest under 10) | ~5 ms |
+| anything deeper | skipped with a `too-deep` warning |
 
 Diagnostics are debounced while typing, and each document version is parsed once and shared by diagnostics, hovers and the copy command.
 

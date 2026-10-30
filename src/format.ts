@@ -75,7 +75,7 @@ function canBreak(line: string, next: string): boolean {
  */
 export function formatBlock(text: string, options: FormatOptions): string[] | undefined {
   const result = parse(text);
-  if (result.error) return undefined;
+  if (result.error || result.tooDeep) return undefined;
   if (options.lineWidth <= 0) return [text];
   const lines: string[] = [];
   let line = '';

@@ -7,7 +7,7 @@
 
 import { ALWAYS_NONEMPTY, Dialect, FIELD_MAP, FUNCTION_MAP, NEGATIVE_COUNT_FREEZES, NUMERIC_ARGS, REMOVED } from './catalog';
 import { topLevelItems } from './format';
-import { Call, parse, ParseResult, Span, SyntaxErrorCode } from './parser';
+import { Call, MAX_DEPTH, parse, ParseResult, Span, SyntaxErrorCode } from './parser';
 
 /** Diagnostic severity, mapped one-to-one onto VS Code's. */
 export type Severity = 'error' | 'warning' | 'info' | 'hint';
@@ -18,6 +18,7 @@ export type SeveritySetting = Severity | 'off';
 /** Stable rule identifiers, shown as the diagnostic code and used as `atf.lint.rules` keys. */
 export type RuleId =
   | 'syntax'
+  | 'too-deep'
   | 'unknown-function'
   | 'removed-function'
   | 'dialect-function'
@@ -46,6 +47,7 @@ export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
   (
     [
       ['syntax', 'error', 'A syntax error. WACUP replaces the whole title with `[SYNTAX ERROR IN FORMATTING STRING (n)]`.'],
+      ['too-deep', 'warning', `Nested more than ${MAX_DEPTH} levels deep, so the format isn't checked.`],
       ['unknown-function', 'error', 'Function not in the WACUP/tagz function table; prints `[UNKNOWN FUNCTION -> $name]`.'],
       ['removed-function', 'error', 'Documented but not callable (`$and`, `$greater`, `$fill`).'],
       ['dialect-function', 'error', 'Function that only exists in the other dialect (e.g. `$strbetween` under `winamp`).'],
@@ -121,12 +123,16 @@ function canBeEmpty(text: string): boolean {
 /** Lint one format string (one block of an `.atf` file). */
 export function lint(text: string, options: LintOptions = {}): Finding[] {
   const dialect = options.dialect ?? 'wacup';
-  const { error, calls, fields, conds } = options.result ?? parse(text);
+  const { error, calls, fields, conds, tooDeep } = options.result ?? parse(text);
   const out: Finding[] = [];
   const report = (rule: RuleId, span: Span, message: string, code?: SyntaxErrorCode) => {
     const setting = options.rules?.[rule] ?? RULES[rule].severity;
     if (setting !== 'off') out.push({ start: span.start, end: span.end, rule, severity: setting, message, code });
   };
+
+  if (tooDeep) {
+    report('too-deep', tooDeep, `Nested more than ${MAX_DEPTH} levels deep, so this format isn't checked.`);
+  }
 
   if (error) {
     report('syntax', { start: error.start, end: Math.max(error.end, error.start + 1) }, syntaxMessage(error.code, error.reason), error.code);

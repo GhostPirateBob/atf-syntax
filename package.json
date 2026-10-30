@@ -6,7 +6,7 @@
     "name": "GhostPirateBob",
     "url": "https://github.com/GhostPirateBob"
   },
-  "version": "0.2.6",
+  "version": "0.2.7",
   "publisher": "gpb",
   "license": "MIT",
   "repository": {
@@ -119,6 +119,18 @@
               ],
               "default": "error",
               "markdownDescription": "A syntax error. WACUP replaces the whole title with `[SYNTAX ERROR IN FORMATTING STRING (n)]`."
+            },
+            "too-deep": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "warning",
+              "markdownDescription": "Nested more than 128 levels deep, so the format isn't checked."
             },
             "unknown-function": {
               "type": "string",

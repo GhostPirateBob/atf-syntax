@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.7 — 2026-10-30
+
+- Formats nested more than 128 levels deep are skipped with a `too-deep` warning instead of being parsed (very deep nesting used to take seconds, or overflow the stack).
+
 ## 0.2.6 — 2026-10-30
 
 - New error rules for formats that **freeze WACUP**: `replace-empty-search` (`$replace(%album%,,)`) and `negative-count` (`$tab(-1)`, `$directory(path,-1)`); and a warning, `replace-search-may-be-empty`, for a `$replace` search made only of fields or calls.

@@ -82,10 +82,15 @@ export interface ParseResult {
   calls: Call[];
   fields: Field[];
   conds: Cond[];
+  /** Set when the format nests deeper than `MAX_DEPTH`; nothing else is parsed. */
+  tooDeep?: Span;
 }
 
 /** WACUP evaluates at most this many arguments per call. */
 export const MAX_ARGS = 16;
+
+/** Formats nested deeper than this aren't parsed. Real formats nest under 10. */
+export const MAX_DEPTH = 128;
 
 interface Scan {
   ok: boolean;
@@ -238,6 +243,24 @@ class Parser {
   }
 }
 
+/** Offset of the first `(` or `[` nested deeper than `MAX_DEPTH`, or -1. Quotes hide brackets, as in `skip`. */
+function tooDeepAt(s: string): number {
+  let depth = 0;
+  for (let p = 0; p < s.length; p++) {
+    const c = s[p];
+    if (c === "'") {
+      const q = s.indexOf("'", p + 1);
+      if (q < 0) return -1;
+      p = q;
+    } else if (c === '(' || c === '[') {
+      if (++depth > MAX_DEPTH) return p;
+    } else if (c === ')' || c === ']') {
+      depth = Math.max(0, depth - 1);
+    }
+  }
+  return -1;
+}
+
 /**
  * Parse one ATF format string.
  *
@@ -247,6 +270,8 @@ class Parser {
  * An empty string is reported as valid, although WACUP shows error 1 for an empty global format.
  */
 export function parse(s: string): ParseResult {
+  const deep = tooDeepAt(s);
+  if (deep >= 0) return { calls: [], fields: [], conds: [], tooDeep: { start: deep, end: deep + 1 } };
   const parser = new Parser(s);
   const error = s.length === 0 ? undefined : parser.run(0, s.length);
   return { error, calls: parser.calls, fields: parser.fields, conds: parser.conds };
