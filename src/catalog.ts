@@ -69,7 +69,7 @@ export const FUNCTIONS: FunctionInfo[] = [
 
   F('lower', '(a1)', 'Lower case.'),
   F('upper', '(a1)', 'Upper case.'),
-  F('replace', '(a1, a2, a3[, icase])', 'a1 with every a2 replaced by a3. `icase`=1 → case-insensitive (WACUP build 25266+).', { min: 3 }),
+  F('replace', '(a1, a2, a3[, icase])', 'a1 with every a2 replaced by a3. `icase`=1 → case-insensitive (WACUP build 25266+). **An empty a2 freezes WACUP** (the search never advances).', { min: 3 }),
   F('left', '(a1, n)', 'First n characters (same as `$cut`).', { min: 2 }),
   F('cut', '(a1, n)', 'First n characters (same as `$left`). Negative n accepted in WACUP (b25130).', { min: 2 }),
   F('right', '(a1, n)', 'Last n characters.', { min: 2 }),
@@ -100,14 +100,14 @@ export const FUNCTIONS: FunctionInfo[] = [
   F('leftbracket', '()', 'Outputs `(` — a literal parenthesis without quoting. Undocumented.', { only: 'wacup' }),
   F('rightbracket', '()', 'Outputs `)`. Undocumented.', { only: 'wacup' }),
   F('crlf', '()', 'CR LF.'),
-  F('tab', '()', 'Tab character.'),
+  F('tab', '([n])', 'n tab characters (default 1). **A negative n freezes WACUP** (it counts down from -1 through ~4 billion).'),
   F('null', '(…)', 'Outputs nothing (a placeholder).'),
 
   F('filepart', '(path)', 'File name **without path and extension**.'),
   F('filename', '(path)', 'File name with extension (WACUP; classic Winamp strips the extension here too).'),
   F('fileext', '(path)', 'File extension.'),
   F('ext', '(path)', 'File extension.'),
-  F('directory', '(path[, levels])', 'Directory name *levels* up (default 1).'),
+  F('directory', '(path[, levels])', 'Directory name *levels* up (default 1). **A negative levels freezes WACUP** (it counts down from -1 through ~4 billion).'),
   F('pathltrim', '(path, n)', 'Path minus the first n levels.', { min: 2 }),
   F('pathlpart', '(path, n)', 'First n levels of path.', { min: 2 }),
   F('pathrtrim', '(path, n)', 'Path minus the last n levels.', { min: 2 }),
@@ -245,6 +245,12 @@ export const NUMERIC_ARGS: Record<string, number[]> = {
   select: [0],
   char: [0],
 };
+
+/**
+ * 0-based index of a count argument that WACUP (and Winamp 5) loops on with `while (n--)` and no
+ * clamp, so a negative value runs ~4 billion times. `$repeat` and the `$path*` functions clamp.
+ */
+export const NEGATIVE_COUNT_FREEZES: Record<string, number> = { tab: 0, directory: 1 };
 
 /** Functions whose output is never empty — `$if(<one of these>,…)` is always true in WACUP. */
 export const ALWAYS_NONEMPTY = new Set(['strstr', 'strchr', 'strlchr', 'strrchr', 'len', 'add', 'sub', 'mul', 'div', 'mod', 'muldiv', 'min', 'max', 'num', 'dec', 'hex']);

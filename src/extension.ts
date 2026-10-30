@@ -25,6 +25,9 @@ const SEVERITY: Record<Severity, vscode.DiagnosticSeverity> = {
   hint: vscode.DiagnosticSeverity.Hint,
 };
 
+/** Rules whose findings mean the format hangs the player, checked before copying a format out. */
+const FREEZE_RULES = new Set<RuleId>(['replace-empty-search', 'negative-count']);
+
 /** Debounce for re-linting while typing. */
 const LINT_DELAY_MS = 150;
 
@@ -206,6 +209,11 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       await vscode.env.clipboard.writeText(hit.block.text);
+      const freezes = lint(hit.block.text, { result: hit.result }).some((f) => FREEZE_RULES.has(f.rule));
+      if (freezes) {
+        vscode.window.showWarningMessage('ATF: copied, but this format freezes WACUP (see the error in the editor). Fix it before pasting.');
+        return;
+      }
       const note = hit.result.error ? ' (note: it has a syntax error)' : '';
       vscode.window.setStatusBarMessage(`ATF: copied ${hit.block.text.length} characters as one line${note}`, 4000);
     }),

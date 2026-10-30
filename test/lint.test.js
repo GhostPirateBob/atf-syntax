@@ -57,6 +57,22 @@ test('dialect-specific $if truth', () => {
   assert.deepEqual(rules('$puts(x,1)$if($get(x),y,n)', 'wacup'), []);
 });
 
+test('formats that freeze WACUP', () => {
+  for (const dialect of ['wacup', 'winamp']) {
+    assert.deepEqual(rules('$replace(%album%,,)', dialect), ['replace-empty-search']);
+  }
+  assert.deepEqual(rules('$replace(%album%, ,)'), []);
+  assert.deepEqual(rules("$replace(%album%,' ',)"), []);
+  assert.deepEqual(rules('$replace(%title%,%artist% ft,)'), []);
+  assert.deepEqual(rules('$replace(%title%,$len(%artist%),)'), []);
+  assert.deepEqual(rules('$replace(%title%,%artist%,)'), ['replace-search-may-be-empty']);
+  assert.deepEqual(rules('$replace(%title%,[%artist%],)'), ['replace-search-may-be-empty']);
+  assert.deepEqual(rules('$puts(s,-)$replace(%title%,$get(s),)'), ['replace-search-may-be-empty']);
+  assert.deepEqual(rules('$tab(-1)'), ['negative-count']);
+  assert.deepEqual(rules('$directory(%filename%,-2)'), ['negative-count']);
+  assert.deepEqual(rules('$tab(2)$directory(%filename%,1)$repeat(x,-1)'), []);
+});
+
 test('variables, fields, conditionals', () => {
   assert.deepEqual(rules('$get(nope)'), ['get-before-put']);
   assert.deepEqual(rules('$puts(x,$get(x))'), ['get-before-put']);

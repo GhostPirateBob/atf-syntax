@@ -23,7 +23,7 @@ code --install-extension gpb.atf-syntax
 
 - **Highlighting**: fields, functions (control flow, variables and the rest are coloured separately), `'literals'`, the `%% $$ ''` escapes, `[conditional]` sections and integer arguments. Bare `(` `)` `]` are marked invalid.
 - **WACUP-accurate errors**: the same error codes as WACUP, plus the culprit, e.g. *no balanced ')' for $puts( — unclosed '[' at column 61*.
-- **14 lint rules**: unknown and removed functions, argument counts, empty numeric arguments, always-true/always-false `$if` conditions, `$get` before `$puts`, unknown fields, `[…]` with no field. Each rule's severity is configurable.
+- **17 lint rules**: formats that freeze WACUP, unknown and removed functions, argument counts, empty numeric arguments, always-true/always-false `$if` conditions, `$get` before `$puts`, unknown fields, `[…]` with no field. Each rule's severity is configurable.
 - **Hovers and completion**: signatures and docs after `$`, the field list after `%`. They cover the documented functions and the undocumented WACUP extras (`$strbetween`, `$padout`, `$is_stream`, `$leftbracket()`…).
 - **Lossless formatting**: wraps long formats onto several lines without changing their output.
 - **Copy Format as Single Line**: puts the format at the cursor on the clipboard as one line, ready to paste into WACUP's preferences box.
@@ -93,6 +93,15 @@ These are the numbers WACUP prints in `[SYNTAX ERROR IN FORMATTING STRING (n)]`.
 
 A syntax error replaces the **whole** title. Unknown functions (`[UNKNOWN FUNCTION -> $x]`) and wrong argument counts (`[INVALID $if() SYNTAX]`) only replace the call itself.
 
+## Formats that freeze WACUP
+
+Some formats are valid but never finish evaluating, so WACUP stops responding and its crash reporter writes a report. The extension reports these as errors, and **Copy Format as Single Line** warns before you paste one:
+
+- **`$replace` with an empty search**: an empty search matches without moving forward, so the loop never ends. Wrapping the call in `$if()` doesn't help, because ATF evaluates every argument before calling the function. Give a search that might be empty some literal text or a fallback such as `$if2(%artist%,¤)`.
+- **A negative count for `$tab` or `$directory`**: they count down to zero with no check for negatives, so `-1` loops about 4 billion times. (`$repeat` and the `$path*` functions ignore negative counts.)
+
+Winamp 5's title formatting has the same loops.
+
 ## Lint rules
 
 | Rule | Default | What it catches |
@@ -105,6 +114,9 @@ A syntax error replaces the **whole** title. Unknown functions (`[UNKNOWN FUNCTI
 | `arity-min` / `arity-max` | warning | Too few / too many arguments; the function silently outputs nothing. |
 | `too-many-args` | warning | More than 16 arguments; WACUP ignores the rest. |
 | `empty-number` | warning | Empty numeric argument such as `$left(%artist%,)`, which counts as 0. |
+| `replace-empty-search` | error | `$replace(%album%,,)`: an empty search string. **WACUP freezes.** |
+| `replace-search-may-be-empty` | warning | A `$replace` search made only of fields or calls, e.g. `$replace(%title%,%artist%,)`; it freezes WACUP on any track where it is empty. |
+| `negative-count` | error | `$tab(-1)` or `$directory(%filename%,-1)`. **WACUP freezes.** |
 | `always-true-condition` | warning | WACUP: `$if($strstr(…),…)` and similar always take the first branch (`$strstr` returns `"0"`, not empty). |
 | `always-false-condition` | warning | Winamp 5: a condition with no `%field%` always takes the else branch. |
 | `get-before-put` | warning | `$get(x)` before any `$puts`/`$put` sets `x`. |

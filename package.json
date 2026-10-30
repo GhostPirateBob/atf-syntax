@@ -6,7 +6,7 @@
     "name": "GhostPirateBob",
     "url": "https://github.com/GhostPirateBob"
   },
-  "version": "0.2.5",
+  "version": "0.2.6",
   "publisher": "gpb",
   "license": "MIT",
   "repository": {
@@ -215,6 +215,42 @@
               ],
               "default": "warning",
               "markdownDescription": "An empty numeric argument (e.g. `$left(%artist%,)`), which counts as 0."
+            },
+            "replace-empty-search": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "error",
+              "markdownDescription": "`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed."
+            },
+            "replace-search-may-be-empty": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "warning",
+              "markdownDescription": "`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes."
+            },
+            "negative-count": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "error",
+              "markdownDescription": "`$tab(-1)` or `$directory(path,-1)`: a negative count loops ~4 billion times, so WACUP freezes."
             },
             "always-true-condition": {
               "type": "string",

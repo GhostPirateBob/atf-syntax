@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6 — 2026-10-30
+
+- New error rules for formats that **freeze WACUP**: `replace-empty-search` (`$replace(%album%,,)`) and `negative-count` (`$tab(-1)`, `$directory(path,-1)`); and a warning, `replace-search-may-be-empty`, for a `$replace` search made only of fields or calls.
+- Copy Format as Single Line warns when the format would freeze WACUP.
+- Hovers for `$replace`, `$tab` and `$directory` describe the freezes; `$tab` takes an optional count.
+
 ## 0.2.5 — 2026-10-30
 
 - README: Install section with the Marketplace link and `code --install-extension gpb.atf-syntax`.
