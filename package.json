@@ -6,7 +6,7 @@
     "name": "GhostPirateBob",
     "url": "https://github.com/GhostPirateBob"
   },
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "GhostPirateBob",
   "license": "MIT",
   "repository": {
@@ -314,7 +314,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "test": "tsc -p . && node --test test/",
+    "test": "tsc -p . && node --test \"test/*.test.js\"",
     "package": "vsce package",
     "publish": "vsce publish --oidc"
   },

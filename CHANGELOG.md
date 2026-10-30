@@ -1,9 +1,10 @@
 # Changelog
 
-## 0.2.2 — 2026-10-30
+## 0.2.3 — 2026-10-30
 
 - First Visual Studio Marketplace release, published from GitHub Actions with trusted publishing (no access tokens).
 - Release `.vsix` files carry a GitHub build-provenance attestation and a GPG signature (`.asc`).
+- CI runs the tests on Linux, Windows and macOS; the test command works on Node 22 (0.2.2's did not, so it was never published).
 
 ## 0.2.1 — 2026-10-30
 
