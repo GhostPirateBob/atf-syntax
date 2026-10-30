@@ -2,8 +2,8 @@
 
 Language support for **WACUP / Winamp Advanced Title Formatting** (ATF, a.k.a. *tagz*): the format strings behind playlist titles, the song ticker and the taskbar text, such as
 
-<!-- GitHub has no ATF grammar; coffeescript is the closest: it colours $calls as functions, the % of fields, numbers, 'literals' and # comments. -->
-```coffeescript
+<!-- GitHub has no ATF grammar. Fences use lua, the best match across GitHub, VS Code and other renderers, but # isn't a comment in lua and -- starts one, so keep both out of these blocks. -->
+```lua
 [%artist% ▸ ]$if2(%title%,$filepart(%filename%))
 ```
 
@@ -41,29 +41,39 @@ ATF itself has no comments or line breaks, so `.atf` files use a simple conventi
 - a blank line separates formats;
 - consecutive lines are **joined with nothing in between** into one format.
 
-So you can keep a library of formats, with long ones split up for reading. This is `samples/winamp-playlist-titles.atf`, the file in the screenshot:
+So you can keep a library of formats, with long ones split up for reading. These are the three formats in `samples/winamp-playlist-titles.atf`, the file in the screenshot. In the file, the name and example output above each one are `#` comments.
 
-```coffeescript
-# Abbreviated (Artist ▸ Album ▹ Title/Filename)
-#⇢  JAY-Z ▸ The Blueprint2 ▹ Blueprint2
+### Abbreviated (Artist ▸ Album ▹ Title/Filename)
+
+`⇢  JAY-Z ▸ The Blueprint2 ▹ Blueprint2`
+
+```lua
 ⇢  $puts(t,$if2(%title%,$filepart(%filename%)))$puts(araw,$if2(%albumartist%,%artist%))
 $puts(fp,$strstr($replace($replace($lower($get(araw)),'(',' '),' ft',' feat'),' feat'))
 $puts(a,$trim($ifgreater($get(fp),0,$left($get(araw),$sub($get(fp),1)),$get(araw))))
 $if($get(a),$abbr($get(a),20) ▸ ,)[$abbr(%album%,18) ▹ ]
 $iflonger($get(t),30,$left($get(t),29)…,$get(t))
+```
 
-# Default (Artist ▸ Title/Filename)
-# JAY-Z ▸ Blueprint2
+### Default (Artist ▸ Title/Filename)
+
+`JAY-Z ▸ Blueprint2`
+
+```lua
 [%artist% ▸ ]$if2(%title%,$filepart(%filename%))
+```
 
-# Basic (Artist ▸ Album ▹ Title/Filename)
-# JAY-Z ▸ TheBlueprint2 ▹ Blueprint2
+### Basic (Artist ▸ Album ▹ Title/Filename)
+
+`JAY-Z ▸ TheBlueprint2 ▹ Blueprint2`
+
+```lua
 $iflonger(%artist%,9,$left($replace(%artist%, ,),11),%artist%) ▸
 $if(%album%, $iflonger(%album%,11,$left($replace(%album%, ,),13),%album%) ▹ , )
 $if(%title%,$iflonger(%title%,11,$left($replace(%title%, ,),15),%title%),$left($filepart($replace(%filename%, ,)),15))
 ```
 
-Each block is one format string; the comment under each heading shows what it outputs. Hover anything for docs, then use **ATF: Copy Format as Single Line** (editor context menu or Command Palette) to paste it into WACUP.
+Each block is one format string. Hover anything for docs, then use **ATF: Copy Format as Single Line** (editor context menu or Command Palette) to paste it into WACUP.
 
 To use the language for files with other names:
 
