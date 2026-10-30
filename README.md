@@ -7,13 +7,13 @@ Language support for **WACUP / Winamp Advanced Title Formatting** (ATF, a.k.a. *
 [%artist% ▸ ]$if2(%title%,$filepart(%filename%))
 ```
 
-![A WACUP playlist with titles like Foals ▸ MN/B ▹ My Number, built by an ATF format](images/screenshot2.png)
+![A WACUP playlist with titles like Foals ▸ MN/B ▹ My Number, built by an ATF format](https://github.com/GhostPirateBob/atf-syntax/raw/HEAD/images/screenshot2.png)
 
 *The Abbreviated format from [the sample file](#atf-files), running in WACUP's playlist.*
 
 ATF is hard to debug inside the player. One stray character turns every title in the playlist into `[SYNTAX ERROR IN FORMATTING STRING (4)]` and gives no hint where it is. This extension's parser behaves like WACUP's, so it reports the same errors *and* points at the cause.
 
-![samples/winamp-playlist-titles.atf highlighted in VS Code](images/screenshot.png)
+![samples/winamp-playlist-titles.atf highlighted in VS Code](https://github.com/GhostPirateBob/atf-syntax/raw/HEAD/images/screenshot.png)
 
 ## Install
 
@@ -212,15 +212,6 @@ code --install-extension atf-syntax-<version>.vsix
 ```
 
 **F5** opens an Extension Development Host on `samples/`.
-
-## Releases
-
-Publishing a GitHub release runs `.github/workflows/publish.yml`. It tests and packages the extension, attests the build provenance of the `.vsix`, attaches that exact file to the release, and publishes it to the Visual Studio Marketplace with trusted publishing (OIDC, no tokens). Tags and commits are GPG-signed, and each release `.vsix` also has a detached GPG signature (`.asc`). To verify a download:
-
-```sh
-gh attestation verify atf-syntax-<version>.vsix --repo GhostPirateBob/atf-syntax
-gpg --verify atf-syntax-<version>.vsix.asc atf-syntax-<version>.vsix
-```
 
 The extension has no runtime dependencies beyond VS Code itself. See `THIRD_PARTY_NOTICES.md` for the icon attribution.
 
