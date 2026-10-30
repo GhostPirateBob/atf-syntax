@@ -2,11 +2,14 @@
 
 Language support for **WACUP / Winamp Advanced Title Formatting** (ATF, a.k.a. *tagz*): the format strings behind playlist titles, the song ticker and the taskbar text, such as
 
-```
-[%artist% - ]$if2(%title%,$filepart(%filename%))
+<!-- GitHub has no ATF grammar; coffeescript is the closest: it colours $calls as functions, the % of fields, numbers, 'literals' and # comments. -->
+```coffeescript
+[%artist% ▸ ]$if2(%title%,$filepart(%filename%))
 ```
 
 ATF is hard to debug inside the player. One stray character turns every title in the playlist into `[SYNTAX ERROR IN FORMATTING STRING (4)]` and gives no hint where it is. This extension's parser behaves like WACUP's, so it reports the same errors *and* points at the cause.
+
+![samples/winamp-playlist-titles.atf highlighted in VS Code](images/screenshot.png)
 
 ## Features
 
@@ -26,28 +29,29 @@ ATF itself has no comments or line breaks, so `.atf` files use a simple conventi
 - a blank line separates formats;
 - consecutive lines are **joined with nothing in between** into one format.
 
-So you can keep a library of formats, with long ones split up for reading:
+So you can keep a library of formats, with long ones split up for reading. This is `samples/winamp-playlist-titles.atf`, the file in the screenshot:
 
-```atf
-# Album-artist aware, with bitrate block and star rating
-[$if2(%albumartist%,%artist%) - ][%album% - ]
-$IfStrNotEqual(%artist%,$if2(%albumartist%,%artist%),[%artist% - ])
-[%title%]
-[$if($fileext(%filename%),'   [  ',)]
-[%year%  |  ][$fileext(%filename%) ][$if(%bitrate%, '|'  ,)][%bitrate% 'kbps' ]
-[$if($fileext(%filename%),']',)]
-[   $repeat(*,%rating%) ]
-
-# Artist ▹ Album ▹ Title, dropping " feat. …" from the artist
-.  ⇢  $puts(t,$if2(%title%,$filepart(%filename%)))
-$puts(araw,$if2(%albumartist%,%artist%))
+```coffeescript
+# Abbreviated (Artist ▸ Album ▹ Title/Filename)
+#⇢  JAY-Z ▸ The Blueprint2 ▹ Blueprint2
+⇢  $puts(t,$if2(%title%,$filepart(%filename%)))$puts(araw,$if2(%albumartist%,%artist%))
 $puts(fp,$strstr($replace($replace($lower($get(araw)),'(',' '),' ft',' feat'),' feat'))
 $puts(a,$trim($ifgreater($get(fp),0,$left($get(araw),$sub($get(fp),1)),$get(araw))))
-$if($get(a),$abbr($get(a),20) ▹ ,)[$abbr(%album%,13) ▹ ]
+$if($get(a),$abbr($get(a),20) ▸ ,)[$abbr(%album%,18) ▹ ]
 $iflonger($get(t),30,$left($get(t),29)…,$get(t))
+
+# Default (Artist ▸ Title/Filename)
+# JAY-Z ▸ Blueprint2
+[%artist% ▸ ]$if2(%title%,$filepart(%filename%))
+
+# Basic (Artist ▸ Album ▹ Title/Filename)
+# JAY-Z ▸ TheBlueprint2 ▹ Blueprint2
+$iflonger(%artist%,9,$left($replace(%artist%, ,),11),%artist%) ▸
+$if(%album%, $iflonger(%album%,11,$left($replace(%album%, ,),13),%album%) ▹ , )
+$if(%title%,$iflonger(%title%,11,$left($replace(%title%, ,),15),%title%),$left($filepart($replace(%filename%, ,)),15))
 ```
 
-Each block above is one format string. Hover anything for docs, then use **ATF: Copy Format as Single Line** (editor context menu or Command Palette) to paste it into WACUP.
+Each block is one format string; the comment under each heading shows what it outputs. Hover anything for docs, then use **ATF: Copy Format as Single Line** (editor context menu or Command Palette) to paste it into WACUP.
 
 To use the language for files with other names:
 
@@ -57,7 +61,7 @@ To use the language for files with other names:
 
 ## Formatting
 
-In ATF every space is output, so there's no indenting or re-spacing. **Format Document** only changes *where a block is split into lines*: it breaks between top-level constructs (`$calls`, `[sections]`, `%fields%`, `'literals'` and text runs) to fit `atf.format.lineWidth`, as in the second example above. A break is never made:
+In ATF every space is output, so there's no indenting or re-spacing. **Format Document** only changes *where a block is split into lines*: it breaks between top-level constructs (`$calls`, `[sections]`, `%fields%`, `'literals'` and text runs) to fit `atf.format.lineWidth`, like the first block above. A break is never made:
 
 - next to a space, because editors trim trailing whitespace on save;
 - where the next line would start with `#` and become a comment;

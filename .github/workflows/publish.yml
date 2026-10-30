@@ -1,5 +1,6 @@
 # Publishes to the Visual Studio Marketplace with trusted publishing (OIDC): no PAT needed.
-# The Marketplace policy trusts GhostPirateBob/atf-syntax + this exact filename (publish.yml),
+# The policy lives on Marketplace publisher `gpb` (must match package.json "publisher") and
+# trusts GhostPirateBob/atf-syntax + this exact filename (publish.yml),
 # with no GitHub environment, so keep the name and don't add `environment:`.
 #
 # On a published GitHub release it also attests build provenance for the .vsix and uploads

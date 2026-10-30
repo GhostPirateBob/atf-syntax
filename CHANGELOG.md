@@ -1,10 +1,16 @@
 # Changelog
 
-## 0.2.3 — 2026-10-30
+## 0.2.4 — 2026-10-30
 
 - First Visual Studio Marketplace release, published from GitHub Actions with trusted publishing (no access tokens).
+- Publisher ID is now `gpb`, so the extension ID is `gpb.atf-syntax`. If you installed an earlier `.vsix`, uninstall `GhostPirateBob.atf-syntax`.
+- README: a screenshot, and `samples/winamp-playlist-titles.atf` as the one worked example.
+
+## 0.2.3 — 2026-10-30
+
 - Release `.vsix` files carry a GitHub build-provenance attestation and a GPG signature (`.asc`).
 - CI runs the tests on Linux, Windows and macOS; the test command works on Node 22 (0.2.2's did not, so it was never published).
+- Not published to the Marketplace: `package.json` named a publisher ID that doesn't exist. Fixed in 0.2.4.
 
 ## 0.2.1 — 2026-10-30
 
