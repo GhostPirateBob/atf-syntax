@@ -11,6 +11,14 @@ ATF is hard to debug inside the player. One stray character turns every title in
 
 ![samples/winamp-playlist-titles.atf highlighted in VS Code](images/screenshot.png)
 
+## Install
+
+From the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax), or:
+
+```sh
+code --install-extension gpb.atf-syntax
+```
+
 ## Features
 
 - **Highlighting**: fields, functions (control flow, variables and the rest are coloured separately), `'literals'`, the `%% $$ ''` escapes, `[conditional]` sections and integer arguments. Bare `(` `)` `]` are marked invalid.

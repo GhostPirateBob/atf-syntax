@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.5 — 2026-10-30
+
+- README: Install section with the Marketplace link and `code --install-extension gpb.atf-syntax`.
+
 ## 0.2.4 — 2026-10-30
 
 - First Visual Studio Marketplace release, published from GitHub Actions with trusted publishing (no access tokens).
