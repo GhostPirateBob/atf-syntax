@@ -52,6 +52,14 @@ test('function arity and availability', () => {
   assert.deepEqual(rules(many), ['too-many-args']);
 });
 
+test('argument counts WACUP accepts are not flagged', () => {
+  for (const f of ['$div(7)', '$mod(7)', '$div(7,2,2)', '$if3(x)', '$pathltrim(a)', '$pathlpart(a)', '$pathrtrim(a)', '$pathrpart(a)']) {
+    assert.deepEqual(rules(f), [], f);
+  }
+  assert.deepEqual(rules('$split(a/b,/)'), ['arity-min']);
+  assert.deepEqual(rules('$split(a/b,/,1,x)'), ['arity-max']);
+});
+
 test('dialect-specific $if truth', () => {
   assert.deepEqual(rules('$if($strstr(%artist%,feat),y,n)', 'wacup'), ['always-true-condition']);
   assert.deepEqual(rules('$if($get(x),y,n)', 'winamp'), ['always-false-condition', 'get-before-put']);
