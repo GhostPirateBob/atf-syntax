@@ -3,11 +3,21 @@
 # trusts GhostPirateBob/atf-syntax + this exact filename (publish.yml),
 # with no GitHub environment, so keep the name and don't add `environment:`.
 #
-# On a published GitHub release it also attests build provenance for the .vsix and uploads
-# that exact file to the release, so the release asset is byte-identical to what was published.
+# Releases are immutable, so assets must be attached before publishing:
+#   1. git tag -s vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
+#      The draft job tests, packages and attests the .vsix, then creates a draft release.
+#   2. gh release download vX.Y.Z --pattern '*.vsix'
+#      gpg --armor --detach-sign atf-syntax-X.Y.Z.vsix
+#      gh release upload vX.Y.Z atf-syntax-X.Y.Z.vsix.asc
+#   3. gh release edit vX.Y.Z --draft=false
+#      The publish job sends the attested .vsix from the release to the Marketplace, so the
+#      release asset is byte-identical to what was published. To retry: gh workflow run
+#      publish.yml --ref vX.Y.Z
 name: Publish
 
 on:
+  push:
+    tags: ['v*']
   release:
     types: [published]
   workflow_dispatch:
@@ -16,7 +26,8 @@ permissions:
   contents: read
 
 jobs:
-  publish:
+  draft:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -39,11 +50,12 @@ jobs:
         id: meta
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - name: Check the release tag matches package.json
-        if: github.event_name == 'release'
+      - name: Check the tag matches package.json
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          if [ "${GITHUB_REF_NAME}" != "v${{ steps.meta.outputs.version }}" ]; then
-            echo "::error::Release tag ${GITHUB_REF_NAME} does not match package.json version ${{ steps.meta.outputs.version }}"
+          if [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${VERSION}"
             exit 1
           fi
 
@@ -55,11 +67,55 @@ jobs:
         with:
           subject-path: atf-syntax-${{ steps.meta.outputs.version }}.vsix
 
-      - name: Upload the .vsix to the release
-        if: github.event_name == 'release'
+      - name: Write the release notes
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          awk -v heading="## ${VERSION} " 'index($0, heading) == 1 { found = 1; next } /^## / && found { exit } found' CHANGELOG.md > notes.md
+          cat >> notes.md <<EOF
+
+          ### Verify
+          The \`.vsix\` attached here is the exact file published to the Marketplace. It has a GitHub build-provenance attestation and a GPG signature from key \`AAA8C53492CF204D5C21FC575964B4371F8298E1\` (the same key that signs the \`${GITHUB_REF_NAME}\` tag):
+          \`\`\`
+          gh attestation verify atf-syntax-${VERSION}.vsix --repo ${GITHUB_REPOSITORY}
+          gpg --verify atf-syntax-${VERSION}.vsix.asc atf-syntax-${VERSION}.vsix
+          \`\`\`
+
+          Not affiliated with or endorsed by WACUP or Winamp.
+          EOF
+
+      - name: Create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" "atf-syntax-${{ steps.meta.outputs.version }}.vsix" --clobber
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: gh release create "${GITHUB_REF_NAME}" "atf-syntax-${VERSION}.vsix" --draft --verify-tag --title "${GITHUB_REF_NAME}" --notes-file notes.md
+
+  publish:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download the attested .vsix from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${GITHUB_REF_NAME}" --pattern '*.vsix'
+
+      - name: Verify its build provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh attestation verify atf-syntax-*.vsix --repo "${GITHUB_REPOSITORY}"
 
       - name: Publish to the Visual Studio Marketplace
-        run: npx vsce publish --oidc --packagePath "atf-syntax-${{ steps.meta.outputs.version }}.vsix"
+        run: npx vsce publish --oidc --packagePath atf-syntax-*.vsix
