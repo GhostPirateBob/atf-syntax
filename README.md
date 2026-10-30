@@ -7,6 +7,10 @@ Language support for **WACUP / Winamp Advanced Title Formatting** (ATF, a.k.a. *
 [%artist% ▸ ]$if2(%title%,$filepart(%filename%))
 ```
 
+![A WACUP playlist with titles like Foals ▸ MN/B ▹ My Number, built by an ATF format](images/screenshot2.png)
+
+*The Abbreviated format from [the sample file](#atf-files), running in WACUP's playlist.*
+
 ATF is hard to debug inside the player. One stray character turns every title in the playlist into `[SYNTAX ERROR IN FORMATTING STRING (4)]` and gives no hint where it is. This extension's parser behaves like WACUP's, so it reports the same errors *and* points at the cause.
 
 ![samples/winamp-playlist-titles.atf highlighted in VS Code](images/screenshot.png)
