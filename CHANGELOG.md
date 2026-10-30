@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.8 — 2026-10-31
+
+- Renamed to **ATF (Advanced Title Formatting)**, with a clearer description and more Marketplace keywords.
+- Hovers checked against WACUP's own evaluator, which corrects `$split` (`which` n returns everything after the n-th token), `$rating` (a non-zero `star_mode` means `*`, not the other way round), `$substr` (the third argument is a length), `$char` (not limited to the BMP), `$tab()` (outputs nothing) and `$pathrtrim` (unreliable), and documents `$select`, `$pathsafe`, `$bitdepth`, `$fileext`/`$ext` (upper-cased) and which comparisons ignore case.
+- `$div` and `$mod` take any number of arguments, `$if3` needs only one, and the `$path*` functions default to 1 level, so these no longer get a false `arity-min` warning. `$split` with more than 3 arguments now gets `arity-max`.
+
 ## 0.2.7 — 2026-10-30
 
 - Formats nested more than 128 levels deep are skipped with a `too-deep` warning instead of being parsed (very deep nesting used to take seconds, or overflow the stack).
