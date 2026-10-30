@@ -1,7 +1,7 @@
 {
   "name": "atf-syntax",
-  "displayName": "ATF — Advanced Title Formatting",
-  "description": "Syntax highlighting, WACUP-accurate linting, hovers, completion and lossless formatting for WACUP / Winamp Advanced Title Formatting (ATF / tagz) strings.",
+  "displayName": "ATF (Advanced Title Formatting)",
+  "description": "Winamp / WACUP title formatting: syntax highlighting, a lossless formatter and a WACUP-accurate linter, with hovers and completion for ATF / tagz strings.",
   "author": {
     "name": "GhostPirateBob",
     "url": "https://github.com/GhostPirateBob"
@@ -39,7 +39,17 @@
     "wacup",
     "winamp",
     "title formatting",
-    "playlist"
+    "title format",
+    "titlefmt",
+    "playlist",
+    "playlist titles",
+    "syntax highlighting",
+    "formatter",
+    "linter",
+    "music",
+    "media player",
+    "metadata",
+    "id3"
   ],
   "main": "./out/extension.js",
   "files": [
