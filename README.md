@@ -174,6 +174,15 @@ code --install-extension atf-syntax-<version>.vsix
 
 **F5** opens an Extension Development Host on `samples/`.
 
+## Releases
+
+Publishing a GitHub release runs `.github/workflows/publish.yml`. It tests and packages the extension, attests the build provenance of the `.vsix`, attaches that exact file to the release, and publishes it to the Visual Studio Marketplace with trusted publishing (OIDC, no tokens). Tags and commits are GPG-signed, and each release `.vsix` also has a detached GPG signature (`.asc`). To verify a download:
+
+```sh
+gh attestation verify atf-syntax-<version>.vsix --repo GhostPirateBob/atf-syntax
+gpg --verify atf-syntax-<version>.vsix.asc atf-syntax-<version>.vsix
+```
+
 The extension has no runtime dependencies beyond VS Code itself. See `THIRD_PARTY_NOTICES.md` for the icon attribution.
 
 ## Disclaimer

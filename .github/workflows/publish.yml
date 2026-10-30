@@ -1,0 +1,64 @@
+# Publishes to the Visual Studio Marketplace with trusted publishing (OIDC): no PAT needed.
+# The Marketplace policy trusts GhostPirateBob/atf-syntax + this exact filename (publish.yml),
+# with no GitHub environment, so keep the name and don't add `environment:`.
+#
+# On a published GitHub release it also attests build provenance for the .vsix and uploads
+# that exact file to the release, so the release asset is byte-identical to what was published.
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Read version
+        id: meta
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check the release tag matches package.json
+        if: github.event_name == 'release'
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "v${{ steps.meta.outputs.version }}" ]; then
+            echo "::error::Release tag ${GITHUB_REF_NAME} does not match package.json version ${{ steps.meta.outputs.version }}"
+            exit 1
+          fi
+
+      - name: Package
+        run: npx vsce package --out "atf-syntax-${{ steps.meta.outputs.version }}.vsix"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: atf-syntax-${{ steps.meta.outputs.version }}.vsix
+
+      - name: Upload the .vsix to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" "atf-syntax-${{ steps.meta.outputs.version }}.vsix" --clobber
+
+      - name: Publish to the Visual Studio Marketplace
+        run: npx vsce publish --oidc --packagePath "atf-syntax-${{ steps.meta.outputs.version }}.vsix"

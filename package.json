@@ -6,7 +6,7 @@
     "name": "GhostPirateBob",
     "url": "https://github.com/GhostPirateBob"
   },
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "GhostPirateBob",
   "license": "MIT",
   "repository": {
@@ -315,11 +315,13 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "tsc -p . && node --test test/",
-    "package": "npx --yes @vscode/vsce package"
+    "package": "vsce package",
+    "publish": "vsce publish --oidc"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "~1.90.0",
+    "@vscode/vsce": "^4.1.0",
     "typescript": "^5.9.0"
   },
   "extensionKind": [
