@@ -185,9 +185,8 @@ Diagnostics are debounced while typing, and each document version is parsed once
 ## Known limitations
 
 - The linter checks structure, not output. It doesn't evaluate formats, so it can't catch logic errors like a wrong `$left` length.
-- Several WACUP extras (`$rating`, `$bitdepth`, `$select`, `$split`, `$pathsafe`) are undocumented; their hovers say what is known.
 - The `%length%` unit depends on where the format is used (`m:ss` in the WACUP playlist, milliseconds in Winamp 5 and WACUP's taskbar text).
-- WACUP shows error 1 for an empty global format; empty `.atf` blocks don't exist, so this is never reported.
+- Hovers and argument rules were checked by running formats through the evaluator in WACUP 1.99.43.23234, except `$rating` and `$bitdepth`, which need a running WACUP, so theirs come from reading its code. Notes that cite newer builds (such as `$replace`'s case-insensitive argument, b25266) come from the changelog.
 
 ## Development
 
