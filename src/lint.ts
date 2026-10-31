@@ -42,7 +42,7 @@ export interface RuleInfo {
   description: string;
 }
 
-/** Every rule with its default severity. The README and the settings schema mirror this table. */
+/** Every rule with its default severity. The wiki's Lint Rules page and the settings schema mirror this table. */
 export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
   (
     [

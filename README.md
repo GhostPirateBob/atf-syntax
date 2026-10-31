@@ -26,12 +26,14 @@ code --install-extension gpb.atf-syntax
 ## Features
 
 - **Highlighting**: fields, functions (control flow, variables and the rest are coloured separately), `'literals'`, the `%% $$ ''` escapes, `[conditional]` sections and integer arguments. Bare `(` `)` `]` are marked invalid.
-- **WACUP-accurate errors**: the same error codes as WACUP, plus the culprit, e.g. *no balanced ')' for $puts( — unclosed '[' at column 61*.
-- **18 lint rules**: formats that freeze WACUP, unknown and removed functions, argument counts, empty numeric arguments, always-true/always-false `$if` conditions, `$get` before `$puts`, unknown fields, `[…]` with no field. Each rule's severity is configurable.
+- **WACUP-accurate errors**: the same error codes as WACUP, plus the culprit, e.g. *no balanced ')' for $puts( — unclosed '[' at column 61*. [All error codes](https://github.com/GhostPirateBob/atf-syntax/wiki/Error-Codes).
+- **18 lint rules**: formats that freeze WACUP, unknown and removed functions, argument counts, empty numeric arguments, always-true/always-false `$if` conditions, `$get` before `$puts`, unknown fields, `[…]` with no field. Each rule's severity is configurable. [All rules](https://github.com/GhostPirateBob/atf-syntax/wiki/Lint-Rules).
 - **Hovers and completion**: signatures and docs after `$`, the field list after `%`. They cover the documented functions and the undocumented WACUP extras (`$strbetween`, `$padout`, `$is_stream`, `$leftbracket()`…).
-- **Lossless formatting**: wraps long formats onto several lines without changing their output.
+- **Lossless formatting**: wraps long formats onto several lines without changing their output. [How it works](https://github.com/GhostPirateBob/atf-syntax/wiki/Formatting).
 - **Copy Format as Single Line**: puts the format at the cursor on the clipboard as one line, ready to paste into WACUP's preferences box.
 - **Two dialects**: WACUP 1.99.x (default) and classic Winamp 5.
+
+**Some formats freeze WACUP**, like an empty search in `$replace` or a negative count in `$tab`. The linter marks these as errors, and [the wiki explains why](https://github.com/GhostPirateBob/atf-syntax/wiki/Formats-That-Freeze-WACUP).
 
 ## `.atf` files
 
@@ -81,63 +83,6 @@ To use the language for files with other names:
 "files.associations": { "*-atf.pl": "atf" }
 ```
 
-## Formatting
-
-In ATF every space is output, so there's no indenting or re-spacing. **Format Document** only changes *where a block is split into lines*: it breaks between top-level constructs (`$calls`, `[sections]`, `%fields%`, `'literals'` and text runs) to fit `atf.format.lineWidth`, like the first block above. A break is never made:
-
-- next to a space, because editors trim trailing whitespace on save;
-- where the next line would start with `#` and become a comment;
-- in a block with a syntax error, which is left exactly as written.
-
-The tests check that joining the formatted lines gives back the original string, for the sample file and thousands of random formats, and that formatting twice changes nothing. `"atf.format.lineWidth": 0` joins every block onto one line.
-
-## Error codes
-
-These are the numbers WACUP prints in `[SYNTAX ERROR IN FORMATTING STRING (n)]`. Neither WACUP nor Winamp documents them; this table describes what WACUP 1.99.43 reports.
-
-| Code | Meaning | Typical cause |
-|---|---|---|
-| 2 | `%` with no closing `%` (WACUP shows `[TRUNCATED FORMATTING STRING…]`) | `%artist - ` |
-| 3 | `$name` with no `(` | `$if2` at the end of the string |
-| 4 | `$name(` with no balanced `)` | a missing `)`, or a stray `[` or `'` inside the call |
-| 6 | an argument with an unbalanced `(`/`[`/quote | |
-| 7 | `'` with no closing `'` | `'abc` |
-| 8 | `[` with no balanced `]` | `[%album% - ` |
-| 9 | bare `]`, `(` or `)` in text | `feat)`: write `')'` or `$rightbracket()` |
-
-A syntax error replaces the **whole** title. Unknown functions (`[UNKNOWN FUNCTION -> $x]`) and wrong argument counts (`[INVALID $if() SYNTAX]`) only replace the call itself.
-
-## Formats that freeze WACUP
-
-Some formats are valid but never finish evaluating, so WACUP stops responding and its crash reporter writes a report. The extension reports these as errors, and **Copy Format as Single Line** warns before you paste one:
-
-- **`$replace` with an empty search**: an empty search matches without moving forward, so the loop never ends. Wrapping the call in `$if()` doesn't help, because ATF evaluates every argument before calling the function. Give a search that might be empty some literal text or a fallback such as `$if2(%artist%,¤)`.
-- **A negative count for `$tab` or `$directory`**: they count down to zero with no check for negatives, so `-1` loops about 4 billion times. (`$repeat` and the `$path*` functions ignore negative counts.)
-
-Winamp 5's title formatting has the same loops.
-
-## Lint rules
-
-| Rule | Default | What it catches |
-|---|---|---|
-| `syntax` | error | A syntax error (table above). |
-| `too-deep` | warning | Nested more than 128 levels deep; the format isn't checked. |
-| `unknown-function` | error | Function not in WACUP's function table. |
-| `removed-function` | error | Documented but not callable: `$and`, `$greater`, `$fill`. |
-| `dialect-function` | error | Function that only exists in the other dialect. |
-| `arity-strict` | error | Wrong argument count for `$if`, `$if2`, `$ifgreater`, `$iflonger`, `$IfStrEqual*`. |
-| `arity-min` / `arity-max` | warning | Too few / too many arguments; the function silently outputs nothing. |
-| `too-many-args` | warning | More than 16 arguments; WACUP ignores the rest. |
-| `empty-number` | warning | Empty numeric argument such as `$left(%artist%,)`, which counts as 0. |
-| `replace-empty-search` | error | `$replace(%album%,,)`: an empty search string. **WACUP freezes.** |
-| `replace-search-may-be-empty` | warning | A `$replace` search made only of fields or calls, e.g. `$replace(%title%,%artist%,)`; it freezes WACUP on any track where it is empty. |
-| `negative-count` | error | `$tab(-1)` or `$directory(%filename%,-1)`. **WACUP freezes.** |
-| `always-true-condition` | warning | WACUP: `$if($strstr(…),…)` and similar always take the first branch (`$strstr` returns `"0"`, not empty). |
-| `always-false-condition` | warning | Winamp 5: a condition with no `%field%` always takes the else branch. |
-| `get-before-put` | warning | `$get(x)` before any `$puts`/`$put` sets `x`. |
-| `unknown-field` | hint | Field not known to WACUP; input plugins may still provide it. |
-| `cond-without-field` | hint | `[…]` containing no `%field%`, so it never shows. |
-
 ## Settings
 
 | Setting | Default | |
@@ -147,71 +92,15 @@ Winamp 5's title formatting has the same loops.
 | `atf.lint.rules` | `{}` | Per-rule severity: `"error"`, `"warning"`, `"info"`, `"hint"` or `"off"`, e.g. `{ "unknown-field": "off" }`. |
 | `atf.format.lineWidth` | `100` | Wrap width for Format Document; `0` joins each block onto one line. |
 
-## Colours
-
-The grammar uses standard TextMate scopes, so every theme colours it. To fine-tune, these are the ATF-specific scopes:
-
-| Token | Scope |
-|---|---|
-| `$` of a call | `punctuation.definition.function.atf` |
-| `$if` `$if2` `$iflonger` `$decode` `$select`… | `keyword.control.conditional.atf` |
-| `$puts` `$put` `$get` / variable name | `storage.type.variable.atf` / `variable.other.readwrite.atf` |
-| other functions | `entity.name.function.atf` |
-| `%field%` / its `%` | `variable.other.field.atf` / `punctuation.definition.variable.atf` |
-| `'literal'` | `string.quoted.single.atf` |
-| `%%` `$$` `''` | `constant.character.escape.atf` |
-| `[` `]` | `keyword.other.conditional.atf` |
-| integer argument | `constant.numeric.integer.atf` |
-
-For example, a gold `$` sigil:
-
-```jsonc
-"editor.tokenColorCustomizations": {
-  "textMateRules": [
-    { "scope": "punctuation.definition.function.atf", "settings": { "foreground": "#be9208", "fontStyle": "bold" } }
-  ]
-}
-```
-
-**Material Icon Theme** doesn't use icons that extensions contribute for their languages. To get the ATF file icon there, put `images/atf-dark.svg` in your `.vscode/extensions/icons/` folder as `atf.svg`, then add:
-
-```jsonc
-"material-icon-theme.files.associations": { "*.atf": "../../icons/atf" }
-```
-
-Material caches a copy as `atf~<hash>.svg`; if you later change the SVG, toggle any Material setting so it copies it again.
-
-## Performance
-
-The parser follows WACUP's algorithm: one pass, where each call re-scans its own extent. Measured on Node 26:
-
-| Input | Lint time |
-|---|---|
-| a typical 365-character format | ~45 µs |
-| a 2 KB `.atf` file | ~0.2 ms |
-| a 4.5 MB file (56,000 lines) | ~0.5 s |
-| one 1 MB format string | ~80 ms |
-| nesting 128 levels deep (the limit; real formats nest under 10) | ~5 ms |
-| anything deeper | skipped with a `too-deep` warning |
-
-Diagnostics are debounced while typing, and each document version is parsed once and shared by diagnostics, hovers and the copy command.
-
 ## Known limitations
 
 - The linter checks structure, not output. It doesn't evaluate formats, so it can't catch logic errors like a wrong `$left` length.
 - The `%length%` unit depends on where the format is used (`m:ss` in the WACUP playlist, milliseconds in Winamp 5 and WACUP's taskbar text).
 - Hovers and argument rules were checked by running formats through the evaluator in WACUP 1.99.43.23234, except `$rating` and `$bitdepth`, which need a running WACUP, so theirs come from reading its code. Notes that cite newer builds (such as `$replace`'s case-insensitive argument, b25266) come from the changelog.
 
-## Development
+## More
 
-```sh
-npm install
-npm test            # TypeScript build + node --test (parser, linter, formatter, settings schema)
-npm run package     # → atf-syntax-<version>.vsix
-code --install-extension atf-syntax-<version>.vsix
-```
-
-**F5** opens an Extension Development Host on `samples/`.
+The [wiki](https://github.com/GhostPirateBob/atf-syntax/wiki) has the technical detail, including [token colours](https://github.com/GhostPirateBob/atf-syntax/wiki/Colours), [performance](https://github.com/GhostPirateBob/atf-syntax/wiki/Performance) and [building from source](https://github.com/GhostPirateBob/atf-syntax/wiki/Development).
 
 The extension has no runtime dependencies beyond VS Code itself. See `THIRD_PARTY_NOTICES.md` for the icon attribution.
 
