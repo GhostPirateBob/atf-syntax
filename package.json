@@ -6,7 +6,7 @@
     "name": "GhostPirateBob",
     "url": "https://github.com/GhostPirateBob"
   },
-  "version": "0.2.8",
+  "version": "0.2.9",
   "publisher": "gpb",
   "license": "MIT",
   "repository": {
@@ -27,6 +27,7 @@
   "engines": {
     "vscode": "^1.90.0"
   },
+  "packageManager": "npm@12.2.1",
   "categories": [
     "Programming Languages",
     "Linters",

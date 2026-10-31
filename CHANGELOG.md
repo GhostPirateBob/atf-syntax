@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.9 — 2026-10-31
+
+- GitHub releases have the `.vsix` and its signature attached again, as the same file published to the Marketplace. 0.2.8's release had neither.
+- Build: GitHub Actions updated and pinned to commit hashes, Node 26, and stricter TypeScript checks.
+
 ## 0.2.8 — 2026-10-31
 
 - Renamed to **ATF (Advanced Title Formatting)**, with a clearer description and more Marketplace keywords.
