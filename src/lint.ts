@@ -7,7 +7,7 @@
 
 import { ALWAYS_NONEMPTY, Dialect, FIELD_MAP, FUNCTION_MAP, NEGATIVE_COUNT_FREEZES, NUMERIC_ARGS, REMOVED } from './catalog';
 import { topLevelItems } from './format';
-import { Call, MAX_DEPTH, parse, ParseResult, Span, SyntaxErrorCode } from './parser';
+import { MAX_DEPTH, parse, ParseResult, Span, SyntaxErrorCode } from './parser';
 
 /** Diagnostic severity, mapped one-to-one onto VS Code's. */
 export type Severity = 'error' | 'warning' | 'info' | 'hint';
