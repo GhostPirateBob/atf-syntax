@@ -78,6 +78,7 @@ jobs:
           The \`.vsix\` attached here is the exact file published to the Marketplace. It has a GitHub build-provenance attestation and a GPG signature from key \`AAA8C53492CF204D5C21FC575964B4371F8298E1\` (the same key that signs the \`${GITHUB_REF_NAME}\` tag):
           \`\`\`
           gh attestation verify atf-syntax-${VERSION}.vsix --repo ${GITHUB_REPOSITORY}
+          curl -s https://github.com/${GITHUB_REPOSITORY_OWNER}.gpg | gpg --import
           gpg --verify atf-syntax-${VERSION}.vsix.asc atf-syntax-${VERSION}.vsix
           \`\`\`
 
