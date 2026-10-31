@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 — 2026-10-31
+
+- Releases are immutable: once published, a release's tag and files can't be changed.
+- Release notes say where to get the signing key.
+
 ## 0.2.9 — 2026-10-31
 
 - GitHub releases have the `.vsix` and its signature attached again, as the same file published to the Marketplace. 0.2.8's release had neither.
