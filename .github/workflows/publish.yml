@@ -3,7 +3,7 @@
 # trusts GhostPirateBob/atf-syntax + this exact filename (publish.yml),
 # with no GitHub environment, so keep the name and don't add `environment:`.
 #
-# Releases are immutable, so assets must be attached before publishing:
+# Assets are attached to a draft first, so a release is complete the moment it's published:
 #   1. git tag -s vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
 #      The draft job tests, packages and attests the .vsix, then creates a draft release.
 #   2. gh release download vX.Y.Z --pattern '*.vsix'
@@ -28,17 +28,17 @@ permissions:
 jobs:
   draft:
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
           cache: npm
 
       - run: npm ci
@@ -63,7 +63,7 @@ jobs:
         run: npx vsce package --out "atf-syntax-${{ steps.meta.outputs.version }}.vsix"
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: atf-syntax-${{ steps.meta.outputs.version }}.vsix
 
@@ -92,17 +92,17 @@ jobs:
 
   publish:
     if: github.event_name != 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
       attestations: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
           cache: npm
 
       - run: npm ci
