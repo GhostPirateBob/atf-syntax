@@ -56,9 +56,9 @@ export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
       ['arity-max', 'warning', 'Too many arguments; the function silently outputs nothing.'],
       ['too-many-args', 'warning', 'More than 16 arguments; WACUP ignores the rest.'],
       ['empty-number', 'warning', 'An empty numeric argument (e.g. `$left(%artist%,)`), which counts as 0.'],
-      ['replace-empty-search', 'error', '`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed.'],
-      ['replace-search-may-be-empty', 'warning', '`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes.'],
-      ['negative-count', 'error', '`$tab(-1)` or `$directory(path,-1)`: a negative count loops ~4 billion times, so WACUP freezes.'],
+      ['replace-empty-search', 'error', '`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed. Fixed in WACUP 1.99.56.25334.'],
+      ['replace-search-may-be-empty', 'warning', '`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes. Fixed in WACUP 1.99.56.25334.'],
+      ['negative-count', 'error', '`$tab(-1)` or `$directory(path,-1)`: a negative count loops ~4 billion times, so WACUP freezes. Fixed in WACUP 1.99.57.25452.'],
       ['always-true-condition', 'warning', 'WACUP: `$if($strstr(…),…)` and similar always take the first branch, because the result is never empty.'],
       ['always-false-condition', 'warning', 'Winamp 5: a condition with no `%field%` always takes the else branch.'],
       ['get-before-put', 'warning', '`$get(x)` before any `$puts`/`$put` sets `x`.'],
@@ -67,6 +67,13 @@ export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
     ] as [RuleId, Severity, string][]
   ).map(([id, severity, description]) => [id, { id, severity, description }]),
 ) as Record<RuleId, RuleInfo>;
+
+/** The WACUP build that fixed each freeze (from WACUP's developer, GhostPirateBob/atf-syntax#2). Classic Winamp 5 still freezes. */
+const FREEZE_FIXED_IN: Partial<Record<RuleId, string>> = {
+  'replace-empty-search': '1.99.56.25334',
+  'replace-search-may-be-empty': '1.99.56.25334',
+  'negative-count': '1.99.57.25452',
+};
 
 /** One lint result; offsets are relative to the linted string. */
 export interface Finding extends Span {
@@ -127,6 +134,8 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
   const out: Finding[] = [];
   const report = (rule: RuleId, span: Span, message: string, code?: SyntaxErrorCode) => {
     const setting = options.rules?.[rule] ?? RULES[rule].severity;
+    const fixedIn = dialect === 'wacup' ? FREEZE_FIXED_IN[rule] : undefined;
+    if (fixedIn) message += ` Fixed in WACUP ${fixedIn}.`;
     if (setting !== 'off') out.push({ start: span.start, end: span.end, rule, severity: setting, message, code });
   };
 

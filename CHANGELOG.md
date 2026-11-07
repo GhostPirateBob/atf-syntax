@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- WACUP build notes from WACUP's developer ([#2](https://github.com/GhostPirateBob/atf-syntax/issues/2)): the `$replace` empty-search freeze is fixed in 1.99.56.25334, and the `$tab`/`$directory` negative-count freezes in 1.99.57.25452. Under the `wacup` dialect these lint messages now name the build; they stay errors, since older builds and Winamp 5 still freeze.
+- Hovers: `$replace`'s case-insensitive 4th argument is 1.99.56+; `$cut` takes a negative n from 1.99.55.25130; `$left` only acts on a positive n from 1.99.56.25334, so it's no longer described as the same as `$cut`; `$filepart` left the period in on 1.99.54.24960.
+- README: the technical reference moved to the [wiki](https://github.com/GhostPirateBob/atf-syntax/wiki).
+
 ## 0.3.0 — 2026-10-31
 
 - Releases are immutable: once published, a release's tag and files can't be changed.
