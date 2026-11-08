@@ -82,6 +82,20 @@ test('formats that freeze WACUP', () => {
   assert.deepEqual(rules('$tab(2)$directory(%filename%,1)$repeat(x,-1)'), []);
 });
 
+test('freeze messages name the WACUP build that fixed them, under wacup only', () => {
+  const message = (s, dialect) => lint(s, { dialect })[0].message;
+  const cases = [
+    ['$replace(%album%,,)', '1.99.56.25334'],
+    ['$replace(%title%,%artist%,)', '1.99.56.25334'],
+    ['$tab(-1)', '1.99.57.25452'],
+    ['$directory(%filename%,-2)', '1.99.57.25452'],
+  ];
+  for (const [format, build] of cases) {
+    assert.match(message(format, 'wacup'), new RegExp(`Fixed in WACUP ${build.replaceAll('.', '\\.')}\\.$`), format);
+    assert.doesNotMatch(message(format, 'winamp'), /Fixed in/, format);
+  }
+});
+
 test('formats nested deeper than MAX_DEPTH are skipped, not parsed', () => {
   const nest = (n) => '$trim('.repeat(n) + 'x' + ')'.repeat(n);
   assert.deepEqual(rules(nest(128)), []);

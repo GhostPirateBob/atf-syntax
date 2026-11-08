@@ -249,7 +249,7 @@
                 "off"
               ],
               "default": "error",
-              "markdownDescription": "`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed."
+              "markdownDescription": "`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed. Fixed in WACUP 1.99.56.25334."
             },
             "replace-search-may-be-empty": {
               "type": "string",
@@ -261,7 +261,7 @@
                 "off"
               ],
               "default": "warning",
-              "markdownDescription": "`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes."
+              "markdownDescription": "`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes. Fixed in WACUP 1.99.56.25334."
             },
             "negative-count": {
               "type": "string",
@@ -273,7 +273,7 @@
                 "off"
               ],
               "default": "error",
-              "markdownDescription": "`$tab(-1)` or `$directory(path,-1)`: a negative count loops ~4 billion times, so WACUP freezes."
+              "markdownDescription": "`$tab(-1)` or `$directory(path,-1)`: a negative count loops ~4 billion times, so WACUP freezes. Fixed in WACUP 1.99.57.25452."
             },
             "always-true-condition": {
               "type": "string",
