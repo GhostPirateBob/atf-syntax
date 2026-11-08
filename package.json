@@ -273,7 +273,7 @@
                 "off"
               ],
               "default": "error",
-              "markdownDescription": "`$tab(-1)` or `$directory(path,-1)`: a negative count loops ~4 billion times, so WACUP freezes. Fixed in WACUP 1.99.57.25452."
+              "markdownDescription": "`$tab(-1)`, `$directory(path,-1)` or `$padcut(a,-1)`: a negative count never finishes, so WACUP freezes. `$tab`/`$directory` fixed in WACUP 1.99.57.25452; `$padcut` still freezes in 1.99.57.25464."
             },
             "always-true-condition": {
               "type": "string",

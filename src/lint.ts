@@ -58,7 +58,7 @@ export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
       ['empty-number', 'warning', 'An empty numeric argument (e.g. `$left(%artist%,)`), which counts as 0.'],
       ['replace-empty-search', 'error', '`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed. Fixed in WACUP 1.99.56.25334.'],
       ['replace-search-may-be-empty', 'warning', '`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes. Fixed in WACUP 1.99.56.25334.'],
-      ['negative-count', 'error', '`$tab(-1)` or `$directory(path,-1)`: a negative count loops ~4 billion times, so WACUP freezes. Fixed in WACUP 1.99.57.25452.'],
+      ['negative-count', 'error', '`$tab(-1)`, `$directory(path,-1)` or `$padcut(a,-1)`: a negative count never finishes, so WACUP freezes. `$tab`/`$directory` fixed in WACUP 1.99.57.25452; `$padcut` still freezes in 1.99.57.25464.'],
       ['always-true-condition', 'warning', 'WACUP: `$if($strstr(…),…)` and similar always take the first branch, because the result is never empty.'],
       ['always-false-condition', 'warning', 'Winamp 5: a condition with no `%field%` always takes the else branch.'],
       ['get-before-put', 'warning', '`$get(x)` before any `$puts`/`$put` sets `x`.'],
@@ -72,8 +72,10 @@ export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
 const FREEZE_FIXED_IN: Partial<Record<RuleId, string>> = {
   'replace-empty-search': '1.99.56.25334',
   'replace-search-may-be-empty': '1.99.56.25334',
-  'negative-count': '1.99.57.25452',
 };
+
+/** `negative-count` is fixed per function; `$padcut` still freezes on 1.99.57.25464, the newest build checked. */
+const NEGATIVE_COUNT_FIXED_IN: Record<string, string> = { tab: '1.99.57.25452', directory: '1.99.57.25452' };
 
 /** One lint result; offsets are relative to the linted string. */
 export interface Finding extends Span {
@@ -132,10 +134,9 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
   const dialect = options.dialect ?? 'wacup';
   const { error, calls, fields, conds, tooDeep } = options.result ?? parse(text);
   const out: Finding[] = [];
-  const report = (rule: RuleId, span: Span, message: string, code?: SyntaxErrorCode) => {
+  const report = (rule: RuleId, span: Span, message: string, code?: SyntaxErrorCode, fixedIn = FREEZE_FIXED_IN[rule]) => {
     const setting = options.rules?.[rule] ?? RULES[rule].severity;
-    const fixedIn = dialect === 'wacup' ? FREEZE_FIXED_IN[rule] : undefined;
-    if (fixedIn) message += ` Fixed in WACUP ${fixedIn}.`;
+    if (dialect === 'wacup' && fixedIn) message += ` Fixed in WACUP ${fixedIn}.`;
     if (setting !== 'off') out.push({ start: span.start, end: span.end, rule, severity: setting, message, code });
   };
 
@@ -200,7 +201,10 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
     const countIndex = NEGATIVE_COUNT_FREEZES[name];
     const count = countIndex === undefined ? undefined : call.args[countIndex];
     if (count && /^\s*-0*[1-9]/.test(text.slice(count.start, count.end))) {
-      report('negative-count', count, `A negative count makes $${call.name}() loop ~4 billion times: WACUP freezes or runs out of memory.`);
+      const message = name === 'padcut'
+        ? `A negative length makes $${call.name}() never finish: WACUP freezes, still on 1.99.57.25464.`
+        : `A negative count makes $${call.name}() loop ~4 billion times: WACUP freezes or runs out of memory.`;
+      report('negative-count', count, message, undefined, NEGATIVE_COUNT_FIXED_IN[name]);
     }
 
     const first = call.args[0];

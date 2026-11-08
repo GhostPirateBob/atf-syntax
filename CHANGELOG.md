@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- New freeze: a negative length makes `$padcut` never finish, so WACUP freezes, including the current 1.99.57.25464 (also 1.99.43.23234; checked against WACUP's own evaluator). The `negative-count` rule now flags `$padcut(a,-1)`, with no "Fixed in" build, and **Copy Format as Single Line** warns about it. A sweep of every other count argument with -1 found nothing else.
+- On fixed builds the old freezes now return nothing: `$replace` with an empty search outputs an empty string (not the original text), and `$tab`/`$directory` with a negative count output nothing.
+
 ## 0.3.1 — 2026-11-08
 
 - WACUP build notes from WACUP's developer ([#2](https://github.com/GhostPirateBob/atf-syntax/issues/2)): the `$replace` empty-search freeze is fixed in 1.99.56.25334, and the `$tab`/`$directory` negative-count freezes in 1.99.57.25452. Under the `wacup` dialect these lint messages now name the build; they stay errors, since older builds and Winamp 5 still freeze.
