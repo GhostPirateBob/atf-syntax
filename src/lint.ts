@@ -5,7 +5,7 @@
  * @module lint
  */
 
-import { ALWAYS_NONEMPTY, Dialect, FIELD_MAP, FUNCTION_MAP, NEGATIVE_COUNT_FREEZES, NUMERIC_ARGS, REMOVED } from './catalog';
+import { ALWAYS_NONEMPTY, Dialect, FIELD_MAP, FUNCTION_MAP, NEGATIVE_COUNT_FIXED_IN, NEGATIVE_COUNT_FREEZES, NUMERIC_ARGS, REMOVED } from './catalog';
 import { topLevelItems } from './format';
 import { MAX_DEPTH, parse, ParseResult, Span, SyntaxErrorCode } from './parser';
 
@@ -58,7 +58,7 @@ export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
       ['empty-number', 'warning', 'An empty numeric argument (e.g. `$left(%artist%,)`), which counts as 0.'],
       ['replace-empty-search', 'error', '`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed. Fixed in WACUP 1.99.56.25334.'],
       ['replace-search-may-be-empty', 'warning', '`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes. Fixed in WACUP 1.99.56.25334.'],
-      ['negative-count', 'error', '`$tab(-1)` or `$directory(path,-1)`: a negative count loops ~4 billion times, so WACUP freezes. Fixed in WACUP 1.99.57.25452.'],
+      ['negative-count', 'error', '`$tab(-1)`, `$directory(path,-1)` or `$padcut(x,-1)`: a negative count loops ~4 billion times, so WACUP freezes. `$tab` and `$directory` are fixed in WACUP 1.99.57.25452; `$padcut` still freezes on 1.99.57.25464.'],
       ['always-true-condition', 'warning', 'WACUP: `$if($strstr(…),…)` and similar always take the first branch, because the result is never empty.'],
       ['always-false-condition', 'warning', 'Winamp 5: a condition with no `%field%` always takes the else branch.'],
       ['get-before-put', 'warning', '`$get(x)` before any `$puts`/`$put` sets `x`.'],
@@ -68,11 +68,13 @@ export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
   ).map(([id, severity, description]) => [id, { id, severity, description }]),
 ) as Record<RuleId, RuleInfo>;
 
-/** The WACUP build that fixed each freeze (from WACUP's developer, GhostPirateBob/atf-syntax#2). Classic Winamp 5 still freezes. */
+/**
+ * The WACUP build that fixed each freeze (from WACUP's developer, GhostPirateBob/atf-syntax#2). Classic Winamp 5
+ * still freezes. `negative-count` depends on the function, so it uses {@link NEGATIVE_COUNT_FIXED_IN} instead.
+ */
 const FREEZE_FIXED_IN: Partial<Record<RuleId, string>> = {
   'replace-empty-search': '1.99.56.25334',
   'replace-search-may-be-empty': '1.99.56.25334',
-  'negative-count': '1.99.57.25452',
 };
 
 /** One lint result; offsets are relative to the linted string. */
@@ -132,10 +134,9 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
   const dialect = options.dialect ?? 'wacup';
   const { error, calls, fields, conds, tooDeep } = options.result ?? parse(text);
   const out: Finding[] = [];
-  const report = (rule: RuleId, span: Span, message: string, code?: SyntaxErrorCode) => {
+  const report = (rule: RuleId, span: Span, message: string, code?: SyntaxErrorCode, fixedIn = FREEZE_FIXED_IN[rule]) => {
     const setting = options.rules?.[rule] ?? RULES[rule].severity;
-    const fixedIn = dialect === 'wacup' ? FREEZE_FIXED_IN[rule] : undefined;
-    if (fixedIn) message += ` Fixed in WACUP ${fixedIn}.`;
+    if (dialect === 'wacup' && fixedIn) message += ` Fixed in WACUP ${fixedIn}.`;
     if (setting !== 'off') out.push({ start: span.start, end: span.end, rule, severity: setting, message, code });
   };
 
@@ -200,7 +201,7 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
     const countIndex = NEGATIVE_COUNT_FREEZES[name];
     const count = countIndex === undefined ? undefined : call.args[countIndex];
     if (count && /^\s*-0*[1-9]/.test(text.slice(count.start, count.end))) {
-      report('negative-count', count, `A negative count makes $${call.name}() loop ~4 billion times: WACUP freezes or runs out of memory.`);
+      report('negative-count', count, `A negative count makes $${call.name}() loop ~4 billion times: WACUP freezes or runs out of memory.`, undefined, NEGATIVE_COUNT_FIXED_IN[name]);
     }
 
     const first = call.args[0];

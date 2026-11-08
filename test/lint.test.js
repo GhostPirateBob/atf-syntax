@@ -96,6 +96,14 @@ test('freeze messages name the WACUP build that fixed them, under wacup only', (
   }
 });
 
+test('$padcut with a negative count freezes, and no WACUP build has fixed it', () => {
+  for (const dialect of ['wacup', 'winamp']) {
+    assert.deepEqual(rules('$padcut(%title%,-3)', dialect), ['negative-count']);
+    assert.doesNotMatch(lint('$padcut(%title%,-3)', { dialect })[0].message, /Fixed in/);
+  }
+  assert.deepEqual(rules('$padcut(%title%,3)$padcut(%title%,0)'), []);
+});
+
 test('formats nested deeper than MAX_DEPTH are skipped, not parsed', () => {
   const nest = (n) => '$trim('.repeat(n) + 'x' + ')'.repeat(n);
   assert.deepEqual(rules(nest(128)), []);
