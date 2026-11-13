@@ -51,6 +51,8 @@
     'Helvetica Neue', Arial, sans-serif;
   --title-weight: 350;
   --editor-size: 1.15rem;
+  /* The sticky header on both pages; anchors and search targets scroll clear of it. */
+  --header-h: 50px;
 
   color-scheme: dark;
 }
@@ -154,6 +156,14 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-padding-top: calc(var(--header-h) + 12px);
+}
+/* While the sidebar drawer is open on a phone. */
+html.scroll-locked {
+  overflow: hidden;
+}
+
 html,
 body {
   margin: 0;
@@ -166,6 +176,25 @@ body {
 
 a {
   color: var(--blue);
+  transition: color 0.12s;
+}
+
+/* Switching theme fades the main surfaces (not every element, which would jank). theme-ready is
+   set after the first paint, so nothing fades in on load. */
+html.theme-ready body,
+html.theme-ready .top,
+html.theme-ready .docs-top,
+html.theme-ready .sidebar,
+html.theme-ready .tracks,
+html.theme-ready .box,
+html.theme-ready .pl,
+html.theme-ready .settings,
+html.theme-ready .toc {
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    border-color 0.2s,
+    box-shadow 0.15s;
 }
 
 button,
@@ -183,6 +212,10 @@ button {
   border-radius: 4px;
   padding: 4px 10px;
   color: var(--text);
+  transition:
+    background-color 0.12s,
+    color 0.12s,
+    border-color 0.12s;
 }
 
 button:hover,
@@ -304,6 +337,36 @@ code {
   box-shadow: 0 4px 18px var(--shadow);
   z-index: 50;
   max-width: calc(100vw - 32px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.toast-enter-active {
+  transition:
+    opacity 0.2s ease-out,
+    transform 0.2s ease-out;
+}
+.toast-leave-active {
+  transition: opacity 0.18s ease-in;
+}
+.toast-enter-from {
+  opacity: 0;
+  transform: translate(-50%, 10px);
+}
+.toast-leave-to {
+  opacity: 0;
+}
+.toast-action {
+  flex: none;
+  background: none;
+  border-color: var(--teal);
+  color: var(--bright);
+  font-weight: 600;
+  padding: 2px 10px;
+}
+.toast-action:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
 }
 
 /* Playlist rows draw like WACUP's GDI DrawText: no kerning, ligatures or letter spacing. Set
@@ -313,4 +376,15 @@ code {
   font-kerning: none;
   font-variant-ligatures: none;
   font-feature-settings: 'kern' 0, 'liga' 0, 'clig' 0, 'calt' 0;
+}
+
+/* Less motion: every transition and animation is instant. !important so no component rule wins. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

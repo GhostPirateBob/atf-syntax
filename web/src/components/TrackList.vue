@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, type ComponentPublicInstance } from 'vue'
+import { ClipboardPaste, FileMusic, Folder, Info, RotateCcw } from '@lucide/vue'
+import IconButton from './IconButton.vue'
 import { EDITABLE_TAGS, type Track } from '@/lib/tracks'
 import { parseM3u } from '@/lib/m3u'
 import { AUDIO_EXTENSIONS, PLAYLIST_EXTENSIONS } from '@/lib/audio'
@@ -51,6 +53,9 @@ const sourceLabel = computed(() => {
   return 'samples'
 })
 
+/** Playlist entries without tags read from files: a playlist alone has only paths and lengths. */
+const untagged = computed(() => (props.source === 'playlist' && !props.reading ? props.tracks.length - props.tagged : 0))
+
 const font = computed(() => titleFont(props.view.font, props.view.fontFamily))
 const fontSize = computed(() => clampFontSize(props.view.fontSize))
 const numberPrefix = (i: number) => (props.view.numbers ? `${i + 1}. ` : '')
@@ -92,13 +97,29 @@ function importPasted() {
       <span class="muted count">{{ tracks.length }} {{ sourceLabel }}</span>
       <span v-if="reading" class="count reading" role="status">Reading {{ reading.done }} / {{ reading.total }}…</span>
       <span class="spacer" />
-      <button title="A playlist, audio files, or both" @click="fileInput?.click()">Open files…</button>
-      <button title="Read the tags of every audio file in a folder" @click="folderInput?.click()">Open folder…</button>
-      <button @click="pasting = !pasting">Paste playlist</button>
-      <button v-if="source !== 'sample'" @click="emit('samples')">Back to samples</button>
+      <span class="actions">
+        <IconButton :icon="FileMusic" label="Open files…" title="Open files: a playlist, audio files, or both" @click="fileInput?.click()" />
+        <IconButton :icon="Folder" label="Open folder…" title="Open folder: read the tags of every audio file in a folder" @click="folderInput?.click()" />
+        <IconButton :icon="ClipboardPaste" label="Paste playlist" :aria-expanded="pasting" @click="pasting = !pasting" />
+        <IconButton v-if="source !== 'sample'" :icon="RotateCcw" label="Back to samples" @click="emit('samples')" />
+      </span>
       <input ref="fileInput" type="file" :accept="ACCEPT" multiple hidden @change="onPick" />
       <input ref="folderInput" type="file" webkitdirectory hidden @change="onPick" />
     </header>
+
+    <div v-if="untagged" class="notice" role="status">
+      <Info :size="18" aria-hidden="true" class="notice-icon" />
+      <p v-if="tagged === 0">
+        <strong>No tags yet for {{ untagged }} of {{ tracks.length }} tracks.</strong>
+        Your browser can't open files from the paths in a playlist, so fields like <code>%artist%</code> are empty and <code>$filepart()</code> shows file names.
+        Drop the audio files or their folder here, or <button class="link" @click="folderInput?.click()">Open folder…</button>, to read the tags.
+        Only the files this playlist names are read, and they stay on your computer.
+      </p>
+      <p v-else>
+        <strong>No tags yet for {{ untagged }} of {{ tracks.length }} tracks.</strong>
+        To read their tags, drop their files or folder here, or use <button class="link" @click="folderInput?.click()">Open folder…</button>
+      </p>
+    </div>
 
     <div v-if="pasting" class="paste">
       <textarea v-model="pasted" rows="5" placeholder="#EXTM3U&#10;#EXTINF:223,Artist - Title&#10;D:\Music\Artist\Album\01 Title.mp3" />
@@ -120,7 +141,7 @@ function importPasted() {
                 <template v-else-if="rows[i]?.state === 'heavy'">⚠ too heavy to preview</template>
                 <template v-else>{{ fitted[i] || ' ' }}</template>
               </span>
-              <span class="dur">{{ rows[i]?.duration }}</span>
+              <span v-if="rows[i]?.duration" class="dur">{{ rows[i]?.duration }}</span>
             </span>
           </button>
           <button class="edit" :aria-label="`Edit tags of ${rows[i]?.label}`" @click.stop="editing = editing === i ? null : i">tags</button>
@@ -139,8 +160,7 @@ function importPasted() {
       </li>
     </ol>
     <p class="drop-hint muted">
-      Drop an <code>.m3u8</code> here to see your own tracks. A playlist only has paths and lengths, so fields like <code>%artist%</code> stay empty.
-      Drop the audio files too, or a folder, to read their tags. Your files stay on your computer.
+      Drop an <code>.m3u8</code> here to see your own tracks, with the audio files or their folder to read the tags. Your files stay on your computer.
       Without a playlist, your browser only gives the page file names, not full paths, so <code>%filename%</code> and <code>%folder%</code> start at the folder you picked.
     </p>
   </section>
@@ -176,6 +196,45 @@ h2 {
 }
 .spacer {
   flex: 1;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 10px 0 2px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--info) 45%, var(--border));
+  border-left: 4px solid var(--info);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--info) 9%, var(--panel));
+  color: var(--bright);
+  font-size: 0.88rem;
+  text-align: left;
+}
+.notice p {
+  margin: 0;
+}
+.notice-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--info);
+}
+.notice .link {
+  display: inline;
+  padding: 0 4px;
+  border-color: var(--info);
+  color: var(--bright);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.notice .link:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 1px;
 }
 .paste {
   margin-top: 8px;

@@ -4,13 +4,13 @@ import { createAtfEditor, type AtfEditor } from '@/lib/atfEditor'
 import type { Finding } from '@/core'
 
 const props = defineProps<{ doc: string; findings: Finding[] }>()
-const emit = defineEmits<{ 'update:doc': [doc: string] }>()
+const emit = defineEmits<{ 'update:doc': [doc: string]; format: [] }>()
 
 const host = ref<HTMLDivElement>()
 let editor: AtfEditor | undefined
 
 onMounted(() => {
-  editor = createAtfEditor(host.value!, props.doc, (doc) => emit('update:doc', doc))
+  editor = createAtfEditor(host.value!, props.doc, (doc) => emit('update:doc', doc), { onFormat: () => emit('format') })
   editor.setFindings(props.findings)
 })
 onBeforeUnmount(() => editor?.destroy())
@@ -29,6 +29,8 @@ defineExpose({
   select: (start: number, end: number) => editor?.selectFormatRange(start, end),
   focusRange: (range: { start: number; end: number } | null) => editor?.focusFormatRange(range),
   focus: () => editor?.view.focus(),
+  rewrap: (next: string) => editor?.rewrap(next),
+  charsPerLine: () => editor?.charsPerLine() ?? 0,
 })
 </script>
 

@@ -11,6 +11,8 @@ export interface ViewSettings extends DisplayOptions {
   width: number
   /** WACUP's "1. " playlist numbers in front of each row. */
   numbers: boolean
+  /** The track length on the right of each row. The song ticker has no such column. */
+  duration: boolean
   /** Linter dialect. The preview is always WACUP 1.99.57. */
   dialect: 'wacup' | 'winamp'
 }
@@ -24,6 +26,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   fontSize: 16,
   width: 0,
   numbers: false,
+  duration: true,
   dialect: 'wacup',
 }
 

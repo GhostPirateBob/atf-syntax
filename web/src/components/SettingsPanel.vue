@@ -51,6 +51,7 @@ const label = (name: string, installed: boolean) => (installed ? name : `${name}
     <fieldset>
       <legend>Playlist</legend>
       <label class="check"><input v-model="model.numbers" type="checkbox" /> Playlist numbers <span class="muted">(<code>1.</code> in front of each row)</span></label>
+      <label class="check"><input v-model="model.duration" type="checkbox" /> Duration column <span class="muted">(the length on the right of each row)</span></label>
       <label class="line">
         <span class="name">Width</span>
         <input v-model.number="model.width" type="number" min="0" max="4000" step="10" /> px

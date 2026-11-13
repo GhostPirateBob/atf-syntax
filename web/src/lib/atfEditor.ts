@@ -1,9 +1,9 @@
 import { EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirror/commands'
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint'
 import type { Finding } from '@/core'
-import { docRange, toFormat, type FormatView } from './document'
+import { docPos, docRange, toFormat, type FormatView } from './document'
 import { tokenize } from './tokens'
 
 /** Split a format range into document ranges that skip comment lines. */
@@ -94,13 +94,38 @@ export interface AtfEditor {
   /** Highlight a range of the joined format string, or clear it with `null`. */
   focusFormatRange(range: { start: number; end: number } | null): void
   setFindings(findings: Finding[]): void
+  /**
+   * Replaces the document with an equivalent one (the same format, re-wrapped) as one undo step,
+   * keeping the cursor on the same character of the format.
+   */
+  rewrap(next: string): void
+  /** How many characters fit on one line of the editor. */
+  charsPerLine(): number
   destroy(): void
 }
 
-export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc: string) => void): AtfEditor {
+/** The format offset of a document position: the first format character at or after it. */
+function formatOffset(view: FormatView, pos: number): number {
+  let lo = 0
+  let hi = view.map.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if ((view.map[mid] ?? 0) < pos) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
+
+export interface EditorOptions {
+  /** Shift+Alt+F, VS Code's Format Document. */
+  onFormat?: () => void
+}
+
+export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc: string) => void, options: EditorOptions = {}): AtfEditor {
+  const formatKey = { key: 'Shift-Alt-f', preventDefault: true, run: () => (options.onFormat?.(), true) }
   const extensions: Extension[] = [
     history(),
-    keymap.of([...defaultKeymap, ...historyKeymap]),
+    keymap.of([formatKey, ...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
     placeholder('Type a title format, e.g. [%artist% - ]%title%'),
     highlighter,
@@ -144,6 +169,32 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
         return { from, to, severity: f.severity, message: f.message, source: f.rule }
       })
       view.dispatch(setDiagnostics(view.state, diagnostics))
+    },
+    rewrap(next) {
+      const old = view.state.doc.toString()
+      if (next === old) return
+      const before = toFormat(old)
+      const after = toFormat(next)
+      const move = (pos: number) => Math.min(docPos(after, formatOffset(before, pos)), next.length)
+      // Only the changed middle is replaced, so the edit (and its undo) stays small.
+      let start = 0
+      while (start < old.length && start < next.length && old[start] === next[start]) start++
+      let end = 0
+      while (end < old.length - start && end < next.length - start && old[old.length - 1 - end] === next[next.length - 1 - end]) end++
+      const { anchor, head } = view.state.selection.main
+      view.dispatch({
+        changes: { from: start, to: old.length - end, insert: next.slice(start, next.length - end) },
+        selection: { anchor: move(anchor), head: move(head) },
+        annotations: isolateHistory.of('full'),
+        scrollIntoView: true,
+        userEvent: 'format',
+      })
+    },
+    charsPerLine() {
+      const line = view.contentDOM.querySelector('.cm-line')
+      const style = line ? getComputedStyle(line) : undefined
+      const padding = style ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) : 36
+      return Math.floor((view.contentDOM.clientWidth - padding) / view.defaultCharacterWidth)
     },
     destroy() {
       view.destroy()

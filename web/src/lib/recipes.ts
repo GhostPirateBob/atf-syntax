@@ -7,6 +7,11 @@ export interface Recipe {
   group: 'WACUP defaults' | 'Custom recipes' | 'Patchy tags' | 'Only filenames' | 'Showcase'
   note: string
   format: string
+  /**
+   * A song ticker format: it ends in %length% itself (the ticker has no duration column), so the
+   * preview leaves out its duration column while this recipe is loaded.
+   */
+  ticker?: true
 }
 
 export const RECIPES: Recipe[] = [
@@ -27,6 +32,7 @@ export const RECIPES: Recipe[] = [
     group: 'WACUP defaults',
     note: 'Playlist number, artist (the album for SPC game music), title and length. %playlist_position% is a Taskbar Text field, so this belongs there, not in playlist titles.',
     format: "%playlist_position%. [$ifstrequal2($fileext(%filename%),SPC,%album%,%artist%) - ]$if2(%title%,$filepart(%filename%)) '('%length%')'",
+    ticker: true,
   },
   {
     title: 'Album artist first',
@@ -57,6 +63,7 @@ export const RECIPES: Recipe[] = [
     group: 'Custom recipes',
     note: 'The WACUP default with the length on the end, so the ticker shows how long the song is.',
     format: '[%artist% - ]$if2(%title%,$filepart(%filename%)) %length%',
+    ticker: true,
   },
   {
     title: 'Fall back to folder names',
@@ -71,9 +78,24 @@ export const RECIPES: Recipe[] = [
     format: '$puts(f,$filepart(%filename%))$puts(p,$strstr($get(f), - ))$ifgreater($get(p),0,$left($get(f),$sub($get(p),1)) ▸ $right($get(f),$sub($len($get(f)),$add($get(p),2))),$get(f))',
   },
   {
-    title: 'Abbreviated columns, with the dot trick',
+    title: 'Abbreviated columns',
     group: 'Showcase',
-    note: 'WACUP trims leading whitespace, so this starts with a "." that scrolls off the left of the playlist. Strips "feat."/"ft" from the artist and cuts long titles.',
-    format: ".   ⇢   $puts(t,$if2(%title%,$filepart(%filename%)))$puts(araw,$if2(%albumartist%,%artist%))$puts(fp,$strstr($replace($replace($lower($get(araw)),'(',' '),' ft',' feat'),' feat'))$puts(a,$trim($ifgreater($get(fp),0,$left($get(araw),$sub($get(fp),1)),$get(araw))))$if($get(a),$abbr($get(a),20) ▸ ,)[$abbr(%album%,18) ▹ ]$iflonger($get(t),30,$left($get(t),29)…,$get(t))",
+    note: 'Artist, album and title in abbreviated columns. Strips "feat."/"ft" from the artist and cuts long titles.',
+    format: "⇢   $puts(t,$if2(%title%,$filepart(%filename%)))$puts(araw,$if2(%albumartist%,%artist%))$puts(fp,$strstr($replace($replace($lower($get(araw)),'(',' '),' ft',' feat'),' feat'))$puts(a,$trim($ifgreater($get(fp),0,$left($get(araw),$sub($get(fp),1)),$get(araw))))$if($get(a),$abbr($get(a),20) ▸ ,)[$abbr(%album%,18) ▹ ]$iflonger($get(t),30,$left($get(t),29)…,$get(t))",
   },
 ]
+
+/**
+ * What the current format came from, as far as the duration column cares: set by loading a
+ * recipe, cleared by loading anything else (a saved format, a share link, an .atf file, Start
+ * fresh), kept while the format is edited.
+ */
+export type FormatSource = { kind: 'recipe'; recipe: Recipe } | { kind: 'other' } | { kind: 'edit' }
+
+export function nextActiveRecipe(current: Recipe | undefined, event: FormatSource): Recipe | undefined {
+  if (event.kind === 'recipe') return event.recipe
+  return event.kind === 'edit' ? current : undefined
+}
+
+/** The duration column shows when the setting is on, except for song ticker recipes. */
+export const showsDuration = (column: boolean, active: Recipe | undefined): boolean => column && !active?.ticker

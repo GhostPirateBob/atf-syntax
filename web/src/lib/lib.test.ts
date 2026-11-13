@@ -168,12 +168,20 @@ describe('mediainfo', () => {
       'D:\\Music\\Juicy.mp3',
     )
     expect(tags).toEqual({
-      filename: 'D:\\Music\\Juicy.mp3', title: 'Juicy', artist: 'The Notorious B.I.G.', tracknumber: '1457', year: '1994-09-13',
+      filename: 'D:\\Music\\Juicy.mp3', title: 'Juicy', artist: 'The Notorious B.I.G.', tracknumber: '1457', year: '1994',
       length_seconds: '303', bitrate: '216', samplerate: '44100', vbr: '1',
     })
   })
+  it("takes %year% from the date's four-digit year, falling back to the original release date", () => {
+    const year = (general: Record<string, string>) => tagsFromMediaInfo({ media: { track: [{ '@type': 'General', ...general }] } }, 'x.mp3').year
+    expect(year({ Original_Released_Date: '2013-07-08' })).toBe('2013')
+    expect(year({ Recorded_Date: '1977', Original_Released_Date: '2011-01-01' })).toBe('1977')
+    expect(year({ Recorded_Date: 'Summer of 69' })).toBe('Summer of 69')
+    expect(year({})).toBeUndefined()
+  })
   it('builds the real-file samples from the shipped JSON', () => {
     expect(SAMPLE_TRACKS[0].tags).toMatchObject({ artist: 'Alfie Templeman', tracknumber: '0172', publisher: 'Chess Club Records', bitrate: '320' })
+    expect(SAMPLE_TRACKS.slice(0, 3).map((t) => t.tags.year)).toEqual(['2020', '2013', '1994'])
     expect(SAMPLE_TRACKS.at(-1)?.tags.title).toBe('Dogs')
     expect(SAMPLE_TRACKS.every(Boolean)).toBe(true)
   })

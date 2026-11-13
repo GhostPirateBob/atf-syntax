@@ -16,7 +16,6 @@ const GENERAL: [string, string][] = [
   ['Album_Performer', 'albumartist'],
   ['Track_Position', 'tracknumber'],
   ['Part_Position', 'disc'],
-  ['Recorded_Date', 'year'],
   ['Genre', 'genre'],
   ['Composer', 'composer'],
   ['Publisher', 'publisher'],
@@ -43,6 +42,9 @@ export function tagsFromMediaInfo(info: MediaInfoJson, filename: string): Record
     const v = str(general[from])
     if (v) tags[to] = v
   }
+  // WACUP's %year% is the four-digit year: a 2020-07-17 tag shows as 2020. Anything else stays as written.
+  const date = str(general.Recorded_Date) || str(general.Original_Released_Date)
+  if (date) tags.year = /^\d{4}/.exec(date)?.[0] ?? date
   const duration = Number(str(general.Duration) || str(audio.Duration))
   if (duration > 0) tags.length_seconds = String(Math.round(duration))
   const bitrate = Number(str(audio.BitRate) || str(general.OverallBitRate))

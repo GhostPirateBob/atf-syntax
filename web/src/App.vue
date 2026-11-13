@@ -1,16 +1,23 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
-import { lint, parse, splitBlocks, type Finding } from '@/core'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { Copy, Menu, Download, FolderOpen, Link, Save, Settings, TextWrap } from '@lucide/vue'
+import { FIELD_MAP, FUNCTION_MAP, lint, parse, splitBlocks, type Finding } from '@/core'
 import { toFormat } from '@/lib/document'
-import { applyDisplay } from '@/lib/display'
+import { applyDisplay, oneLine } from '@/lib/display'
 import { EvalRunner, type RunOutcome } from '@/lib/runner'
 import { decodeShare, encodeShare } from '@/lib/share'
-import { RECIPES, type Recipe } from '@/lib/recipes'
+import { RECIPES, nextActiveRecipe, showsDuration, type FormatSource, type Recipe } from '@/lib/recipes'
 import { SAMPLE_TRACKS, durationOf, fieldsFor, newId, trackLabel, tracksFromFiles, tracksFromPlaylist, type Track } from '@/lib/tracks'
 import type { PlaylistEntry } from '@/lib/m3u'
 import { matchPlaylistFiles } from '@/lib/audio'
 import type { Picked, PickedFile } from '@/lib/pick'
 import { parseView, type ViewSettings } from '@/lib/view'
+import { addSaved, browserStorage, defaultSaveName, deleteSaved, initialDoc, readLast, savedFormats, undoDelete, updateSaved, writeLast, type SavedFormat } from '@/lib/saved'
+import { parseAction, type PlaygroundAction } from '@/lib/search'
+import { formatDoc } from '@/lib/formatDoc'
+import { NARROW, useMedia } from '@/lib/media'
+import IconButton from './components/IconButton.vue'
+import OmniSearch from './components/OmniSearch.vue'
 import AtfEditor from './components/AtfEditor.vue'
 import PartsTable from './components/PartsTable.vue'
 import DiagnosticsList from './components/DiagnosticsList.vue'
@@ -29,7 +36,16 @@ const cloneSamples = (): Track[] => SAMPLE_TRACKS.map((t) => ({ ...t, id: newId(
 
 // ---- state -------------------------------------------------------------------------------
 const shared = decodeShare(location.hash)
-const doc = ref(shared?.doc ?? DEFAULT_DOC)
+/** A search result picked on the docs page: `#recipe=…`, `#saved=…` or `#ref=fn-…` (never a share link). */
+const startAction = shared ? undefined : parseAction(location.hash)
+const store = browserStorage()
+// A share link wins; otherwise the autosaved format, if it isn't the default; otherwise the default.
+const start = initialDoc(shared?.doc, readLast(store), DEFAULT_DOC)
+const doc = ref(start.doc)
+/** The recipe the format came from, until something else is loaded (edits keep it). */
+const activeRecipe = ref<Recipe>()
+const setSource = (event: FormatSource) => (activeRecipe.value = nextActiveRecipe(activeRecipe.value, event))
+const durationShown = computed(() => showsDuration(view.value.duration, activeRecipe.value))
 const tracks = ref<Track[]>(cloneSamples())
 const source = ref<'sample' | 'playlist' | 'files'>('sample')
 // What the user brought, kept so a playlist and audio files can arrive one after the other.
@@ -42,9 +58,16 @@ let readSeq = 0
 const DEFAULT_SAMPLE = Math.max(0, SAMPLE_TRACKS.findIndex((t) => t.tags.title === 'Oceans'))
 const selected = ref(Math.min(shared?.sample ?? DEFAULT_SAMPLE, tracks.value.length - 1))
 const sidebarOpen = ref(window.innerWidth >= 1100)
+/** Narrow screens: the sidebar is a drawer over the page, with a backdrop, focus kept inside. */
+const isDrawer = useMedia('(max-width: 760px)')
+const drawerOpen = computed(() => isDrawer.value && sidebarOpen.value)
+const menuButton = ref<InstanceType<typeof IconButton>>()
+const scrolled = ref(false)
+const narrow = useMedia(NARROW)
+const TAGLINE = 'Advanced Title Formatting for WACUP & Winamp, live'
 const view = ref<ViewSettings>(loadView())
 const editor = ref<InstanceType<typeof AtfEditor>>()
-const toast = ref('')
+const toast = ref<{ text: string; action?: { label: string; run: () => void } }>()
 const atfInput = ref<HTMLInputElement>()
 const atfChoices = ref<{ label: string; text: string }[]>([])
 const settingsOpen = ref(false)
@@ -100,7 +123,7 @@ onBeforeUnmount(() => runner.dispose())
 
 const rows = computed<Row[]>(() =>
   tracks.value.map((t, i) => {
-    const base = { label: trackLabel(t), duration: durationOf(t), cached: t.cachedTitle, unsure: false }
+    const base = { label: trackLabel(t), duration: durationShown.value ? durationOf(t) : '', cached: t.cachedTitle, unsure: false }
     const o = outcome.value
     if (!format.value) return { ...base, text: '', state: 'ok' }
     if (!o) return { ...base, text: '', state: 'pending' }
@@ -114,9 +137,6 @@ const rows = computed<Row[]>(() =>
     return { ...base, text: oneLine(applyDisplay(r.text, view.value)), state: 'ok', unsure: r.unsure.length > 0 }
   }),
 )
-
-/** Titles are shown on one line, as in a playlist: line breaks (e.g. from $crlf()) are removed. */
-const oneLine = (s: string) => s.replace(/[\r\n]+/g, '')
 
 const current = computed(() => (outcome.value?.kind === 'ok' ? outcome.value.results[selected.value] : undefined))
 const unsureFns = computed(() => {
@@ -178,12 +198,94 @@ watch([doc, selected, source], () => {
   hashTimer = setTimeout(writeHash, 300)
 })
 
+// ---- the sidebar as a drawer on narrow screens --------------------------------------------------
+const sidebarEl = () => sidebar.value?.$el as HTMLElement | undefined
+function closeSidebar() {
+  const inside = !!sidebarEl()?.contains(document.activeElement)
+  sidebarOpen.value = false
+  if (isDrawer.value || inside) void nextTick(() => (menuButton.value?.$el as HTMLElement | undefined)?.focus())
+}
+/** A recipe or snippet picked in the drawer closes it, so the result is in view. */
+function closeDrawer() {
+  if (drawerOpen.value) closeSidebar()
+}
+const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+function onDrawerKey(e: KeyboardEvent) {
+  if (!drawerOpen.value) return
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closeSidebar()
+  } else if (e.key === 'Tab') {
+    const items = [...(sidebarEl()?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].filter((el) => el.offsetParent !== null)
+    const first = items[0]
+    const last = items[items.length - 1]
+    if (!first || !last) return
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !sidebarEl()?.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !sidebarEl()?.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
+watch(drawerOpen, async (open) => {
+  // No page scrolling behind the drawer.
+  document.documentElement.classList.toggle('scroll-locked', open)
+  if (!open) return
+  await nextTick()
+  const el = sidebarEl()
+  if (el && !el.contains(document.activeElement)) el.querySelector<HTMLElement>('header button')?.focus()
+})
+const onScroll = () => (scrolled.value = window.scrollY > 4)
+onMounted(() => {
+  document.addEventListener('keydown', onDrawerKey)
+  window.addEventListener('scroll', onScroll, { passive: true })
+  onScroll()
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onDrawerKey)
+  window.removeEventListener('scroll', onScroll)
+  document.documentElement.classList.remove('scroll-locked')
+})
+
+// ---- autosave (the format only) ------------------------------------------------------------------
+let autosaveTimer: ReturnType<typeof setTimeout> | undefined
+function autosaveNow() {
+  clearTimeout(autosaveTimer)
+  autosaveTimer = undefined
+  writeLast(store, doc.value)
+}
+watch(doc, () => {
+  clearTimeout(autosaveTimer)
+  autosaveTimer = setTimeout(autosaveNow, 800)
+})
+const flushAutosave = () => autosaveTimer !== undefined && autosaveNow()
+addEventListener('pagehide', flushAutosave)
+onBeforeUnmount(() => removeEventListener('pagehide', flushAutosave))
+
+onMounted(() => {
+  if (startAction) {
+    history.replaceState(null, '', location.pathname + location.search)
+    void onSearchAction(startAction)
+  }
+  if (start.restored && startAction?.kind !== 'recipe' && startAction?.kind !== 'saved') {
+    say('Restored your last format.', { label: 'Start fresh', run: () => ((doc.value = DEFAULT_DOC), setSource({ kind: 'other' })) })
+  }
+})
+
 // ---- actions -------------------------------------------------------------------------------
 let toastTimer: ReturnType<typeof setTimeout> | undefined
-function say(message: string) {
-  toast.value = message
+function say(message: string, action?: { label: string; run: () => void }) {
+  toast.value = { text: message, action }
   clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => (toast.value = ''), 3200)
+  toastTimer = setTimeout(() => (toast.value = undefined), action ? 7000 : 3200)
+}
+function runToastAction() {
+  const run = toast.value?.action?.run
+  toast.value = undefined
+  run?.()
 }
 
 async function copyFormat() {
@@ -210,8 +312,76 @@ async function shareLink() {
 
 function loadRecipe(recipe: Recipe) {
   doc.value = recipe.format
+  setSource({ kind: 'recipe', recipe })
   say(`Loaded "${recipe.title}"`)
 }
+function loadSaved(saved: SavedFormat) {
+  doc.value = saved.doc
+  setSource({ kind: 'other' })
+  say(`Loaded "${saved.name}"`)
+}
+function removeSaved(saved: SavedFormat) {
+  const index = savedFormats.value.findIndex((s) => s.id === saved.id)
+  updateSaved((list) => deleteSaved(list, saved.id))
+  say(`Deleted "${saved.name}".`, { label: 'Undo', run: () => updateSaved((list) => undoDelete(list, saved, index)) })
+}
+
+// ---- save in this browser -------------------------------------------------------------------
+const saving = ref(false)
+const saveName = ref('')
+const saveButton = ref<InstanceType<typeof IconButton>>()
+const saveInput = ref<HTMLInputElement>()
+async function openSave() {
+  saveName.value = defaultSaveName(doc.value, RECIPES)
+  saving.value = true
+  await nextTick()
+  saveInput.value?.focus()
+  saveInput.value?.select()
+}
+function closeSave() {
+  saving.value = false
+  ;(saveButton.value?.$el as HTMLElement | undefined)?.focus()
+}
+function confirmSave() {
+  const name = saveName.value.trim() || 'Untitled'
+  const stored = updateSaved((list) => addSaved(list, name, doc.value))
+  closeSave()
+  say(stored ? `Saved "${name}". It's at the top of Recipes.` : `Kept "${name}" until you close the page: this browser won't let the page store it.`)
+}
+
+// ---- format (the extension's lossless formatter) ----------------------------------------------
+function formatEditor() {
+  const result = formatDoc(doc.value, editor.value?.charsPerLine() || 60)
+  if (result.changed) editor.value?.rewrap(result.text)
+  else if (result.blocked) say("Can't format: fix the syntax error first.")
+  else say('Already formatted. Lines only break between parts, never next to a space.')
+}
+
+// ---- search results ---------------------------------------------------------------------------
+const sidebar = ref<InstanceType<typeof SideBar>>()
+/** Whether the sidebar's Reference tab lists a function (`fn-name`) or field (`field-name`). */
+const refListed = (target: string) => (target.startsWith('fn-') ? FUNCTION_MAP.has(target.slice(3)) : FIELD_MAP.has(target.slice(6)))
+async function revealInSidebar(tab: 'recipes' | 'reference', id: string): Promise<boolean> {
+  sidebarOpen.value = true
+  await nextTick()
+  return (await sidebar.value?.reveal(tab, id)) ?? false
+}
+async function onSearchAction(action: PlaygroundAction) {
+  if (action.kind === 'recipe') {
+    const recipe = RECIPES.find((r) => r.title === action.title)
+    if (!recipe) return say("That recipe isn't here any more.")
+    loadRecipe(recipe)
+    await revealInSidebar('recipes', `recipe:${recipe.title}`)
+  } else if (action.kind === 'saved') {
+    const saved = savedFormats.value.find((s) => s.id === action.id)
+    if (!saved) return say("That saved format isn't in this browser.")
+    loadSaved(saved)
+    await revealInSidebar('recipes', `saved:${saved.id}`)
+  } else if (!(refListed(action.target) && (await revealInSidebar('reference', action.target)))) {
+    location.href = `./extension/#${action.target}`
+  }
+}
+
 function randomRecipe() {
   const pool = RECIPES.filter((r) => r.format !== doc.value)
   const pick = pool[Math.floor(Math.random() * pool.length)]
@@ -344,6 +514,7 @@ async function onAtfPicked(e: Event) {
   if (!blocks.length) return say('That file has no formats in it.')
   atfChoices.value = blocks.length > 1 ? blocks : []
   doc.value = blocks[0]!.text
+  setSource({ kind: 'other' })
   say(blocks.length > 1 ? `${blocks.length} formats in ${file.name}: pick one above.` : `Opened ${file.name}`)
 }
 function saveAtf() {
@@ -365,27 +536,60 @@ function hoverRange(range: { start: number; end: number } | null) {
 
 <template>
   <div class="app" :class="{ 'with-sidebar': sidebarOpen }">
-    <SideBar v-if="sidebarOpen" class="side" @insert="editor?.insert($event)" @load="loadRecipe" @close="sidebarOpen = false" />
+    <Transition name="drawer">
+      <SideBar
+        v-if="sidebarOpen"
+        ref="sidebar"
+        class="side"
+        :role="isDrawer ? 'dialog' : undefined"
+        :aria-modal="isDrawer ? 'true' : undefined"
+        aria-label="Recipes and reference"
+        @insert="editor?.insert($event), closeDrawer()"
+        @load="loadRecipe($event), closeDrawer()"
+        @load-saved="loadSaved($event), closeDrawer()"
+        @delete="removeSaved"
+        @close="closeSidebar"
+      />
+    </Transition>
+    <Transition name="fade">
+      <div v-if="drawerOpen" class="drawer-backdrop" aria-hidden="true" @click="closeSidebar" />
+    </Transition>
 
     <div class="main">
-      <header class="top">
-        <button v-if="!sidebarOpen" @click="sidebarOpen = true">☰ Recipes &amp; reference</button>
-        <span class="spacer" />
-        <button @click="openAtf">Open .atf</button>
-        <button @click="saveAtf">Save .atf</button>
-        <button @click="shareLink">Share link</button>
-        <ThemeToggle />
+      <header class="top" :class="{ scrolled }">
+        <div class="top-left">
+          <IconButton
+            v-if="!sidebarOpen || isDrawer"
+            ref="menuButton"
+            :icon="Menu"
+            label="Recipes & reference"
+            collapse="always"
+            :aria-expanded="sidebarOpen"
+            @click="sidebarOpen ? closeSidebar() : (sidebarOpen = true)"
+          />
+          <h1 class="brand-h">
+            <a class="brand" href="./" :aria-label="`atf playground: ${TAGLINE}`" :title="narrow ? TAGLINE : undefined">
+              <span class="title">atf<span class="title-rest"> playground</span></span>
+              <span class="tagline">{{ TAGLINE }}</span>
+            </a>
+          </h1>
+        </div>
+        <OmniSearch class="top-search" page="playground" :ref-listed="refListed" @action="onSearchAction" />
+        <div class="top-right">
+          <IconButton :icon="FolderOpen" label="Open .atf" collapse="header" @click="openAtf" />
+          <IconButton :icon="Download" label="Save .atf" collapse="header" @click="saveAtf" />
+          <IconButton :icon="Link" label="Share link" collapse="header" @click="shareLink" />
+          <ThemeToggle />
+        </div>
         <input ref="atfInput" type="file" accept=".atf,.txt" hidden @change="onAtfPicked" />
       </header>
 
       <nav v-if="atfChoices.length" class="choices">
-        <button v-for="c in atfChoices" :key="c.label" :class="{ active: c.text === doc }" @click="doc = c.text">{{ c.label }}</button>
+        <button v-for="c in atfChoices" :key="c.label" :class="{ active: c.text === doc }" @click="(doc = c.text), setSource({ kind: 'other' })">{{ c.label }}</button>
         <button class="dismiss" aria-label="Close format picker" @click="atfChoices = []">✕</button>
       </nav>
 
       <main class="center">
-        <h1 class="title">atf playground</h1>
-        <p class="tagline"><small>Advanced Title Formatting for WACUP &amp; Winamp, live</small></p>
 
         <div class="box-wrap" @keydown.esc="settingsOpen && closeSettings()">
           <button
@@ -397,20 +601,40 @@ function hoverRange(range: { start: number; end: number } | null) {
             aria-controls="settings-panel"
             @click="settingsOpen = !settingsOpen"
           >
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path
-                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-              />
-            </svg>
+            <Settings :size="20" aria-hidden="true" />
           </button>
           <div class="box">
-            <AtfEditor ref="editor" v-model:doc="doc" :findings="findings" class="box-editor" />
-            <button class="copy primary" title="Copy the format as one line, ready for WACUP" @click="copyFormat">Copy</button>
+            <AtfEditor ref="editor" v-model:doc="doc" :findings="findings" class="box-editor" @format="formatEditor" />
+            <div class="box-actions">
+              <IconButton :icon="Copy" label="Copy" class="copy primary" title="Copy the format as one line, ready for WACUP" @click="copyFormat" />
+              <IconButton
+                ref="saveButton"
+                :icon="Save"
+                label="Save in this browser"
+                collapse="always"
+                class="save"
+                aria-haspopup="dialog"
+                :aria-expanded="saving"
+                @click="saving ? closeSave() : openSave()"
+              />
+            </div>
           </div>
+          <form v-if="saving" class="save-pop" role="dialog" aria-label="Save in this browser" @submit.prevent="confirmSave" @keydown.esc.stop.prevent="closeSave">
+            <label for="save-name">Name</label>
+            <input id="save-name" ref="saveInput" v-model="saveName" type="text" maxlength="80" />
+            <button type="submit" class="primary">Save</button>
+            <button type="button" @click="closeSave">Cancel</button>
+            <p class="muted">Kept in this browser only. Find it under Recipes.</p>
+          </form>
           <button class="random" @click="randomRecipe">random recipe</button>
+          <button class="format" aria-label="Format (wrap at top-level boundaries)" title="Format: wrap at top-level boundaries (Shift+Alt+F)" @click="formatEditor">
+            <TextWrap :size="16" aria-hidden="true" class="format-icon" />
+            <span class="format-text">format</span>
+          </button>
         </div>
-        <SettingsPanel v-if="settingsOpen" ref="settingsPanel" v-model="view" @close="closeSettings" />
+        <Transition name="strip">
+          <SettingsPanel v-if="settingsOpen" ref="settingsPanel" v-model="view" @close="closeSettings" />
+        </Transition>
 
         <section class="hero">
           <MiniPlaylist :rows="rows" :selected="selected" :view="view" :message="heroMessage" @select="selected = $event" />
@@ -421,6 +645,7 @@ function hoverRange(range: { start: number; end: number } | null) {
           </p>
           <p v-else-if="current?.tooHeavy" class="sub">This format builds more text than the playground will work through (tens of millions of characters along the way). WACUP may still handle it.</p>
           <p v-else-if="current?.error" class="sub error-note">There's a syntax error, so WACUP shows an error message in place of the broken part (the whole title, if it's at the top level). Details below.</p>
+          <p v-if="activeRecipe?.ticker && view.duration" class="dialect-note">Song ticker format: no duration column, since it ends in <code>%length%</code>.</p>
           <p v-if="view.dialect === 'winamp'" class="dialect-note">Preview shows WACUP 1.99.57. Winamp 5 differs: for example <code>$if</code> tests whether a field resolved.</p>
         </section>
 
@@ -452,7 +677,14 @@ function hoverRange(range: { start: number; end: number } | null) {
       </footer>
     </div>
 
-    <div v-if="toast" class="toast" role="status">{{ toast }}</div>
+    <div class="toast-region" role="status">
+      <Transition name="toast">
+        <div v-if="toast" class="toast">
+          <span>{{ toast.text }}</span>
+          <button v-if="toast.action" class="toast-action" @click="runToastAction">{{ toast.action.label }}</button>
+        </div>
+      </Transition>
+    </div>
   </div>
 </template>
 
@@ -475,15 +707,54 @@ function hoverRange(range: { start: number; end: number } | null) {
   display: flex;
   flex-direction: column;
 }
+/* One row, stuck to the top: title, search in the middle, file actions. */
 .top {
-  display: flex;
-  gap: 6px;
-  padding: 8px 14px;
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: grid;
+  /* The side groups keep their buttons on one line; the search takes what's left, centred. */
+  grid-template-columns: minmax(max-content, 1fr) minmax(160px, 440px) minmax(max-content, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: var(--header-h);
+  padding: 6px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--sidebar);
 }
-.spacer {
-  flex: 1;
+.top.scrolled {
+  box-shadow: 0 2px 14px var(--shadow);
+}
+.top-left,
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* The title with the tagline beside it, on two small lines. */
+.brand-h {
+  margin: 0 0 0 4px;
+  font-size: 1rem;
+  font-weight: normal;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  line-height: 1.15;
+  text-decoration: none;
+}
+.brand:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+.brand:hover .title {
+  text-decoration: underline;
+}
+.top-right {
+  justify-content: flex-end;
 }
 .choices {
   display: flex;
@@ -498,23 +769,28 @@ function hoverRange(range: { start: number; end: number } | null) {
   color: var(--bright);
 }
 .center {
-  padding: 34px 20px 10px;
+  padding: 0 20px 10px;
   text-align: center;
 }
 .title {
   font-family: var(--mono);
-  font-size: clamp(2rem, 5vw, 3rem);
+  font-size: 1.3rem;
   font-weight: 700;
   color: var(--blue);
-  margin: 0;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 .tagline {
-  margin: 4px 0 24px;
+  max-width: 11rem;
+  font-size: 0.65rem;
   color: var(--muted);
+  white-space: normal;
 }
-.tagline small {
-  font-size: 0.85rem;
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  background: rgba(0, 0, 0, 0.5);
 }
 .hero {
   max-width: 960px;
@@ -538,12 +814,14 @@ function hoverRange(range: { start: number; end: number } | null) {
 .box-wrap {
   position: relative;
   max-width: 960px;
-  margin: 0 auto;
+  /* The tabs hang in the padding; the margins keep them clear of the header and what follows. */
+  margin: 52px auto 36px;
   padding: 30px 0 24px;
 }
-/* Tabs on the box: the gear above its top-right corner, random recipe below its bottom-left. */
+/* Tabs on the box: the gear above its top-right corner, random recipe and format below it. */
 .gear,
-.random {
+.random,
+.format {
   position: absolute;
   background: var(--tab-bg);
   border-color: var(--teal);
@@ -554,7 +832,9 @@ function hoverRange(range: { start: number; end: number } | null) {
 .gear:hover,
 .gear:focus-visible,
 .random:hover,
-.random:focus-visible {
+.random:focus-visible,
+.format:hover,
+.format:focus-visible {
   background: color-mix(in srgb, var(--tab-bg) 85%, var(--teal));
   color: var(--tab-fg);
 }
@@ -577,12 +857,13 @@ function hoverRange(range: { start: number; end: number } | null) {
   transform: rotate(45deg);
 }
 .gear:focus-visible,
-.random:focus-visible {
+.random:focus-visible,
+.format:focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: 1px;
 }
-.random {
-  left: 18px;
+.random,
+.format {
   bottom: 0;
   height: 24px;
   padding: 0 10px;
@@ -591,6 +872,17 @@ function hoverRange(range: { start: number; end: number } | null) {
   border-top: 0;
   border-radius: 0 0 4px 4px;
   text-decoration: underline;
+}
+.random {
+  left: 18px;
+}
+.format {
+  right: 18px;
+  display: inline-flex;
+  gap: 5px;
+}
+.format-icon {
+  display: none;
 }
 .box {
   display: flex;
@@ -610,9 +902,45 @@ function hoverRange(range: { start: number; end: number } | null) {
   flex: 1;
   min-width: 0;
 }
+.box-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
 .copy {
-  align-self: center;
   font-weight: 600;
+}
+.save-pop {
+  position: absolute;
+  right: 12px;
+  top: calc(100% - 22px);
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  width: min(380px, calc(100vw - 32px));
+  padding: 10px 12px;
+  background: var(--sidebar);
+  border: 1px solid var(--teal);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px var(--shadow);
+  text-align: left;
+  font-size: 0.88rem;
+}
+.save-pop input {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.save-pop p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+}
+.save-pop button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 1px;
 }
 .unsure-note {
   max-width: 820px;
@@ -648,6 +976,7 @@ footer > span {
 footer a {
   color: var(--muted);
   text-decoration: none;
+  transition: color 0.12s;
 }
 footer a:hover,
 footer a:focus-visible {
@@ -663,15 +992,92 @@ footer a:focus-visible {
   .app.with-sidebar {
     grid-template-columns: 1fr;
   }
+  /* The drawer: slides in from the left over a dimmed page. */
   .side {
     position: fixed;
     inset: 0 auto 0 0;
-    width: min(340px, 90vw);
+    width: min(340px, 88vw);
     z-index: 20;
     box-shadow: 4px 0 24px var(--shadow);
   }
-  .center {
-    padding-top: 22px;
+  .drawer-enter-active {
+    transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .drawer-leave-active {
+    transition: transform 0.2s ease-in;
+  }
+  .drawer-enter-from,
+  .drawer-leave-to {
+    transform: translateX(-100%);
+  }
+  .fade-enter-active {
+    transition: opacity 0.26s ease-out;
+  }
+  .fade-leave-active {
+    transition: opacity 0.2s ease-in;
+  }
+  .fade-enter-from,
+  .fade-leave-to {
+    opacity: 0;
+  }
+  .top {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+  .top-search {
+    justify-self: end;
+  }
+}
+/* The settings strip under the gear: a short fade and drop. */
+.strip-enter-active,
+.strip-leave-active {
+  transition:
+    opacity 0.18s ease-out,
+    transform 0.18s ease-out;
+}
+.strip-enter-from,
+.strip-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+@media (max-width: 640px) {
+  .top {
+    padding: 6px 10px;
+  }
+  .title {
+    font-size: 1.15rem;
+  }
+  /* "atf" on phones; the tagline moves to the tooltip, and screen readers hear both. */
+  .tagline {
+    display: none;
+  }
+  .title-rest {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .box-wrap {
+    margin: 36px auto 28px;
+  }
+  /* Copy and save stack, so the editor keeps its width. */
+  .box {
+    padding-right: 8px;
+  }
+  .box-actions {
+    flex-direction: column;
+  }
+  .format-icon {
+    display: block;
+  }
+  .format-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
 }
 </style>

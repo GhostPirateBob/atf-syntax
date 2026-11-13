@@ -127,5 +127,29 @@ td {
 }
 .meaning {
   color: var(--text);
+  text-align: left;
+}
+/* Phones: each row stacks, the format piece above its explanation. */
+@media (max-width: 640px) {
+  table,
+  tbody,
+  tr,
+  td {
+    display: block;
+  }
+  td {
+    padding: 2px 6px;
+  }
+  tr {
+    padding: 6px 0;
+  }
+  .snippet {
+    width: auto;
+    max-width: none;
+    text-align: left;
+  }
+  .meaning {
+    padding-bottom: 4px;
+  }
 }
 </style>

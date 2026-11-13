@@ -2,33 +2,18 @@
 // Documentation for the VS Code extension, generated from the same tables the extension uses
 // (lint rules, the function/field catalogue, package.json settings), so it can't drift. Every
 // section, setting, rule, function and field has a stable anchor for hard links.
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { FIELDS, FUNCTIONS, REMOVED, RULES } from '@/core'
 import type { FunctionInfo } from '@/core'
 import { docMarkdown } from '@/lib/markdown'
+import { settingsFrom } from '@/lib/settings'
 import HighlightedFormat from '@/components/HighlightedFormat.vue'
+import OmniSearch from '@/components/OmniSearch.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import pkg from '@pkg'
 
-interface Setting {
-  key: string
-  type?: string
-  default?: unknown
-  enum?: string[]
-  description: string
-}
-
 const contributes = (pkg as any).contributes ?? {}
-const configs = Array.isArray(contributes.configuration) ? contributes.configuration : [contributes.configuration ?? {}]
-const settings: Setting[] = configs.flatMap((c: any) =>
-  Object.entries(c.properties ?? {}).map(([key, v]: [string, any]) => ({
-    key,
-    type: v.type,
-    default: v.default,
-    enum: v.enum,
-    description: v.markdownDescription ?? v.description ?? '',
-  })),
-)
+const settings = settingsFrom(pkg)
 const commands: { command: string; title: string; category?: string }[] = contributes.commands ?? []
 const version: string = (pkg as any).version
 
@@ -65,6 +50,26 @@ function arity(f: FunctionInfo): string {
 const dialectLabel = (f: FunctionInfo) => (f.only === 'wacup' ? 'WACUP only' : f.only === 'winamp' ? 'Winamp 5 only' : '')
 const showDefault = (v: unknown) => (v === undefined ? '' : JSON.stringify(v))
 
+// A link (or a search result) to a function or field the filter is hiding: clear the filter.
+function showHashTarget() {
+  const id = decodeURIComponent(location.hash.slice(1))
+  if (!id || document.getElementById(id) || !query.value) return
+  query.value = ''
+  // :target is fixed when the hash changes, so navigate to it again now that the entry exists.
+  void nextTick(() => location.replace(`#${encodeURIComponent(id)}`))
+}
+const scrolled = ref(false)
+const onScroll = () => (scrolled.value = window.scrollY > 4)
+onMounted(() => {
+  window.addEventListener('hashchange', showHashTarget)
+  window.addEventListener('scroll', onScroll, { passive: true })
+  onScroll()
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('hashchange', showHashTarget)
+  window.removeEventListener('scroll', onScroll)
+})
+
 const SAMPLE = '[%artist% ▸ ]$if2(%title%,$filepart(%filename%))'
 const MARKETPLACE = 'https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax'
 const REPO = 'https://github.com/GhostPirateBob/atf-syntax'
@@ -72,8 +77,15 @@ const WIKI = `${REPO}/wiki`
 </script>
 
 <template>
-  <div class="docs">
+  <header class="docs-top" :class="{ scrolled }">
+    <a class="docs-brand" href="../" aria-label="ATF for VS Code: extension docs. Back to the atf playground" title="Back to the atf playground">
+      <span class="docs-title">ATF for VS Code</span>
+      <span class="docs-tagline">Extension docs</span>
+    </a>
+    <OmniSearch class="docs-search" page="docs" />
     <ThemeToggle class="docs-theme" />
+  </header>
+  <div class="docs">
     <nav class="toc" aria-label="Contents">
       <a class="home" href="../">← atf playground</a>
       <p class="toc-title">ATF for VS Code <span class="muted">v{{ version }}</span></p>
@@ -232,6 +244,56 @@ const WIKI = `${REPO}/wiki`
 </template>
 
 <style scoped>
+/* One row, stuck to the top, like the playground's. */
+.docs-top {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(160px, 440px) minmax(max-content, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: var(--header-h);
+  padding: 6px 16px;
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--border);
+}
+.docs-top.scrolled {
+  box-shadow: 0 2px 14px var(--shadow);
+}
+.docs-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  line-height: 1.15;
+  text-decoration: none;
+  min-width: 0;
+}
+.docs-title {
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--blue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.docs-tagline {
+  max-width: 11rem;
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+.docs-brand:hover .docs-title {
+  text-decoration: underline;
+}
+.docs-brand:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.docs-theme {
+  justify-self: end;
+}
 .docs {
   position: relative;
   display: grid;
@@ -241,17 +303,11 @@ const WIKI = `${REPO}/wiki`
   gap: 32px;
   padding: 0 16px;
 }
-.docs-theme {
-  position: absolute;
-  top: 14px;
-  right: 16px;
-  z-index: 5;
-}
 .toc {
   position: sticky;
-  top: 0;
+  top: var(--header-h);
   align-self: start;
-  max-height: 100vh;
+  max-height: calc(100vh - var(--header-h));
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -435,6 +491,18 @@ footer a:focus-visible {
   outline: 2px solid var(--teal);
   outline-offset: 2px;
   border-radius: 2px;
+}
+@media (max-width: 760px) {
+  .docs-top {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 6px;
+    padding: 6px 10px;
+  }
+}
+@media (max-width: 640px) {
+  .docs-tagline {
+    display: none;
+  }
 }
 @media (max-width: 800px) {
   .docs {

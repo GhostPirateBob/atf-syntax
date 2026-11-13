@@ -16,8 +16,10 @@
     "@codemirror/lint": "^6.9.8",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
+    "@lucide/vue": "1.64.0",
     "lz-string": "^1.5.0",
     "mediainfo.js": "0.3.8",
+    "minisearch": "7.2.0",
     "vue": "rc"
   },
   "devDependencies": {

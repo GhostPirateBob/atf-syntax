@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Row } from './TrackList.vue'
 import type { ViewSettings } from '@/lib/view'
 import { clampFontSize } from '@/lib/view'
 import { titleFont } from '@/lib/fontStacks'
 import { fitRow, fontsLoaded, useWidth } from '@/lib/rowFit'
+import { NARROW, reducedMotion, useMedia } from '@/lib/media'
 
 /**
- * The hero: a three-row WACUP playlist (previous, selected, next track), drawn at ZOOM times the
+ * The hero: a three-row WACUP playlist (previous, selected, next track), drawn at `zoom` times the
  * playlist's font size and width so it reads as a headline but cuts titles where the track list does.
  */
 const props = defineProps<{
@@ -19,17 +20,19 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ select: [index: number] }>()
 
-const ZOOM = 1.5
+// 1.5 on wide screens; 1 on phones, where 1.5 leaves room for only a few letters of each title.
+const narrow = useMedia(NARROW)
+const zoom = computed(() => (narrow.value ? 1 : 1.5))
 /** Row padding, borders and the scrollbar around the playlist width, in px. */
 const CHROME = 2 * 10 + 2 * 1 + 8
 
 const n = computed(() => props.rows.length)
 const font = computed(() => titleFont(props.view.font, props.view.fontFamily))
-const size = computed(() => clampFontSize(props.view.fontSize) * ZOOM)
+const size = computed(() => clampFontSize(props.view.fontSize) * zoom.value)
 // The rows' exact font, as a canvas font shorthand; boxStyle applies the same three values.
 const cssFont = computed(() => `${font.value.weight} ${size.value}px ${font.value.family}`)
 const boxStyle = computed(() => ({
-  width: props.view.width ? `${props.view.width * ZOOM + CHROME}px` : '100%',
+  width: props.view.width ? `${props.view.width * zoom.value + CHROME}px` : '100%',
   fontFamily: font.value.family,
   fontWeight: font.value.weight,
   fontSize: `${size.value}px`,
@@ -72,6 +75,22 @@ const thumb = computed(() => {
   return { height: `${h * 100}%`, top: `${(props.selected / (n.value - 1)) * (1 - h) * 100}%` }
 })
 
+// A step to the next or previous track slides the rows by one, like scrolling a playlist.
+const rowsEl = ref<HTMLElement>()
+watch(
+  () => props.selected,
+  (now, before) => {
+    const count = n.value
+    if (count < 2 || props.message || reducedMotion() || !rowsEl.value) return
+    const dir = now === (before + 1) % count ? 1 : now === (before - 1 + count) % count ? -1 : 0
+    if (!dir) return
+    const height = currentRow.value?.offsetHeight ?? 0
+    for (const row of rowsEl.value.children) {
+      ;(row as HTMLElement).animate([{ transform: `translateY(${dir * height}px)` }, { transform: 'none' }], { duration: 150, easing: 'ease-out' })
+    }
+  },
+)
+
 function step(by: number) {
   if (n.value > 1) emit('select', (props.selected + by + n.value) % n.value)
 }
@@ -109,6 +128,7 @@ function onWheel(e: WheelEvent) {
     <p v-if="message" class="pl-message" :class="message.tone">{{ message.text }}</p>
     <div
       v-else
+      ref="rowsEl"
       class="pl-rows"
       role="listbox"
       tabindex="0"
@@ -129,7 +149,7 @@ function onWheel(e: WheelEvent) {
         @click="s.index >= 0 && s.pos !== 'current' && emit('select', s.index)"
       >
         <span class="t"><span v-if="prefix(s.index)" class="num">{{ prefix(s.index) }}</span>{{ shown[k]?.title }}</span>
-        <span class="dur">{{ shown[k]?.duration }}</span>
+        <span v-if="shown[k]?.duration" class="dur">{{ shown[k]?.duration }}</span>
       </div>
     </div>
     <div v-if="thumb && !message" class="pl-scroll" aria-hidden="true"><span :style="thumb" /></div>
@@ -151,6 +171,8 @@ function onWheel(e: WheelEvent) {
 }
 .pl-rows {
   border-radius: 2px;
+  /* Rows sliding in from a step stay inside the box. */
+  overflow: hidden;
 }
 .pl-rows:focus {
   outline: none;

@@ -24,3 +24,6 @@ export function applyDisplay(text: string, opts: DisplayOptions): string {
   if (opts.trimLeading) s = s.replace(/^\s+/u, '')
   return s
 }
+
+/** Titles are shown on one line: each CR or LF shows as a space, as WACUP draws them on a playlist row (so $crlf() is two spaces). */
+export const oneLine = (s: string) => s.replace(/[\r\n]/g, ' ')
