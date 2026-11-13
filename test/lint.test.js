@@ -5,6 +5,13 @@ const { lint } = require('../out/lint');
 const { splitBlocks, toLineChar } = require('../out/blocks');
 const { formatBlock } = require('../out/format');
 
+test('.atf blocks read the same from CRLF and LF files', () => {
+  const doc = (eol) => ['# comment', '[%artist% - ]', '%title%', '', '$upper(x)'].join(eol);
+  const texts = (eol) => splitBlocks(doc(eol).split('\n')).map((b) => b.text);
+  assert.deepEqual(texts('\n'), ['[%artist% - ]%title%', '$upper(x)']);
+  assert.deepEqual(texts('\r\n'), texts('\n'));
+});
+
 const BOB_LATEST =
   ".  ⇢  $puts(t,$if2(%title%,$filepart(%filename%)))$puts(araw,$if2(%albumartist%,%artist%))$puts(fp,$strstr($replace($replace($lower($get(araw)),'(',' '),' ft',' feat'),' feat'))$puts(a,$trim($ifgreater($get(fp),0,$left($get(araw),$sub($get(fp),1)),$get(araw))))$if($get(a),$abbr($get(a),20) ▹ ,)[$abbr(%album%,13) ▹ ]$iflonger($get(t),30,$left($get(t),29)…,$get(t))";
 const SAVED_IN_WINAMP_INI = '.  ⇢  $puts(t,$if2(%title%,$filepart(%filename%)))$puts(araw[,$if2(%albumar';

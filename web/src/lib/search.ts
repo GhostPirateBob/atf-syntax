@@ -3,6 +3,7 @@ import type { Options, SearchOptions } from 'minisearch'
 import type { Recipe } from './recipes'
 import type { SavedFormat } from './saved'
 import type { Setting } from './settings'
+import { encodeAction, type PlaygroundAction } from './searchAction'
 
 /**
  * The omnisearch: what it indexes, how results are shown, and where each result goes. MiniSearch
@@ -185,13 +186,24 @@ export function runSearch(index: MiniSearch<SearchDoc>, byId: Map<string, Search
 
 // ---- highlighting ---------------------------------------------------------------------------
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c)
-const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-function matchRanges(text: string, terms: string[]): [number, number][] {
-  const words = [...new Set(terms.filter(Boolean))].sort((a, b) => b.length - a.length)
-  if (!words.length) return []
-  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${words.map(escapeRegExp).join('|')})(?![\\p{L}\\p{N}])`, 'giu')
-  return [...text.matchAll(re)].map((m) => [m.index, m.index + m[0].length])
+/** A word: a run of letters and digits, as `tokenize` splits them. */
+const WORD = /[\p{L}\p{N}]+/gu
+/**
+ * The whole-word matches of `terms` in `text` (case-insensitive): one pass over the words with a set
+ * lookup. (A pattern of all the terms was slow: a prefix query matches dozens of words per hit, and
+ * every hit has a different set.) `first`: stop at the first match.
+ */
+function matchRanges(text: string, terms: string[], first = false): [number, number][] {
+  if (!terms.length) return []
+  const wanted = new Set(terms.map((t) => t.toLowerCase()))
+  const out: [number, number][] = []
+  for (const m of text.matchAll(WORD)) {
+    if (!wanted.has(m[0].toLowerCase())) continue
+    out.push([m.index, m.index + m[0].length])
+    if (first) break
+  }
+  return out
 }
 
 /** HTML for `text` with every whole-word match of `terms` in <mark>. The text is escaped first. */
@@ -208,7 +220,7 @@ export function highlight(text: string, terms: string[]): string {
 /** About `max` characters of `text`, starting a little before the first match. */
 export function snippet(text: string, terms: string[], max = 120): string {
   if (text.length <= max) return text
-  const first = matchRanges(text, terms)[0]?.[0] ?? 0
+  const first = matchRanges(text, terms, true)[0]?.[0] ?? 0
   let start = Math.max(0, first - 30)
   if (start > 0) {
     const space = text.lastIndexOf(' ', start)
@@ -219,8 +231,7 @@ export function snippet(text: string, terms: string[], max = 120): string {
 }
 
 // ---- routing --------------------------------------------------------------------------------
-/** What the playground does for a result, also carried in its URL hash from the docs page. */
-export type PlaygroundAction = { kind: 'recipe'; title: string } | { kind: 'saved'; id: string } | { kind: 'ref'; target: string }
+export { encodeAction, parseAction, type PlaygroundAction } from './searchAction'
 
 export type Route =
   | { type: 'action'; action: PlaygroundAction }
@@ -232,30 +243,6 @@ export type Route =
 export type SearchPage = 'playground' | 'docs'
 
 export const WIKI_URL = 'https://github.com/GhostPirateBob/atf-syntax/wiki'
-
-/**
- * The playground's action hash. It never has an `f` key, so it can't be taken for a share link
- * (`#f=…&s=…`), and a share link never parses as an action.
- */
-export function encodeAction(action: PlaygroundAction): string {
-  const params = new URLSearchParams()
-  if (action.kind === 'recipe') params.set('recipe', action.title)
-  else if (action.kind === 'saved') params.set('saved', action.id)
-  else params.set('ref', action.target)
-  return '#' + params.toString()
-}
-
-export function parseAction(hash: string): PlaygroundAction | undefined {
-  const params = new URLSearchParams(hash.replace(/^#/, ''))
-  if (params.has('f')) return undefined
-  const recipe = params.get('recipe')
-  if (recipe) return { kind: 'recipe', title: recipe }
-  const saved = params.get('saved')
-  if (saved) return { kind: 'saved', id: saved }
-  const ref = params.get('ref')
-  if (ref && /^(fn|field)-./.test(ref)) return { kind: 'ref', target: ref }
-  return undefined
-}
 
 /**
  * Where a result goes. Recipes and saved formats load in the playground; functions and fields

@@ -48,13 +48,11 @@ export function fieldsFor(track: Track, playlist?: { position: number; length: n
   return f
 }
 
-/** The track's length the way a playlist shows it (`m:ss`, or `h:mm:ss`), or '' if unknown. */
-export function durationOf(track: Track): string {
-  const raw = track.tags.length_seconds
-  if (!raw) return ''
-  const s = Number(raw)
-  return Number.isFinite(s) && s >= 0 ? formatLength(s) : ''
-}
+/**
+ * The duration column: exactly what `%length%` gives for the track (see fieldsFor), so the column
+ * and a format's own %length% never disagree. '' when %length% is empty.
+ */
+export const lengthOf = (track: Track): string => fieldsFor(track).length ?? ''
 
 /** A one-line label for a track: the title, or the file name if there's no title. */
 export function trackLabel(track: Track): string {
@@ -70,21 +68,24 @@ export const newId = () => `t${nextId++}`
 const sample = (tags: Record<string, string>): Track => ({ id: newId(), tags, source: 'sample' })
 
 /**
- * Built-in tracks, tidy and patchy, so recipes can show their fallbacks. First, every entry in
+ * Built-in tracks, tidy and patchy, so recipes can show their fallbacks: every entry in
  * sample-mediainfo.json (real files' tags as mediainfo reads them, quirks included, e.g.
- * downloader track numbers like `0172` and full release dates), however many there are. Then
- * Dogs, the hand-made "complete tags" case.
+ * downloader track numbers like `0172` and full release dates), however many there are, plus
+ * Dogs, the hand-made "complete tags" case. Dogs stays at index 3, where it was before later
+ * entries were added, so share links (`s=3`) still open it; later entries follow it.
  */
 const fromMediaInfo = (SAMPLE_MEDIAINFO as { filename: string; media: MediaInfoJson['media'] }[]).map((e) =>
   sample(tagsFromMediaInfo({ media: e.media }, e.filename)),
 )
+const DOGS_AT = 3
 export const SAMPLE_TRACKS: Track[] = [
-  ...fromMediaInfo,
+  ...fromMediaInfo.slice(0, DOGS_AT),
   sample({
     artist: 'Pink Floyd', title: 'Dogs', album: 'Animals', albumartist: 'Pink Floyd',
     tracknumber: '2', year: '1977', genre: 'Progressive Rock', length_seconds: '1024',
     filename: 'D:\\Music\\Pink Floyd\\Animals\\02 Pink Floyd - Dogs.flac',
   }),
+  ...fromMediaInfo.slice(DOGS_AT),
 ]
 
 /**

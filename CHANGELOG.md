@@ -1,5 +1,7 @@
 # Changelog
 
+Changes to the extension. The web playground has its own changelog: [web/CHANGELOG.md](web/CHANGELOG.md).
+
 ## 0.5.0 — 2026-11-13
 
 - New: the [ATF playground](https://ghostpiratebob.me/atf-syntax/), a web page where you type a format and see it render live for sample tracks or your own playlist, with the same checking as this extension. Its evaluator was checked against WACUP 1.99.57.25464's own: every decided case of 65,940 generated formats matches, behaviour it can't confirm shows `?`, and formats that would freeze WACUP are flagged instead of run.

@@ -1,6 +1,10 @@
-/** Default face for rendered playlist titles (loaded from Google Fonts in index.html). */
+/**
+ * Default face for rendered playlist titles (self-hosted: see src/fonts.css). Iosevka Charon Mono
+ * comes second so the symbols Roboto Condensed lacks (⇢ ▸ ▹) come from a font we ship rather than a
+ * system fallback lookup. Keep in step with --title-font in style.css.
+ */
 export const TITLE_FAMILY =
-  "'Roboto Condensed', 'Arial Narrow', 'Liberation Sans Narrow', 'Nimbus Sans Narrow', 'Helvetica Neue', Arial, sans-serif"
+  "'Roboto Condensed', 'Iosevka Charon Mono', 'Arial Narrow', 'Liberation Sans Narrow', 'Nimbus Sans Narrow', 'Helvetica Neue', Arial, sans-serif"
 export const TITLE_WEIGHT = 350
 
 /**

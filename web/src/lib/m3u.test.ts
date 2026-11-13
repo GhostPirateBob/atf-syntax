@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { exportTitle, parseM3u, toM3u8, type ExportRow } from './m3u'
 
 const row = (r: Partial<ExportRow> & { filename: string }): ExportRow => ({ text: '', state: 'ok', ...r })
+
+describe('parseM3u line endings', () => {
+  const playlist = (eol: string) => ['#EXTM3U', '#EXTINF:200,Artist - Title', 'D:\\Music\\a.mp3', '#EXTINF:99,Other', 'D:\\Music\\b.mp3', ''].join(eol)
+  it('reads CRLF (with a BOM) exactly as LF, leaving no \\r in titles or paths', () => {
+    const lf = parseM3u(playlist('\n'))
+    const crlf = parseM3u('\uFEFF' + playlist('\r\n'))
+    expect(lf).toHaveLength(2)
+    expect(crlf).toEqual(lf)
+    expect(JSON.stringify(crlf)).not.toContain('\\r')
+  })
+})
 const bytes = (s: string) => [...new TextEncoder().encode(s)]
 
 describe('toM3u8', () => {

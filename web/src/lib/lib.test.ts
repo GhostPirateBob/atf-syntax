@@ -8,7 +8,7 @@ import { formatLength, parseM3u } from './m3u'
 import { decodeShare, encodeShare } from './share'
 import { fieldsFor, tracksFromFiles, tracksFromPlaylist } from './tracks'
 import { isAudioName, isPlaylistName, matchPlaylistFiles } from './audio'
-import { durationOf, type Track } from './tracks'
+import { lengthOf, type Track } from './tracks'
 import { RECIPES } from './recipes'
 import { fitText } from './fit'
 import { DEFAULT_VIEW, parseView } from './view'
@@ -34,8 +34,15 @@ describe('tokenize', () => {
   const kinds = (s: string) => tokenize(s).map((t) => `${t.kind}:${s.slice(t.start, t.end)}`)
   it('follows WACUP lexical rules', () => {
     expect(kinds("[%artist% - ]$if2(%title%,'(x)')")).toEqual([
-      'bracket:[', 'field:%artist%', 'text: - ', 'bracket:]', 'fn:$if2', 'paren:(', 'field:%title%', 'comma:,', "quote:'(x)'", 'paren:)',
+      'bracket:[', 'field-sigil:%', 'field:artist', 'field-sigil:%', 'text: - ', 'bracket:]', 'fn-sigil:$', 'fn:if2', 'paren:(',
+      'field-sigil:%', 'field:title', 'field-sigil:%', 'comma:,', "quote:'(x)'", 'paren:)',
     ])
+  })
+  it('marks integer arguments inside calls, not digits in words or outside calls', () => {
+    expect(kinds('$left(%a%,12)')).toContain('number:12')
+    expect(kinds('$sub(5,-3)')).toEqual(['fn-sigil:$', 'fn:sub', 'paren:(', 'number:5', 'comma:,', 'number:-3', 'paren:)'])
+    expect(kinds('$if(abc1,x2y)').filter((k) => k.startsWith('number'))).toEqual([])
+    expect(kinds('track 01').filter((k) => k.startsWith('number'))).toEqual([])
   })
   it('treats a top-level comma as text and recognises escapes', () => {
     expect(kinds("a,b %% $$ ''")).toEqual(['text:a,b ', 'escape:%%', 'text: ', 'escape:$$', 'text: ', "escape:''"])
@@ -110,7 +117,14 @@ describe('fieldsFor', () => {
   })
   it('shows durations like a playlist, blank when unknown', () => {
     const t = (length_seconds?: string): Track => ({ id: 'x', source: 'custom', tags: length_seconds === undefined ? {} : { length_seconds } })
-    expect([t('260'), t('3725'), t(), t('junk')].map((x) => durationOf(x))).toEqual(['4:20', '1:02:05', '', ''])
+    expect([t('260'), t('3725'), t(), t('junk')].map((x) => lengthOf(x))).toEqual(['4:20', '1:02:05', '', ''])
+  })
+  it("fills the duration column with exactly what a format's %length% gives", () => {
+    const custom = (tags: Record<string, string>): Track => ({ id: 'x', source: 'custom', tags })
+    const tracks = [...SAMPLE_TRACKS, custom({ length_seconds: '59.6' }), custom({ length_seconds: '-3' }), custom({ length: '7:77' }), custom({ title: 'no length' })]
+    for (const t of tracks) expect(lengthOf(t), JSON.stringify(t.tags)).toBe(evaluate('%length%', fieldsFor(t)).text)
+    expect(lengthOf(custom({ length: '7:77', length_seconds: '1' }))).toBe('7:77')
+    expect(lengthOf(custom({}))).toBe('')
   })
 })
 
@@ -181,9 +195,19 @@ describe('mediainfo', () => {
   })
   it('builds the real-file samples from the shipped JSON', () => {
     expect(SAMPLE_TRACKS[0].tags).toMatchObject({ artist: 'Alfie Templeman', tracknumber: '0172', publisher: 'Chess Club Records', bitrate: '320' })
-    expect(SAMPLE_TRACKS.slice(0, 3).map((t) => t.tags.year)).toEqual(['2020', '2013', '1994'])
-    expect(SAMPLE_TRACKS.at(-1)?.tags.title).toBe('Dogs')
+    expect(SAMPLE_TRACKS.map((t) => t.tags.year)).toEqual(['2020', '2013', '1994', '1977', '2001'])
     expect(SAMPLE_TRACKS.every(Boolean)).toBe(true)
+  })
+  it('keeps each sample at the index share links use (s=N), with new samples only at the end', () => {
+    expect(SAMPLE_TRACKS.map((t) => t.tags.title)).toEqual(['Things I Thought Were Mine', 'Oceans', 'Juicy', 'Dogs', 'One More Time'])
+    expect(decodeShare(encodeShare({ doc: '%title%', sample: 3 }))?.sample).toBe(3)
+  })
+  it('reads the Daft Punk sample with tidy tags (the script replaces its downloader track number and reissue date)', () => {
+    expect(SAMPLE_TRACKS[4]!.tags).toMatchObject({
+      artist: 'Daft Punk', title: 'One More Time', album: 'Discovery', albumartist: 'Daft Punk',
+      year: '2001', tracknumber: '1', disc: '1', length_seconds: '320', bitrate: '320',
+      filename: 'D:\\Music\\Daft Punk\\Discovery\\1-01 One More Time.mp3',
+    })
   })
 })
 

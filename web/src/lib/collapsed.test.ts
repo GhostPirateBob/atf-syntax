@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { COLLAPSED_KEY, expandSection, isExpanded, readCollapsed, sectionFor, toggleSection, writeCollapsed } from './collapsed'
+import { COLLAPSED_KEY, isExpanded, openOnly, readCollapsed, sectionFor, toggleSection, writeCollapsed } from './collapsed'
 
 const memory = () => {
   const data = new Map<string, string>()
@@ -11,16 +11,33 @@ const RECIPES = [
 ]
 
 describe('collapsed sidebar sections', () => {
-  it('are all expanded with nothing stored, or with storage that is unreadable or malformed', () => {
+  it('use the defaults with nothing stored, or with storage that is unreadable or malformed', () => {
+    const defaults = ['recipes:Custom recipes', 'reference:functions']
     expect(readCollapsed(undefined).size).toBe(0)
-    expect(readCollapsed(memory()).size).toBe(0)
+    expect([...readCollapsed(undefined, defaults)]).toEqual(defaults)
+    expect([...readCollapsed(memory(), defaults)]).toEqual(defaults)
     for (const raw of ['not json', '{"a":1}', '"x"']) {
       const s = memory()
       s.data.set(COLLAPSED_KEY, raw)
-      expect(readCollapsed(s).size).toBe(0)
+      expect([...readCollapsed(s, defaults)]).toEqual(defaults)
     }
     const throwing = { getItem: () => { throw new Error('blocked') } }
-    expect(readCollapsed(throwing).size).toBe(0)
+    expect([...readCollapsed(throwing, defaults)]).toEqual(defaults)
+  })
+
+  it('open as an accordion: one sibling open, keys outside the siblings untouched', () => {
+    const siblings = ['recipes:A', 'recipes:B', 'recipes:C']
+    const c = openOnly(new Set(['recipes:B', 'recipes:C']), 'recipes:B', siblings)
+    expect([...c].sort()).toEqual(['recipes:A', 'recipes:C'])
+    // recipes:saved isn't a sibling, so it stays as it was (open here).
+    expect(openOnly(new Set(), 'recipes:C', siblings).has('recipes:saved')).toBe(false)
+    expect(isExpanded(openOnly(new Set(), 'recipes:C', siblings), 'recipes:C')).toBe(true)
+  })
+
+  it('keep a stored choice over the defaults, an empty one (all expanded) included', () => {
+    const s = memory()
+    s.data.set(COLLAPSED_KEY, '[]')
+    expect(readCollapsed(s, ['recipes:Custom recipes']).size).toBe(0)
   })
 
   it('persist under atf-playground:collapsed and read back', () => {
@@ -60,13 +77,13 @@ describe('search reveal in a collapsed section', () => {
     expect(sectionFor('other', RECIPES)).toBeUndefined()
   })
 
-  it('expands that section and leaves the others collapsed', () => {
+  it("opens that section, closes its siblings and leaves the other tab's alone", () => {
     const c = new Set(['recipes:Custom recipes', 'reference:functions'])
     const key = sectionFor('recipe:Numbered tracks', RECIPES)!
-    const after = expandSection(c, key)
+    const after = openOnly(c, key, ['recipes:WACUP defaults', 'recipes:Custom recipes'])
     expect(isExpanded(after, key)).toBe(true)
+    expect(isExpanded(after, 'recipes:WACUP defaults')).toBe(false)
     expect(isExpanded(after, 'reference:functions')).toBe(false)
-    expect(expandSection(after, key)).toBe(after) // already expanded: unchanged
     expect(c.has(key)).toBe(true) // the input isn't mutated
   })
 })

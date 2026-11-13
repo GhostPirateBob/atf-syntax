@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, shallowRef } from 'vue'
-import { Pencil, Trash } from '@lucide/vue'
+import { computed, nextTick, onMounted, ref, shallowRef } from 'vue'
+import { ChefHat, Library, Pencil, Trash } from '@lucide/vue'
 import { FIELDS, FUNCTIONS } from '@/core'
 import { inlineMarkdown } from '@/lib/markdown'
-import { RECIPES, type Recipe } from '@/lib/recipes'
+import { RECIPES, recipeGroups, type Recipe } from '@/lib/recipes'
 import { browserStorage, renameSaved, savedFormats, updateSaved, type SavedFormat } from '@/lib/saved'
-import { expandSection, isExpanded, readCollapsed, sectionFor, toggleSection, writeCollapsed } from '@/lib/collapsed'
+import { isExpanded, openOnly, readCollapsed, sectionFor, toggleSection, writeCollapsed } from '@/lib/collapsed'
 import { toFormat } from '@/lib/document'
-import { reducedMotion } from '@/lib/media'
+import { NARROW, reducedMotion, useMedia } from '@/lib/media'
+import { vTip } from '@/lib/tooltip'
+import { yieldToMain } from '@/lib/timing'
 import HighlightedFormat from './HighlightedFormat.vue'
 import SidebarSection from './SidebarSection.vue'
 
 const emit = defineEmits<{ insert: [text: string]; load: [recipe: Recipe]; loadSaved: [saved: SavedFormat]; delete: [saved: SavedFormat]; close: [] }>()
 
 const tab = ref<'reference' | 'recipes'>('recipes')
+/** Phones: the tabs are icons, named by aria-label and the tooltip. */
+const narrow = useMedia(NARROW)
 const query = ref('')
 
 const SYNTAX = [
@@ -31,9 +35,17 @@ const functions = computed(() =>
   FUNCTIONS.filter((f) => !q.value || f.name.includes(q.value.replace(/^\$/, '')) || f.doc.toLowerCase().includes(q.value)),
 )
 // ---- collapsible sections --------------------------------------------------------------------
-// Keys: recipes:saved, recipes:<group>, reference:syntax|fields|functions. All expanded by default.
+// Keys: recipes:saved, recipes:<group>, reference:syntax|fields|functions. Each tab's sections are an
+// accordion: opening one closes the others (Saved, the visitor's own list, stays independent). On a
+// first visit only the first of each is open. Collapsed lists aren't rendered (see SidebarSection),
+// which matters: the sidebar was two thirds of the page's elements. The state is remembered.
 const store = browserStorage()
-const collapsed = shallowRef<ReadonlySet<string>>(readCollapsed(store))
+const groups = recipeGroups(RECIPES)
+const RECIPE_KEYS = groups.map(([g]) => `recipes:${g}`)
+const REFERENCE_KEYS = ['reference:syntax', 'reference:fields', 'reference:functions']
+const siblingsOf = (key: string) => (key.startsWith('reference:') ? REFERENCE_KEYS : RECIPE_KEYS.includes(key) ? RECIPE_KEYS : [key])
+const DEFAULT_COLLAPSED = [...RECIPE_KEYS.slice(1), ...REFERENCE_KEYS.slice(1)]
+const collapsed = shallowRef<ReadonlySet<string>>(readCollapsed(store, DEFAULT_COLLAPSED))
 /** The section just expanded, for ~300 ms, so its items animate in (not on load or tab switches). */
 const entering = ref<string | null>(null)
 let enterTimer: ReturnType<typeof setTimeout> | undefined
@@ -41,14 +53,25 @@ let enterTimer: ReturnType<typeof setTimeout> | undefined
 const filtering = (key: string) => key.startsWith('reference:') && q.value !== ''
 const expanded = (key: string) => isExpanded(collapsed.value, key, filtering(key))
 const sectionId = (key: string) => `sb-${key.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-function toggle(key: string) {
+async function toggle(key: string) {
   if (filtering(key)) return
   const opening = !expanded(key)
-  collapsed.value = toggleSection(collapsed.value, key)
+  collapsed.value = opening ? openOnly(collapsed.value, key, siblingsOf(key)) : toggleSection(collapsed.value, key)
   writeCollapsed(store, collapsed.value)
   clearTimeout(enterTimer)
   entering.value = opening ? key : null
-  if (opening) enterTimer = setTimeout(() => (entering.value = null), 300)
+  if (!opening) return
+  enterTimer = setTimeout(() => (entering.value = null), 300)
+  // Bring the opened section's heading to the top of the sidebar, so its list shows below it (a
+  // section above may also just have closed and moved it). Only the sidebar's own scroller moves,
+  // never the page, as scrollIntoView would.
+  await nextTick()
+  const section = document.getElementById(`${sectionId(key)}-btn`)?.closest('section')
+  const scroller = section?.closest<HTMLElement>('.scroll')
+  if (!section || !scroller) return
+  const pad = parseFloat(getComputedStyle(scroller).paddingTop) || 0
+  const top = scroller.scrollTop + section.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pad
+  scroller.scrollTo({ top, behavior: reducedMotion() ? 'auto' : 'smooth' })
 }
 
 // ---- saved formats --------------------------------------------------------------------------
@@ -73,6 +96,21 @@ async function cancelRename(s: SavedFormat) {
 }
 const flatFormat = (doc: string) => toFormat(doc).format
 
+// ---- staged start ----------------------------------------------------------------------------------
+// The lists are most of the page's DOM: they render after the first paint (one frame, then a yield),
+// so the editor and the preview show first.
+const ready = ref(false)
+let markReady: () => void = () => {}
+const untilReady = new Promise<void>((resolve) => (markReady = resolve))
+onMounted(() =>
+  requestAnimationFrame(async () => {
+    await yieldToMain()
+    ready.value = true
+    await nextTick()
+    markReady()
+  }),
+)
+
 // ---- jumping to an entry from the search ---------------------------------------------------------
 const root = ref<HTMLElement>()
 /**
@@ -80,12 +118,14 @@ const root = ref<HTMLElement>()
  * clears the filter, scrolls it into view, focuses it and flashes an outline. False if not listed.
  */
 async function reveal(which: 'recipes' | 'reference', id: string): Promise<boolean> {
+  await untilReady
   tab.value = which
   query.value = ''
-  // A target in a collapsed section: expand it (and remember that) before scrolling to it.
+  // A target in a collapsed section: open it (closing its siblings, and remembering that) before
+  // scrolling to it. Its list renders on the nextTick below.
   const key = sectionFor(id, RECIPES)
   if (key && !expanded(key)) {
-    collapsed.value = expandSection(collapsed.value, key)
+    collapsed.value = openOnly(collapsed.value, key, siblingsOf(key))
     writeCollapsed(store, collapsed.value)
   }
   await nextTick()
@@ -100,24 +140,24 @@ async function reveal(which: 'recipes' | 'reference', id: string): Promise<boole
   return true
 }
 defineExpose({ reveal })
-
-const groups = computed(() => {
-  const out = new Map<string, Recipe[]>()
-  for (const r of RECIPES) out.set(r.group, [...(out.get(r.group) ?? []), r])
-  return [...out]
-})
 </script>
 
 <template>
   <aside ref="root" class="sidebar">
     <header>
-      <button :class="{ active: tab === 'recipes' }" @click="tab = 'recipes'">Recipes</button>
-      <button :class="{ active: tab === 'reference' }" @click="tab = 'reference'">Reference</button>
+      <button v-tip="narrow ? 'Recipes' : undefined" class="tab" :class="{ active: tab === 'recipes' }" :aria-label="narrow ? 'Recipes' : undefined" @click="tab = 'recipes'">
+        <ChefHat :size="14" aria-hidden="true" /><span class="tab-label">Recipes</span>
+      </button>
+      <button v-tip="narrow ? 'Reference' : undefined" class="tab" :class="{ active: tab === 'reference' }" :aria-label="narrow ? 'Reference' : undefined" @click="tab = 'reference'">
+        <Library :size="14" aria-hidden="true" /><span class="tab-label">Reference</span>
+      </button>
       <span class="spacer" />
       <button class="close" aria-label="Close sidebar" @click="emit('close')">✕</button>
     </header>
 
-    <div v-if="tab === 'recipes'" class="scroll">
+    <!-- The lists render just after the first paint (see `ready`); the header shows at once. -->
+    <div v-if="!ready" class="scroll" />
+    <div v-else-if="tab === 'recipes'" class="scroll">
       <SidebarSection
         v-if="savedFormats.length"
         :id="sectionId('recipes:saved')"
@@ -141,8 +181,8 @@ const groups = computed(() => {
               <HighlightedFormat :format="flatFormat(s.doc)" class="preview" />
             </button>
             <span class="saved-actions">
-              <button class="mini" :aria-label="`Rename ${s.name}`" title="Rename" @click="startRename(s)"><Pencil :size="14" aria-hidden="true" /></button>
-              <button class="mini" :aria-label="`Delete ${s.name}`" title="Delete" @click="emit('delete', s)"><Trash :size="14" aria-hidden="true" /></button>
+              <button v-tip="'Rename'" class="mini" :aria-label="`Rename ${s.name}`" @click="startRename(s)"><Pencil :size="14" aria-hidden="true" /></button>
+              <button v-tip="'Delete'" class="mini" :aria-label="`Delete ${s.name}`" @click="emit('delete', s)"><Trash :size="14" aria-hidden="true" /></button>
             </span>
           </template>
         </div>
@@ -214,7 +254,10 @@ const groups = computed(() => {
 
 <style scoped>
 .sidebar {
-  background: var(--sidebar);
+  background: var(--chrome-bg);
+  /* Secondary text readable on the raised chrome (see --muted-raised in style.css). */
+  --muted: var(--muted-raised);
+  --dim: var(--muted-raised);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -224,7 +267,7 @@ const groups = computed(() => {
 header {
   display: flex;
   gap: 4px;
-  padding: 8px;
+  padding: 8px 20px 8px 8px;
   border-bottom: 1px solid var(--border);
 }
 header button {
@@ -234,6 +277,32 @@ header button {
 header button.active {
   border-color: var(--teal);
   color: var(--bright);
+}
+/* The tabs: an icon before the word (box-tab style); on phones the icon alone, at least 32 px. */
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  line-height: 1;
+  min-height: 32px;
+}
+.tab svg {
+  flex: none;
+}
+@media (max-width: 640px) {
+  .tab {
+    justify-content: center;
+    min-width: 34px;
+    padding: 0;
+  }
+  .tab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 .spacer {
   flex: 1;
@@ -262,26 +331,19 @@ header button.active {
 .saved-item + .saved-item {
   border-top: 1px solid var(--border);
 }
-/* The hover tint is an overlay under the text that fades in (opacity only). */
+/* List items hover instantly (see the motion rule in style.css): the card's colour changes to the
+   35 % tint over the card, as a solid colour, so sweeping the pointer down the list repaints one
+   card at a time with no layer to promote per card. Paint containment keeps that repaint inside. */
 .recipe,
 .item {
   position: relative;
-  isolation: isolate;
+  contain: paint;
 }
-.recipe::before,
-.item::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: rgba(var(--tint-rgb), 0.35);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s;
-}
-.recipe:hover::before,
-.item:hover::before {
-  opacity: 1;
+/* (Through .sb-card, so it outranks the card's resting colour in SidebarSection.vue.) */
+.sb-card > .recipe:hover,
+.sb-card > .item:hover,
+.sb-card > .saved-item > .recipe:hover {
+  background-color: color-mix(in srgb, rgb(var(--tint-rgb)) var(--sb-hover-mix), var(--sb-list-bg));
 }
 .recipe:hover,
 .item:hover {
@@ -330,11 +392,12 @@ dd {
   margin: 0 0 4px;
   padding: 0 8px;
 }
+/* Square, but for the card's outer corners (SidebarSection), which its button follows. */
 .saved-item {
   position: relative;
-  border-radius: 4px;
 }
 .saved-item .recipe {
+  border-radius: inherit;
   padding-right: 64px;
 }
 .saved-actions {
@@ -384,6 +447,7 @@ header button:focus-visible {
   position: absolute;
   inset: 0;
   z-index: 1;
+  border-radius: inherit;
   box-shadow: inset 0 0 0 2px var(--gold);
   background: rgba(190, 146, 8, 0.18);
   opacity: 0;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, type ComponentPublicInstance } from 'vue'
-import { ClipboardPaste, FileMusic, Folder, Info, ListMusic, RotateCcw } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type ComponentPublicInstance } from 'vue'
+import { ClipboardPaste, FileMusic, FolderSearch, Info, ListMusic, ListRestart } from '@lucide/vue'
 import IconButton from './IconButton.vue'
 import { EDITABLE_TAGS, type Track } from '@/lib/tracks'
 import { parseM3u } from '@/lib/m3u'
@@ -9,6 +9,10 @@ import { filesFromDrop, filesFromInput, sortPicked, type Picked } from '@/lib/pi
 import { titleFont } from '@/lib/fontStacks'
 import { clampFontSize, type ViewSettings } from '@/lib/view'
 import { fitRow, fontsLoaded, useWidth } from '@/lib/rowFit'
+import { reducedMotion } from '@/lib/media'
+import { rowOffsets, rowsInView, scrollToShow, visibleWindow } from '@/lib/virtualList'
+import throttle from 'lodash-es/throttle'
+import { frames } from '@/lib/timing'
 
 export interface Row {
   label: string
@@ -38,6 +42,8 @@ const emit = defineEmits<{
   open: [picked: Picked]
   samples: []
   export: []
+  /** The rows in the list's view (track indices), whenever they change. */
+  view: [indices: number[]]
 }>()
 
 const editing = ref<number | null>(null)
@@ -67,18 +73,136 @@ const untagged = computed(() => (props.source === 'playlist' && !props.reading ?
 const font = computed(() => titleFont(props.view.font, props.view.fontFamily))
 const fontSize = computed(() => clampFontSize(props.view.fontSize))
 const numberPrefix = (i: number) => (props.view.numbers ? `${i + 1}. ` : '')
-// Every row's title area is as wide as the first one's: the playlist width, or less on a narrow screen.
+
+// ---- the list: five rows high, scrolling inside, virtualised ------------------------------------
+// Only the rows in view (plus a few each side) get DOM; padding on the list stands in for the rest,
+// so a 5,000-track playlist costs about as much as a short one. Nothing here reads layout: row
+// heights come from a ResizeObserver, the scroll position from scroll events.
+/** Rows shown before the list scrolls. */
+const VISIBLE_ROWS = 5
+/** Rows rendered beyond each edge of the view, so a scroll or a key press rarely shows a gap. */
+const OVERSCAN = 4
+/** A row's height until one is measured (a 16 px title, the meta line, padding and the rule). */
+const DEFAULT_ROW = 44
+const rowsEl = ref<HTMLDivElement>()
+/** One row's height (its title line, the meta line and the rule), measured from a row whose tag editor is shut. */
+const rowHeight = ref(0)
+/** Measured heights by track id: an open tag editor or a wrapped meta line makes a row taller. */
+const heights = shallowRef(new Map<string, number>())
+const scrollTop = ref(0)
+/** Row sizes seen since the last update, by track id (the latest of each), and a row height without a tag editor. */
+let seen = new Map<string, number>()
+let plainSeen = 0
+// Taken at most every two frames (the first at once, the last always), so a resize drag doesn't
+// re-lay the list on every frame but always ends at the final sizes.
+const applySizes = throttle(
+  () => {
+    let next: Map<string, number> | undefined
+    for (const [id, h] of seen) if (heights.value.get(id) !== h) (next ??= new Map(heights.value)).set(id, h)
+    if (next) heights.value = next
+    if (plainSeen && plainSeen !== rowHeight.value) rowHeight.value = plainSeen
+    seen = new Map()
+    plainSeen = 0
+  },
+  frames(2),
+  { leading: true, trailing: true },
+)
+const rowObserver = new ResizeObserver((entries) => {
+  for (const e of entries) {
+    const li = e.target as HTMLElement
+    const id = li.dataset.id
+    const h = e.borderBoxSize?.[0]?.blockSize
+    if (!id || !h) continue
+    if (!plainSeen && !li.querySelector('.editor')) plainSeen = h
+    seen.set(id, h)
+  }
+  applySizes()
+})
+onBeforeUnmount(() => {
+  rowObserver.disconnect()
+  applySizes.cancel()
+})
+/** Observes each rendered row as it mounts (an unmounted row drops out of the observer by itself). */
+function observeRow(el: Element | ComponentPublicInstance | null) {
+  if (el instanceof HTMLElement) rowObserver.observe(el)
+}
+// A new list, or a font change: the measured heights no longer apply.
+watch([() => props.tracks, () => props.tracks.length, fontSize, () => font.value.family, () => props.view.numbers], () => (heights.value = new Map()))
+
+const estimate = computed(() => rowHeight.value || DEFAULT_ROW)
+const offsets = computed(() => {
+  const h = heights.value
+  const est = estimate.value
+  const list = props.tracks
+  return rowOffsets(list.length, (i) => h.get(list[i]!.id) ?? est)
+})
+/** The list's height: five rows, or less for a shorter playlist (what the CSS max-height gives). */
+const viewport = computed(() => (rowHeight.value ? Math.min(VISIBLE_ROWS * rowHeight.value, offsets.value[props.tracks.length] ?? 0) : 0))
+const win = computed(() => visibleWindow(offsets.value, scrollTop.value, viewport.value, OVERSCAN))
+const shown = computed(() => {
+  const { start, end } = win.value
+  return props.tracks.slice(start, end).map((t, k) => ({ t, i: start + k }))
+})
+/** The scrolling box: five rows high once a row is measured. */
+const scrollStyle = computed(() => (rowHeight.value ? { maxHeight: `${VISIBLE_ROWS * rowHeight.value}px` } : {}))
+/** Padding above and below the rendered rows, standing in for the rest (the list isn't the scrolling box, so it adds height). */
+const listStyle = computed(() => ({ paddingTop: `${win.value.padTop}px`, paddingBottom: `${win.value.padBottom}px` }))
+// The rows on screen go to the evaluator first.
+watch(
+  () => rowsInView(offsets.value, scrollTop.value, viewport.value).join(','),
+  (list) => emit('view', list ? list.split(',').map(Number) : []),
+  { immediate: true },
+)
+function onScroll() {
+  if (rowsEl.value) scrollTop.value = rowsEl.value.scrollTop
+}
+
+// Every row's title area is as wide as the first rendered one's: the playlist width, or less on a narrow screen.
 const firstLine = ref<HTMLElement>()
 const setLine = (i: number, el: Element | ComponentPublicInstance | null) => {
-  if (i === 0) firstLine.value = (el as HTMLElement | null) ?? undefined
+  if (i === win.value.start) firstLine.value = (el as HTMLElement | null) ?? undefined
 }
 const lineWidth = useWidth(firstLine)
-/** Titles cut WACUP-style ("Long Tit... 4:20") to fit beside the duration. */
-const fitted = computed(() => {
+/** A title cut WACUP-style ("Long Tit... 4:20") to fit beside the duration (cached, see fitRow). */
+function fitted(i: number): string {
   void fontsLoaded.value
-  const css = `${font.value.weight} ${fontSize.value}px ${font.value.family}`
-  return props.rows.map((r, i) => fitRow(r.text, { duration: r.duration, prefix: numberPrefix(i), width: lineWidth.value, font: css, gap: fontSize.value * 0.4 }))
+  const r = props.rows[i]
+  if (!r) return ''
+  return fitRow(r.text, { duration: r.duration, prefix: numberPrefix(i), width: lineWidth.value, font: `${font.value.weight} ${fontSize.value}px ${font.value.family}`, gap: fontSize.value * 0.4 })
+}
+
+/**
+ * Scrolls the list (only the list, never the page) so the selected row shows, e.g. after Up/Down
+ * on the preview. `instant` for keyboard moves inside the list, so the row is rendered at once.
+ */
+function keepSelectedInView(instant = false) {
+  const ol = rowsEl.value
+  if (!ol || !viewport.value) return
+  const top = scrollToShow(offsets.value, props.selected, scrollTop.value, viewport.value)
+  if (top === scrollTop.value) return
+  // A long way (Home or End on the preview): jump, as a smooth scroll would render every row it passes.
+  const jump = instant || reducedMotion() || Math.abs(top - scrollTop.value) > 10 * viewport.value
+  ol.scrollTo({ top, behavior: jump ? 'auto' : 'smooth' })
+  if (jump) scrollTop.value = top
+}
+watch(() => props.selected, () => keepSelectedInView())
+// Once the row height is known (the first measurement), bring a selected track further down into view.
+watch(viewport, (now, before) => {
+  if (now && !before) keepSelectedInView(true)
 })
+
+/** Up, Down, Home and End on a row move the selection, so every track can be reached from the keyboard. */
+async function onRowKey(e: KeyboardEvent, i: number) {
+  const n = props.tracks.length
+  const to = ({ ArrowUp: i - 1, ArrowDown: i + 1, Home: 0, End: n - 1 } as Record<string, number>)[e.key]
+  if (to === undefined || to < 0 || to >= n) return
+  e.preventDefault()
+  emit('select', to)
+  await nextTick()
+  keepSelectedInView(true)
+  await nextTick()
+  rowsEl.value?.querySelector<HTMLElement>(`li[data-index="${to}"] .out`)?.focus({ preventScroll: true })
+}
 
 async function onDrop(e: DragEvent) {
   dragging.value = false
@@ -99,18 +223,18 @@ function importPasted() {
 </script>
 
 <template>
-  <section class="tracks" :class="{ dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop">
+  <section class="tracks" aria-labelledby="tracks-heading" :class="{ dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop">
     <header>
-      <h2>Tracks</h2>
+      <h2 id="tracks-heading">Tracks</h2>
       <span class="muted count">{{ tracks.length }} {{ sourceLabel }}</span>
       <span v-if="reading" class="count reading" role="status">Reading {{ reading.done }} / {{ reading.total }}…</span>
       <span class="spacer" />
       <span class="actions">
-        <IconButton :icon="FileMusic" label="Open files…" title="Open files: a playlist, audio files, or both" @click="fileInput?.click()" />
-        <IconButton :icon="Folder" label="Open folder…" title="Open folder: read the tags of every audio file in a folder" @click="folderInput?.click()" />
-        <IconButton :icon="ClipboardPaste" label="Paste playlist" :aria-expanded="pasting" @click="pasting = !pasting" />
-        <IconButton :icon="ListMusic" label="Save .m3u8" :title="exportTitle" :disabled="source !== 'playlist'" @click="emit('export')" />
-        <IconButton v-if="source !== 'sample'" :icon="RotateCcw" label="Back to samples" @click="emit('samples')" />
+        <IconButton :icon="FileMusic" label="Open files…" show-icon :icon-size="14" title="Open files: a playlist, audio files, or both" @click="fileInput?.click()" />
+        <IconButton :icon="FolderSearch" label="Open folder…" show-icon :icon-size="14" title="Open folder: read the tags of every audio file in a folder" @click="folderInput?.click()" />
+        <IconButton :icon="ClipboardPaste" label="Paste playlist" show-icon :icon-size="14" :aria-expanded="pasting" @click="pasting = !pasting" />
+        <IconButton :icon="ListMusic" label="Save .m3u8" show-icon :icon-size="14" :title="exportTitle" :disabled="source !== 'playlist'" @click="emit('export')" />
+        <IconButton v-if="source !== 'sample'" :icon="ListRestart" label="Back to samples" show-icon :icon-size="14" @click="emit('samples')" />
       </span>
       <input ref="fileInput" type="file" :accept="ACCEPT" multiple hidden @change="onPick" />
       <input ref="folderInput" type="file" webkitdirectory hidden @change="onPick" />
@@ -138,45 +262,62 @@ function importPasted() {
       </div>
     </div>
 
-    <ol class="rows" :style="{ '--row-font': font.family, '--row-size': `${fontSize}px`, '--row-weight': font.weight, '--pl-width': view.width ? `${view.width}px` : '100%' }">
-      <li v-for="(t, i) in tracks" :key="t.id" :class="{ selected: i === selected }">
-        <div class="row">
-          <button class="out stretched playlist-text" :class="rows[i]?.state" :aria-pressed="i === selected" :title="rows[i]?.text" @click="emit('select', i)">
-            <span :ref="(el) => setLine(i, el)" class="line">
-              <span class="t">
-                <span v-if="view.numbers" class="num">{{ numberPrefix(i) }}</span>
-                <template v-if="rows[i]?.state === 'freeze'">⚠ would freeze WACUP</template>
-                <template v-else-if="rows[i]?.state === 'timeout'">⚠ didn't finish</template>
-                <template v-else-if="rows[i]?.state === 'heavy'">⚠ too heavy to preview</template>
-                <template v-else>{{ fitted[i] || ' ' }}</template>
+    <div ref="rowsEl" class="rows-scroll" :style="scrollStyle" @scroll.passive="onScroll">
+      <ol
+        class="rows"
+        :style="{ ...listStyle, '--row-font': font.family, '--row-size': `${fontSize}px`, '--row-weight': font.weight, '--pl-width': view.width ? `${view.width}px` : '100%' }"
+      >
+        <li
+          v-for="{ t, i } in shown"
+          :key="t.id"
+          :ref="observeRow"
+          :data-id="t.id"
+          :data-index="i"
+          :aria-setsize="tracks.length"
+          :aria-posinset="i + 1"
+          :class="{ selected: i === selected }"
+        >
+          <div class="row">
+            <button class="out stretched playlist-text" :class="rows[i]?.state" :aria-pressed="i === selected" :title="rows[i]?.text" @click="emit('select', i)" @keydown="onRowKey($event, i)">
+              <span :ref="(el) => setLine(i, el)" class="line">
+                <span class="t">
+                  <span v-if="view.numbers" class="num">{{ numberPrefix(i) }}</span>
+                  <template v-if="rows[i]?.state === 'freeze'">⚠ would freeze WACUP</template>
+                  <template v-else-if="rows[i]?.state === 'timeout'">⚠ didn't finish</template>
+                  <template v-else-if="rows[i]?.state === 'heavy'">⚠ too heavy to preview</template>
+                  <template v-else-if="fitted(i)">{{ fitted(i) }}</template><template v-else>{{ ' ' }}</template>
+                </span>
+                <span v-if="rows[i]?.duration" class="dur">{{ rows[i]?.duration }}</span>
               </span>
-              <span v-if="rows[i]?.duration" class="dur">{{ rows[i]?.duration }}</span>
-            </span>
-          </button>
-          <button class="edit" :aria-label="`Edit tags of ${rows[i]?.label}`" @click.stop="editing = editing === i ? null : i">tags</button>
-        </div>
-        <div class="meta">
-          <span class="label">{{ rows[i]?.label }}</span>
-          <span v-if="rows[i]?.unsure" class="unsure" title="Uses a function not yet confirmed against WACUP's own evaluator">? unconfirmed</span>
-          <span v-if="rows[i]?.cached" class="cached" title="The #EXTINF title in your playlist: what WACUP showed when it last saved it. May be stale or from an older format.">WACUP showed (cached): {{ rows[i]?.cached }}</span>
-        </div>
-        <div v-if="editing === i" class="editor">
-          <label v-for="key in EDITABLE_TAGS" :key="key">
-            <span class="mono">%{{ key }}%</span>
-            <input type="text" :value="t.tags[key] ?? ''" @input="emit('setTag', i, key, ($event.target as HTMLInputElement).value)" />
-          </label>
-        </div>
-      </li>
-    </ol>
+            </button>
+            <button class="edit" :aria-label="`Edit tags of ${rows[i]?.label}`" @click.stop="editing = editing === i ? null : i">tags</button>
+          </div>
+          <div class="meta">
+            <span class="label">{{ rows[i]?.label }}</span>
+            <span v-if="rows[i]?.unsure" class="unsure" title="Uses a function not yet confirmed against WACUP's own evaluator">? unconfirmed</span>
+            <span v-if="rows[i]?.cached" class="cached" title="The #EXTINF title in your playlist: what WACUP showed when it last saved it. May be stale or from an older format.">WACUP showed (cached): {{ rows[i]?.cached }}</span>
+          </div>
+          <div v-if="editing === i" class="editor">
+            <label v-for="key in EDITABLE_TAGS" :key="key">
+              <span class="mono">%{{ key }}%</span>
+              <input type="text" :value="t.tags[key] ?? ''" @input="emit('setTag', i, key, ($event.target as HTMLInputElement).value)" />
+            </label>
+          </div>
+        </li>
+      </ol>
+    </div>
     <p class="drop-hint muted">
       Drop an <code>.m3u8</code> here to see your own tracks, with the audio files or their folder to read the tags. Your files stay on your computer.
       Without a playlist, your browser only gives the page file names, not full paths, so <code>%filename%</code> and <code>%folder%</code> start at the folder you picked.
+      Your last playlist (paths and tags only) is remembered in this browser.
     </p>
   </section>
 </template>
 
 <style scoped>
 .tracks {
+  /* Secondary text readable on the panel and on a selected row (see --muted-text in style.css). */
+  --muted: var(--muted-text);
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel);
@@ -259,20 +400,33 @@ h2 {
   align-items: center;
   font-size: 0.85rem;
 }
-.rows {
-  list-style: none;
+/* At most five rows high (the max-height is measured in script), scrolling inside. Only the rows
+   in view are rendered; the list's padding (set in script) stands in for the others. */
+.rows-scroll {
   margin: 10px 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room for the scrollbar kept either way, so its coming and going never changes the rows' width. */
+  scrollbar-gutter: stable;
+}
+.rows {
+  position: relative;
+  list-style: none;
+  margin: 0;
   padding: 0;
 }
 li {
   position: relative;
+  /* A hover or selection repaints only this row. */
+  contain: paint;
   border-top: 1px solid var(--border);
   padding: 4px 6px;
   border-left: 3px solid transparent;
   cursor: pointer;
 }
+/* Hover and selection tints over the panel, as solid colours. */
 li:hover {
-  background: rgba(var(--tint-rgb), 0.25);
+  background: color-mix(in srgb, rgb(var(--tint-rgb)) 25%, var(--panel));
 }
 /* Stretched link: the select button's ::after covers the whole row, so a click anywhere selects
    the track, while keyboard and screen-reader users still get one real button per row. */
@@ -293,7 +447,7 @@ li:hover {
 }
 li.selected {
   border-left-color: var(--gold);
-  background: rgba(var(--tint-rgb), 0.35);
+  background: color-mix(in srgb, rgb(var(--tint-rgb)) 35%, var(--panel));
 }
 .row {
   display: flex;
@@ -343,11 +497,11 @@ li.selected {
 .out.freeze,
 .out.heavy,
 .out.timeout {
-  color: var(--error);
+  color: var(--error-text);
   font-family: var(--sans);
 }
 .out.error {
-  color: var(--error);
+  color: var(--error-text);
 }
 .edit {
   font-size: 0.75rem;
@@ -361,7 +515,7 @@ li.selected {
   color: var(--muted);
 }
 .unsure {
-  color: var(--warning);
+  color: var(--warning-text);
 }
 .cached {
   font-style: italic;

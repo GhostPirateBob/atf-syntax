@@ -5,19 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Documentation for the ATF (Advanced Title Formatting) VS Code extension: features, settings, lint rules, functions and fields for WACUP and Winamp." />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#010f17" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#00080c" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#efefef" media="(prefers-color-scheme: light)" />
     <!-- The page colour before style.css loads, so a reload never flashes the wrong theme. Same
-         values as --bg in src/style.css; theme-init.js sets data-theme before first paint. -->
+         values as --bg in src/style.css; the script below sets data-theme before first paint. -->
     <style>
-      html { background: #010f17; color-scheme: dark; }
+      html { background: #00080c; color-scheme: dark; }
       html[data-theme='light'] { background: #efefef; color-scheme: light; }
       @media (prefers-color-scheme: light) { html:not([data-theme='dark']) { background: #efefef; color-scheme: light; } }
     </style>
+    <!-- The web fonts the first screen uses, fetched with the page rather than after the CSS, so they
+         are in before the first layout and never swap in later (see src/fonts.css). -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource-variable/exo/files/exo-latin-wght-normal.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource/iosevka-charon-mono/files/iosevka-charon-mono-latin-400-normal.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource/iosevka-charon-mono/files/iosevka-charon-mono-latin-400-italic.woff2" />
     <link rel="icon" type="image/png" href="../favicon.png" />
-    <script src="../theme-init.js"></script>
-    <!-- Google Fonts and analytics, outside the GDPR area only: see public/third-party.js. -->
-    <script src="../third-party.js"></script>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <!-- The saved light/dark choice, applied before first paint so the page never flashes the other
+         theme (inline: one request fewer before first paint). No saved choice: style.css follows the
+         system preference. The key is the one in src/lib/theme.ts. -->
+    <script>
+      ;(function () {
+        try {
+          var t = localStorage.getItem('atf-playground:theme')
+          if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+        } catch (e) {
+          /* storage blocked: follow the system */
+        }
+      })()
+    </script>
+    <!-- Analytics, outside the GDPR area only: see public/third-party.js. -->
+    <script async vite-ignore src="../third-party.js"></script>
     <title>ATF for VS Code: documentation</title>
   </head>
   <body>

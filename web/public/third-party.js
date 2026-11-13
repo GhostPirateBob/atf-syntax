@@ -1,34 +1,17 @@
-// Google Fonts + Google Tag Manager / gtag.js, only for visitors outside the GDPR area (EU-27 +
-// Iceland, Liechtenstein, Norway), looked up from our own endpoint. If the lookup fails or is slow,
-// they load anyway. Analytics never loads on localhost. Shared by every page; loaded as a classic
-// script so it runs before the app.
+// The Google tag (gtag.js), only for visitors outside the GDPR area (EU-27 + Iceland, Liechtenstein,
+// Norway), looked up from our own endpoint. If the lookup fails or is slow, it loads anyway.
+// Analytics never loads on localhost, and elsewhere only once the page has loaded and is idle.
+// Shared by every page; loaded async, as nothing waits for it.
+// (The web fonts are self-hosted: see src/fonts.css.)
 ;(function () {
   var GDPR = 'AT BE BG HR CY CZ DK EE FI FR DE GR EL HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO'.split(' ')
-  var FONTS =
-    'https://fonts.googleapis.com/css2?family=Exo:ital,wght@0,100..900;1,100..900' +
-    '&family=Iosevka+Charon+Mono:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700' +
-    '&family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap'
   var host = location.hostname
   var local = host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === ''
+  // Analytics never loads locally, so there's nothing to look up.
+  if (local) return
 
-  function loadFonts() {
-    var l = document.createElement('link')
-    l.rel = 'stylesheet'
-    l.href = FONTS
-    document.head.appendChild(l)
-  }
+  // Google tag (gtag.js), the owner's snippet: GA4 only, no Tag Manager.
   function loadAnalytics() {
-    if (local) return
-    ;(function (w, d, s, l, i) {
-      w[l] = w[l] || []
-      w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' })
-      var f = d.getElementsByTagName(s)[0],
-        j = d.createElement(s),
-        dl = l != 'dataLayer' ? '&l=' + l : ''
-      j.async = true
-      j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl
-      f.parentNode.insertBefore(j, f)
-    })(window, document, 'script', 'dataLayer', 'GTM-WGWQGR6T')
     var g = document.createElement('script')
     g.async = true
     g.src = 'https://www.googletagmanager.com/gtag/js?id=G-TWHQ9H3BBQ'
@@ -38,12 +21,21 @@
       window.dataLayer.push(arguments)
     }
     window.gtag('js', new Date())
-    window.gtag('config', 'G-TWHQ9H3BBQ', { cookie_flags: 'max-age=7200;secure;samesite=none' })
+    window.gtag('config', 'G-TWHQ9H3BBQ')
+  }
+  // Google's script waits for the page: after the load event, when the main thread is idle (at
+  // most 4 s later), so it never competes with the first render.
+  function whenIdle(run) {
+    function idle() {
+      if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 4000 })
+      else setTimeout(run, 1)
+    }
+    if (document.readyState === 'complete') idle()
+    else window.addEventListener('load', idle, { once: true })
   }
   function decide(country) {
     if (GDPR.indexOf(country) >= 0) return
-    loadFonts()
-    loadAnalytics()
+    whenIdle(loadAnalytics)
   }
 
   var cached = null

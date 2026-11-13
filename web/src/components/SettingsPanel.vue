@@ -9,6 +9,18 @@ import { computed, onMounted } from 'vue'
 import type { ViewSettings } from '@/lib/view'
 import { ARIAL, FONT_GROUPS, singleFont } from '@/lib/fontStacks'
 import { fontInstalled } from '@/lib/measure'
+import { GLYPH_ROWS } from '@/lib/ticker'
+import {
+  DEFAULT_TICKER_METRICS,
+  MAX_TICKER_FONT_BYTES,
+  TICKER_PRESETS,
+  cleanMetrics,
+  presetForMetrics,
+  presetForSheet,
+  setTickerFont,
+  tickerFont,
+  type TickerMetrics,
+} from '@/lib/tickerFont'
 
 const model = defineModel<ViewSettings>({ required: true })
 const emit = defineEmits<{ close: [] }>()
@@ -38,6 +50,68 @@ async function listFonts() {
   }
 }
 const label = (name: string, installed: boolean) => (installed ? name : `${name} (not installed)`)
+
+// ---- song ticker font: a bitmap PNG from the user's own skin, kept in this browser only ----------
+const tickerInput = ref<HTMLInputElement>()
+const tickerNote = ref('')
+const glyphOrder = GLYPH_ROWS.map((r) => Array.from(r).join(' ')).join(' / ')
+/** The metrics fields: edited freely, applied when they make a valid font. */
+const metrics = ref<TickerMetrics>({ ...(tickerFont.value ?? DEFAULT_TICKER_METRICS) })
+const presetId = computed({
+  get: () => presetForMetrics(metrics.value)?.id ?? '',
+  set: (id: string) => {
+    const p = TICKER_PRESETS.find((x) => x.id === id)
+    if (p) setMetrics({ ...p.metrics })
+  },
+})
+function setMetrics(m: TickerMetrics) {
+  metrics.value = m
+  const clean = cleanMetrics(m)
+  if (clean && tickerFont.value) store({ ...tickerFont.value, ...clean })
+}
+function store(font: Parameters<typeof setTickerFont>[0]) {
+  tickerNote.value = setTickerFont(font) ? '' : "This browser won't keep it, so it lasts until you close the page."
+}
+function readDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result))
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(file)
+  })
+}
+function imageSize(url: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
+    img.onerror = () => reject(new Error('not an image'))
+    img.src = url
+  })
+}
+async function onTickerPicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (file.size > MAX_TICKER_FONT_BYTES) return void (tickerNote.value = `That file is ${Math.round(file.size / 1024)} kB; a song ticker font is a few kB. Pick the PNG named in the skin's <bitmapfont>.`)
+  try {
+    const dataUrl = await readDataUrl(file)
+    const { width, height } = await imageSize(dataUrl)
+    // A sheet of a known size gets its preset; otherwise the metrics shown stay as they are.
+    const m = presetForSheet(width, height)?.metrics ?? cleanMetrics(metrics.value) ?? DEFAULT_TICKER_METRICS
+    metrics.value = { ...m }
+    store({ dataUrl, name: file.name, ...m })
+    if (!tickerNote.value && (width < m.charWidth * 31 || height < m.charHeight * 3)) {
+      tickerNote.value = `At ${width}×${height} the sheet has fewer than 31 × 3 glyphs of ${m.charWidth}×${m.charHeight}, so some characters will be blank. Check the metrics in the skin's XML.`
+    }
+  } catch {
+    tickerNote.value = "That file isn't an image this browser can read."
+  }
+}
+function useDefaultTickerFont() {
+  store(null)
+  tickerNote.value = ''
+}
 </script>
 
 <template>
@@ -46,6 +120,11 @@ const label = (name: string, installed: boolean) => (installed ? name : `${name}
       <legend>Check for</legend>
       <label><input v-model="model.dialect" type="radio" name="dialect" value="wacup" /> WACUP</label>
       <label><input v-model="model.dialect" type="radio" name="dialect" value="winamp" /> Winamp 5</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Display</legend>
+      <label class="check"><input v-model="model.spaces" type="checkbox" /> Show spaces <span class="muted">(a dashed box for each space in the format editor)</span></label>
     </fieldset>
 
     <fieldset>
@@ -91,6 +170,46 @@ const label = (name: string, installed: boolean) => (installed ? name : `${name}
       <label class="check"><input v-model="model.trimLeading" type="checkbox" /> Trim leading whitespace <span class="muted">(start with a <code>.</code> to keep it)</span></label>
       <label class="check"><input v-model="model.underscoresToSpaces" type="checkbox" /> Underscores as spaces</label>
       <label class="check"><input v-model="model.pct20ToSpaces" type="checkbox" /> <code>%20</code> as spaces</label>
+    </fieldset>
+
+    <fieldset class="ticker-font">
+      <legend>Song ticker</legend>
+      <p class="line">
+        <span class="name">Font</span>
+        <span v-if="tickerFont" class="current">Your skin's <code>{{ tickerFont.name }}</code></span>
+        <span v-else class="current">VT323 <span class="muted">(pixel font, OFL)</span></span>
+      </p>
+      <p class="line buttons">
+        <span class="name" />
+        <button type="button" @click="tickerInput?.click()">Use my skin's song ticker font…</button>
+        <button v-if="tickerFont" type="button" @click="useDefaultTickerFont">Use VT323</button>
+      </p>
+      <template v-if="tickerFont">
+        <label class="line">
+          <span class="name">Preset</span>
+          <select v-model="presetId">
+            <option v-for="p in TICKER_PRESETS" :key="p.id" :value="p.id">{{ p.label }}</option>
+            <option value="">Custom</option>
+          </select>
+        </label>
+        <p class="line">
+          <span class="name">Glyph</span>
+          <input :value="metrics.charWidth" type="number" min="1" max="64" aria-label="Character width (charwidth), px" @input="setMetrics({ ...metrics, charWidth: ($event.target as HTMLInputElement).valueAsNumber })" />
+          ×
+          <input :value="metrics.charHeight" type="number" min="1" max="64" aria-label="Character height (charheight), px" @input="setMetrics({ ...metrics, charHeight: ($event.target as HTMLInputElement).valueAsNumber })" />
+          px
+        </p>
+        <label class="line">
+          <span class="name">hspacing</span>
+          <input :value="metrics.hspacing" type="number" min="-16" max="16" @input="setMetrics({ ...metrics, hspacing: ($event.target as HTMLInputElement).valueAsNumber })" /> px
+        </label>
+      </template>
+      <p v-if="tickerNote" class="note warn" role="status">{{ tickerNote }}</p>
+      <p class="note muted">
+        The PNG named by your skin's <code>&lt;bitmapfont&gt;</code> (in Winamp Modern, <code>player.songticker.font</code>), with its charwidth, charheight and hspacing.
+        It stays in this browser. Glyph order: {{ glyphOrder }}.
+      </p>
+      <input ref="tickerInput" type="file" accept="image/png,.png" hidden @change="onTickerPicked" />
     </fieldset>
 
     <p class="note muted">A font you pick or type is only looked up on this computer; nothing is downloaded for it.</p>
@@ -227,5 +346,23 @@ input[type='radio']:focus-visible {
 .note {
   margin: 0;
   font-size: 0.78rem;
+}
+.note.warn {
+  color: var(--warning-text);
+}
+.buttons {
+  flex-wrap: wrap;
+  margin: 0;
+}
+.buttons button {
+  font-size: 0.8rem;
+  padding: 1px 8px;
+}
+.ticker-font .line {
+  margin: 0;
+}
+.current {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 </style>

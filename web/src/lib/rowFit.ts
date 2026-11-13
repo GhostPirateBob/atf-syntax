@@ -1,20 +1,33 @@
 import { onBeforeUnmount, ref, watch, type Ref } from 'vue'
-import { fitText } from './fit'
+import { clearFitCache, fitRow as fitRowWith, type FitOptions } from './fitCache'
 import { measureText } from './measure'
+import throttle from 'lodash-es/throttle'
+import { frames } from './timing'
 
 /**
- * Bumped each time a web font finishes loading. Web fonts arrive after the country check (or
- * never, in the GDPR area), so widths measured before then are redone.
+ * Bumped each time a web font finishes loading. Web fonts swap in after the first render, so
+ * widths measured before then are redone.
  */
 export const fontsLoaded = ref(0)
-if (typeof document !== 'undefined') document.fonts?.addEventListener('loadingdone', () => fontsLoaded.value++)
+if (typeof document !== 'undefined')
+  document.fonts?.addEventListener('loadingdone', () => {
+    clearFitCache()
+    fontsLoaded.value++
+  })
 
-/** The content-box width of an element, kept up to date. 0 until it's in the page. */
+/**
+ * The content-box width of an element, kept up to date. 0 until it's in the page. Resizes are
+ * taken at most every two frames (the first at once, the last always), using the latest size.
+ */
 export function useWidth(el: Ref<Element | null | undefined>): Ref<number> {
   const width = ref(0)
+  let latest = 0
+  const apply = throttle(() => (width.value = latest), frames(2), { leading: true, trailing: true })
   const observer = new ResizeObserver((entries) => {
     const e = entries[entries.length - 1]
-    if (e) width.value = e.contentRect.width
+    if (!e) return
+    latest = e.contentRect.width
+    apply()
   })
   watch(
     el,
@@ -24,18 +37,12 @@ export function useWidth(el: Ref<Element | null | undefined>): Ref<number> {
     },
     { immediate: true, flush: 'post' },
   )
-  onBeforeUnmount(() => observer.disconnect())
+  onBeforeUnmount(() => {
+    observer.disconnect()
+    apply.cancel()
+  })
   return width
 }
 
-/**
- * A playlist row's title, cut WACUP-style ("Long Tit... 4:20") to fit the row beside its duration.
- * `prefix` (the playlist number) is drawn in front and never cut. `font` is a canvas/CSS font
- * shorthand matching the row; `gap` is the space kept before the duration, in px.
- */
-export function fitRow(title: string, opts: { duration: string; prefix: string; width: number; font: string; gap: number }): string {
-  if (opts.width <= 0 || !title) return title
-  const used = (opts.duration ? measureText(opts.duration, opts.font) + opts.gap : 0) + (opts.prefix ? measureText(opts.prefix, opts.font) : 0)
-  // 1 px spare: canvas and DOM text can differ by a fraction of a pixel.
-  return fitText(title, opts.width - used - 1, (s) => measureText(s, opts.font))
-}
+/** A playlist row's title cut to fit beside its duration, measured with canvas (see lib/fitCache.ts). */
+export const fitRow = (title: string, opts: FitOptions): string => fitRowWith(title, opts, measureText)

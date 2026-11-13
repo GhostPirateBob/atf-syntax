@@ -1,20 +1,22 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
+import { vTip } from '@/lib/tooltip'
 
 /**
  * A button with an icon and a text label. Below `collapse` (narrow: 640 px, header: 1280 px) only
- * the icon shows; the label stays as the accessible name and the tooltip.
+ * the icon shows; the label stays as the accessible name and the tooltip (v-tip, lib/tooltip.ts).
  */
-withDefaults(defineProps<{ icon: Component; label: string; title?: string; collapse?: 'narrow' | 'header' | 'always'; showIcon?: boolean }>(), {
+withDefaults(defineProps<{ icon: Component; label: string; title?: string; collapse?: 'narrow' | 'header' | 'always'; showIcon?: boolean; iconSize?: number }>(), {
   title: undefined,
+  iconSize: 16,
   collapse: 'narrow',
   showIcon: false,
 })
 </script>
 
 <template>
-  <button class="icon-btn" :class="[`collapse-${collapse}`, { 'show-icon': showIcon }]" :aria-label="label" :title="title ?? label">
-    <component :is="icon" :size="16" aria-hidden="true" class="ico" />
+  <button v-tip="title ?? label" class="icon-btn" :class="[`collapse-${collapse}`, { 'show-icon': showIcon }]" :aria-label="label">
+    <component :is="icon" :size="iconSize" aria-hidden="true" class="ico" />
     <span class="lbl">{{ label }}</span>
   </button>
 </template>
@@ -28,6 +30,7 @@ withDefaults(defineProps<{ icon: Component; label: string; title?: string; colla
   gap: 6px;
   white-space: nowrap;
   flex: none;
+  line-height: 1;
 }
 .ico {
   flex: none;
@@ -84,11 +87,13 @@ withDefaults(defineProps<{ icon: Component; label: string; title?: string; colla
     padding: 0;
   }
 }
+/* Dimmed with solid colours rather than opacity (no group-opacity layer, and a contrast that can be
+   checked): the label and icon 65 % of the way from the panel to --text, 3.56:1 on the panel in dark
+   and 3.02:1 in light (enabled: about 6.8:1); the border half way. */
 .icon-btn:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
-  border-color: var(--border);
-  color: var(--text);
+  border-color: color-mix(in srgb, var(--border) 50%, var(--panel));
+  color: color-mix(in srgb, var(--text) 65%, var(--panel));
 }
 .icon-btn:focus-visible {
   outline: 2px solid var(--teal);

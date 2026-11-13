@@ -35,6 +35,16 @@ await build({
         if (dir) used.add(dir)
         return null
       },
+      // Files a stylesheet points at (the self-hosted fonts' url()s) aren't loaded as modules: find
+      // their packages from the emitted assets.
+      generateBundle(_, bundle) {
+        for (const file of Object.values(bundle)) {
+          for (const name of file.type === 'asset' ? (file.originalFileNames ?? []) : []) {
+            const dir = packageDir(join(web, name))
+            if (dir) used.add(dir)
+          }
+        }
+      },
     },
   ],
 })

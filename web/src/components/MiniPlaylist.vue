@@ -6,9 +6,11 @@ import { clampFontSize } from '@/lib/view'
 import { titleFont } from '@/lib/fontStacks'
 import { fitRow, fontsLoaded, useWidth } from '@/lib/rowFit'
 import { NARROW, reducedMotion, useMedia } from '@/lib/media'
+import { PREVIEW_ROWS, ROW_STATE_TEXT, previewWindow } from '@/lib/playlistWindow'
 
 /**
- * The hero: a three-row WACUP playlist (previous, selected, next track), drawn at `zoom` times the
+ * The hero: a five-row WACUP playlist (two tracks before the selected one, it, two after; fewer
+ * rows for a shorter playlist, never a track twice), drawn at `zoom` times the
  * playlist's font size and width so it reads as a headline but cuts titles where the track list does.
  */
 const props = defineProps<{
@@ -38,22 +40,16 @@ const boxStyle = computed(() => ({
   fontSize: `${size.value}px`,
 }))
 
-type Slot = { pos: 'prev' | 'current' | 'next'; index: number }
-const slots = computed<Slot[]>(() => {
-  const s = props.selected
-  const many = n.value > 1
-  return [
-    { pos: 'prev', index: many ? (s - 1 + n.value) % n.value : -1 },
-    { pos: 'current', index: n.value ? s : -1 },
-    { pos: 'next', index: many ? (s + 1) % n.value : -1 },
-  ]
-})
-
-const STATE_TEXT: Partial<Record<Row['state'], string>> = {
-  freeze: '⚠ This would freeze WACUP',
-  heavy: 'Too heavy to preview',
-  timeout: "⚠ Didn't finish",
+/** Each row's offset from the current track (keys the row, so a step slides them all) and track. */
+const slots = computed(() => previewWindow(n.value, props.selected))
+const rowTitle = (offset: number, index: number) => {
+  const row = props.rows[index]
+  if (!row) return undefined
+  if (offset === 0) return row.text
+  const where = offset === -1 ? 'Previous track' : offset === 1 ? 'Next track' : offset < 0 ? 'Earlier track' : 'Later track'
+  return `${where}: ${row.label}`
 }
+
 const prefix = (index: number) => (props.view.numbers && index >= 0 ? `${index + 1}. ` : '')
 
 const currentRow = ref<HTMLElement>()
@@ -63,15 +59,15 @@ const shown = computed(() => {
   return slots.value.map(({ index }) => {
     const row = props.rows[index]
     if (!row) return { title: '', duration: '' }
-    const special = STATE_TEXT[row.state]
+    const special = ROW_STATE_TEXT[row.state]
     if (special) return { title: special, duration: row.duration }
     return { title: fitRow(row.text, { duration: row.duration, prefix: prefix(index), width: width.value, font: cssFont.value, gap: size.value * 0.4 }), duration: row.duration }
   })
 })
 
 const thumb = computed(() => {
-  if (n.value <= 3) return undefined
-  const h = Math.max(3 / n.value, 0.12)
+  if (n.value <= PREVIEW_ROWS) return undefined
+  const h = Math.max(PREVIEW_ROWS / n.value, 0.12)
   // Moved with a transform (a percentage of its own height), so the step animates on the compositor.
   return { height: `${h * 100}%`, transform: `translate3d(0, ${((props.selected / (n.value - 1)) * (1 - h) * 100) / h}%, 0)` }
 })
@@ -139,17 +135,17 @@ function onWheel(e: WheelEvent) {
     >
       <div
         v-for="(s, k) in slots"
-        :id="s.pos === 'current' ? 'pl-current' : undefined"
-        :key="s.pos"
-        :ref="s.pos === 'current' ? (el) => (currentRow = el as HTMLElement) : undefined"
+        :id="s.offset === 0 ? 'pl-current' : undefined"
+        :key="s.offset"
+        :ref="s.offset === 0 ? (el) => (currentRow = el as HTMLElement) : undefined"
         class="pl-row playlist-text"
-        :class="[s.pos, rows[s.index]?.state]"
+        :class="[{ current: s.offset === 0, odd: s.index % 2 === 1 }, rows[s.index]?.state]"
         role="option"
-        :aria-selected="s.pos === 'current'"
-        :title="rows[s.index] ? (s.pos === 'current' ? rows[s.index]!.text : `${s.pos === 'prev' ? 'Previous' : 'Next'} track: ${rows[s.index]!.label}`) : undefined"
-        @click="s.index >= 0 && s.pos !== 'current' && emit('select', s.index)"
+        :aria-selected="s.offset === 0"
+        :title="rowTitle(s.offset, s.index)"
+        @click="s.offset !== 0 && emit('select', s.index)"
       >
-        <span class="t"><span v-if="prefix(s.index)" class="num">{{ prefix(s.index) }}</span>{{ shown[k]?.title }}</span>
+        <span class="t"><span v-if="prefix(s.index)" class="num">{{ prefix(s.index) }}</span>{{ shown[k]?.title ?? '' }}</span>
         <span v-if="shown[k]?.duration" class="dur">{{ shown[k]?.duration }}</span>
       </div>
     </div>
@@ -182,7 +178,7 @@ function onWheel(e: WheelEvent) {
   outline: 2px solid var(--teal);
   outline-offset: 1px;
 }
-/* All three rows share this class (plus the global .playlist-text) and inherit the box's font
+/* All the rows share this class (plus the global .playlist-text) and inherit the box's font
    unchanged: cssFont, which the "..." cut is measured with, is built from the same values as boxStyle. */
 .pl-row {
   display: flex;
@@ -191,8 +187,13 @@ function onWheel(e: WheelEvent) {
   white-space: pre;
   cursor: pointer;
 }
-.pl-row.prev:hover,
-.pl-row.next:hover {
+/* Zebra rows by track (so a stripe moves with its track), as in a Winamp playlist with alternating
+   row colours; the selected row keeps its own colour. */
+.pl-row.odd:not(.current) {
+  background: var(--pl-stripe);
+  color: var(--pl-stripe-text);
+}
+.pl-row:not(.current):hover {
   color: var(--text);
 }
 .pl-row.current {
@@ -212,20 +213,23 @@ function onWheel(e: WheelEvent) {
 .pl-row.freeze .t,
 .pl-row.heavy .t,
 .pl-row.timeout .t {
-  color: var(--warning);
+  color: var(--warning-text);
 }
 .pl-row.error .t {
-  color: var(--error);
+  color: var(--error-text);
 }
+/* (70 % of the way from the playlist's background, as solid colours rather than opacity.) */
 .pl-row:not(.current).freeze .t,
-.pl-row:not(.current).heavy .t,
+.pl-row:not(.current).heavy .t {
+  color: color-mix(in srgb, var(--warning-text) 70%, var(--playlist-bg));
+}
 .pl-row:not(.current).error .t {
-  opacity: 0.7;
+  color: color-mix(in srgb, var(--error-text) 70%, var(--playlist-bg));
 }
 .pl-message {
   margin: 0;
-  /* Three rows tall, so the page doesn't jump between states. */
-  min-height: calc(3 * 1.35em);
+  /* As tall as the rows, so the page doesn't jump between states. */
+  min-height: calc(5 * 1.35em);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -233,7 +237,7 @@ function onWheel(e: WheelEvent) {
   white-space: normal;
 }
 .pl-message.warn {
-  color: var(--warning);
+  color: var(--warning-text);
 }
 .pl-message.muted {
   color: var(--muted);
@@ -244,16 +248,17 @@ function onWheel(e: WheelEvent) {
   bottom: 3px;
   right: 2px;
   width: 4px;
-  border-radius: 2px;
-  background: rgba(88, 110, 117, 0.15);
+  border-radius: 999px;
+  /* A drawn scrollbar (the rows are a window, not a scrolling box), in the real ones' colours. */
+  background: var(--scroll-track);
 }
 .pl-scroll span {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  border-radius: 2px;
-  background: rgba(88, 110, 117, 0.55);
+  border-radius: 999px;
+  background: var(--scroll-thumb);
   transition: transform calc(0.12s * var(--motion));
 }
 </style>
