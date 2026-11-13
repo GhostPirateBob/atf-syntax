@@ -1,6 +1,6 @@
 {
   "name": "atf-playground",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Live ATF (Advanced Title Formatting) playground: type a WACUP title format, see it render for real tracks.",

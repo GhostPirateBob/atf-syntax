@@ -2,7 +2,22 @@
 
 Changes to the [ATF playground](https://ghostpiratebob.me/atf-syntax/). The extension has its own changelog: [../CHANGELOG.md](../CHANGELOG.md). The playground was first released with extension 0.5.0.
 
-## Unreleased (0.6.0)
+## Unreleased (0.7.0)
+
+### Faster
+
+- **Tags are read in 2 to 4 background workers** (half your CPU cores), off the page. MediaInfo spends about 100 ms of solid work on each MP3 (walking its frames for the length and bitrate), which used to freeze typing and scrolling while a folder loaded. Importing 200 MP3s: **23.8 s → 8.3 s**, and 190 long tasks on the page → 1. A worker that crashes on a file is replaced and only that file fails.
+
+### Tags from your files, matched to WACUP's fields
+
+Checked against MediaInfo's output for 2,340 real MP3, M4A, Opus, FLAC and Ogg files, and against WACUP's documentation:
+
+- `%tracknumber%` has no padding, as in WACUP: a file tagged `0125` shows `125`.
+- `%disc%` shows the total too when the file has one, e.g. `1/2`.
+- New: `%tool%` (the software that ripped or encoded the file), `%producer%`, `%director%` and `%type%` (`0` for audio, `1` for video).
+- `%encoder%` now works for FLAC, Opus and Ogg files, and `%publisher%` falls back to a LABEL tag.
+
+## 0.6.0 — 2026-11-14
 
 ### New
 

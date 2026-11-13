@@ -166,7 +166,7 @@ const fields: [string, string][] = [
   ['tracknumber', 'Track number, unpadded.'],
   ['track', 'Same as %tracknumber%.'],
   ['albumartist', 'Album artist.'],
-  ['trackartist', 'Track artist, if different to the album artist.'],
+  ['trackartist', 'Track artist, if different to the album artist. In WACUP only CD audio (in_cdda) and portable devices (ml_pmp) provide it, so it is empty for tagged files.'],
   ['disc', 'Disc number, e.g. `1/2`.'],
   ['composer', 'Composer.'],
   ['publisher', 'Publisher (record label).'],
