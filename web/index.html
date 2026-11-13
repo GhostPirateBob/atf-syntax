@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Live ATF (Advanced Title Formatting) playground for WACUP and Winamp: type a title format, see it render for real tracks." />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#010f17" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#efefef" media="(prefers-color-scheme: light)" />
+    <!-- The page colour before style.css loads, so a reload never flashes the wrong theme. Same
+         values as --bg in src/style.css; theme-init.js sets data-theme before first paint. -->
+    <style>
+      html { background: #010f17; color-scheme: dark; }
+      html[data-theme='light'] { background: #efefef; color-scheme: light; }
+      @media (prefers-color-scheme: light) { html:not([data-theme='dark']) { background: #efefef; color-scheme: light; } }
+    </style>
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <script src="./theme-init.js"></script>
+    <!-- Google Fonts and analytics, outside the GDPR area only: see public/third-party.js. -->
+    <script src="./third-party.js"></script>
+    <title>ATF Playground</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

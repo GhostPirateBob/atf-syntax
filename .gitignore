@@ -3,3 +3,6 @@ out/
 *.vsix
 .vscode-test/
 docs/
+
+# web playground
+web/dist/

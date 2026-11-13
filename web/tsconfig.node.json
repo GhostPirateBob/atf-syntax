@@ -1,0 +1,17 @@
+{
+  "extends": "@tsconfig/node24/tsconfig.json",
+  "include": ["vite.config.*", "vitest.config.*", "src/**/*.test.ts"],
+  "compilerOptions": {
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "types": ["node"],
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@core/*": ["../src/*"]
+    },
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
+  }
+}

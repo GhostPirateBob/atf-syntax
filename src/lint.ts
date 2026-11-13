@@ -5,7 +5,8 @@
  * @module lint
  */
 
-import { ALWAYS_NONEMPTY, Dialect, FIELD_MAP, FUNCTION_MAP, NEGATIVE_COUNT_FREEZES, NUMERIC_ARGS, REMOVED } from './catalog';
+import { ALWAYS_NONEMPTY, ALWAYS_NONEMPTY_WINAMP, Dialect, FIELD_MAP, FUNCTION_MAP, NEGATIVE_COUNT_FREEZES, NUMERIC_ARGS, REMOVED } from './catalog';
+import { toInt } from './evaluate';
 import { topLevelItems } from './format';
 import { MAX_DEPTH, parse, ParseResult, Span, SyntaxErrorCode } from './parser';
 
@@ -19,6 +20,7 @@ export type SeveritySetting = Severity | 'off';
 export type RuleId =
   | 'syntax'
   | 'too-deep'
+  | 'name-too-long'
   | 'unknown-function'
   | 'removed-function'
   | 'dialect-function'
@@ -30,6 +32,7 @@ export type RuleId =
   | 'replace-empty-search'
   | 'replace-search-may-be-empty'
   | 'negative-count'
+  | 'winamp-crash'
   | 'always-true-condition'
   | 'always-false-condition'
   | 'get-before-put'
@@ -46,20 +49,22 @@ export interface RuleInfo {
 export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
   (
     [
-      ['syntax', 'error', 'A syntax error. WACUP replaces the whole title with `[SYNTAX ERROR IN FORMATTING STRING (n)]`.'],
+      ['syntax', 'error', 'A syntax error. WACUP shows `[SYNTAX ERROR IN FORMATTING STRING (n)]` in place of the whole title, or of just the function argument or `[…]` section the error is in.'],
       ['too-deep', 'warning', `Nested more than ${MAX_DEPTH} levels deep, so the format isn't checked.`],
+      ['name-too-long', 'error', 'WACUP 1.99.57: a `%field%` or `$function(` name longer than 32 characters shows `[TRUNCATED FORMATTING STRING -> MISSING END TAG / WORKING BUFFER TOO SMALL]` or `[SYNTAX ERROR IN FORMATTING STRING (4)]`. 1.99.43 and Winamp 5 accept it.'],
       ['unknown-function', 'error', 'Function not in the WACUP/tagz function table; prints `[UNKNOWN FUNCTION -> $name]`.'],
       ['removed-function', 'error', 'Documented but not callable (`$and`, `$greater`, `$fill`).'],
       ['dialect-function', 'error', 'Function that only exists in the other dialect (e.g. `$strbetween` under `winamp`).'],
-      ['arity-strict', 'error', 'Wrong argument count for `$if`, `$if2`, `$ifgreater`, `$iflonger` or `$IfStrEqual*`; prints `[INVALID $name() SYNTAX]`.'],
+      ['arity-strict', 'error', 'Wrong argument count for `$if`, `$if2`, `$ifgreater`, `$iflonger` or `$IfStrEqual*`; prints `[INVALID $name() SYNTAX]` (Winamp 5: `[INVALID $IF SYNTAX]`, `[INVALID $IFLONGER SYNTAX]` or `[INVALID $IFGREATER SYNTAX]`).'],
       ['arity-min', 'warning', 'Too few arguments; the function silently outputs nothing.'],
       ['arity-max', 'warning', 'Too many arguments; the function silently outputs nothing.'],
       ['too-many-args', 'warning', 'More than 16 arguments; WACUP ignores the rest.'],
-      ['empty-number', 'warning', 'An empty numeric argument (e.g. `$left(%artist%,)`), which counts as 0.'],
-      ['replace-empty-search', 'error', '`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed. Fixed in WACUP 1.99.56.25334.'],
-      ['replace-search-may-be-empty', 'warning', '`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes. Fixed in WACUP 1.99.56.25334.'],
+      ['empty-number', 'warning', 'An empty numeric argument (e.g. `$left(%artist%,)`), which counts as 0. An empty `$muldiv` argument crashes Winamp 5.'],
+      ['replace-empty-search', 'error', '`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed (Winamp 5 crashes). Fixed in WACUP 1.99.56.25334.'],
+      ['replace-search-may-be-empty', 'warning', '`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes (Winamp 5 crashes). Fixed in WACUP 1.99.56.25334.'],
       ['negative-count', 'error', '`$tab(-1)`, `$directory(path,-1)` or `$padcut(a,-1)`: a negative count never finishes, so WACUP freezes. `$tab`/`$directory` fixed in WACUP 1.99.57.25452; `$padcut` still freezes in 1.99.57.25464.'],
-      ['always-true-condition', 'warning', 'WACUP: `$if($strstr(…),…)` and similar always take the first branch, because the result is never empty.'],
+      ['winamp-crash', 'error', 'Winamp 5: an argument that crashes it, e.g. an empty `$trim()`, `$pad`/`$lpad` pad string, `$strchr` character or `$split` token, or `$div(-2147483648,-1)`. Fields and calls that can be empty get a "may crash" message.'],
+      ['always-true-condition', 'warning', 'WACUP: `$if($strchr(…),…)` and similar always take the first branch, because the result is never empty. `$if($strstr(…),…)` only tests that its arguments aren\'t empty.'],
       ['always-false-condition', 'warning', 'Winamp 5: a condition with no `%field%` always takes the else branch.'],
       ['get-before-put', 'warning', '`$get(x)` before any `$puts`/`$put` sets `x`.'],
       ['unknown-field', 'hint', 'Field not known to WACUP (input plugins may still provide it).'],
@@ -76,6 +81,20 @@ const FREEZE_FIXED_IN: Partial<Record<RuleId, string>> = {
 
 /** `negative-count` is fixed per function; `$padcut` still freezes on 1.99.57.25464, the newest build checked. */
 const NEGATIVE_COUNT_FIXED_IN: Record<string, string> = { tab: '1.99.57.25452', directory: '1.99.57.25452' };
+
+/** What Winamp 5 prints for a wrong argument count, per exact-arity function (WACUP prints `[INVALID $name() SYNTAX -> …]`). */
+const WINAMP_ARITY_ERROR: Record<string, string> = {
+  if: '$IF',
+  if2: '$IF',
+  ifstrequal: '$IF',
+  ifstrequal2: '$IF',
+  ifstrnotequal: '$IF',
+  iflonger: '$IFLONGER',
+  ifgreater: '$IFGREATER',
+};
+
+/** Longest `%field%` or `$function(` name WACUP 1.99.57.25464 accepts, in UTF-16 code units (1.99.43 and Winamp 5 have no limit). */
+const MAX_NAME = 32;
 
 /** One lint result; offsets are relative to the linted string. */
 export interface Finding extends Span {
@@ -100,7 +119,7 @@ const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 function syntaxMessage(code: SyntaxErrorCode, reason: string): string {
   if (code === SyntaxErrorCode.Internal) return `[INTERNAL ERROR] — ${reason}`;
   if (code === SyntaxErrorCode.UnterminatedField) return `[TRUNCATED FORMATTING STRING -> MISSING END TAG] — ${reason}`;
-  return `[SYNTAX ERROR IN FORMATTING STRING (${code})] — ${reason}. WACUP replaces the whole title with this error.`;
+  return `[SYNTAX ERROR IN FORMATTING STRING (${code})] — ${reason}. WACUP shows this error in place of the whole title, or of just the function argument or […] section the error is in.`;
 }
 
 /** Index of the first item whose `start` is ≥ `pos`, in an array sorted by `start`. */
@@ -119,13 +138,14 @@ function lowerBound(items: readonly { start: number }[], pos: number): number {
  * Whether a format can evaluate to an empty string: true when it is made only of `%fields%`,
  * `[conditionals]` and calls that can return nothing, with no literal text.
  */
-function canBeEmpty(text: string): boolean {
+function canBeEmpty(text: string, dialect: Dialect): boolean {
   const result = parse(text);
   const calls = new Map(result.calls.map((c) => [c.start, c]));
   const dynamic = new Set([...result.fields, ...result.conds].map((x) => x.start));
+  const nonempty = dialect === 'winamp' ? ALWAYS_NONEMPTY_WINAMP : ALWAYS_NONEMPTY;
   return topLevelItems(text, result).every((item) => {
     const call = calls.get(item.start);
-    return dynamic.has(item.start) || (call !== undefined && !ALWAYS_NONEMPTY.has(call.name.toLowerCase()));
+    return dynamic.has(item.start) || (call !== undefined && !nonempty.has(call.name.toLowerCase()));
   });
 }
 
@@ -148,18 +168,52 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
     report('syntax', { start: error.start, end: Math.max(error.end, error.start + 1) }, syntaxMessage(error.code, error.reason), error.code);
   }
 
+  /** `empty` for a literally empty argument, `maybe` for one made only of fields or calls that can be empty. */
+  const emptiness = (arg: Span | undefined): 'empty' | 'maybe' | undefined => {
+    if (!arg) return undefined;
+    if (arg.start === arg.end) return 'empty';
+    return canBeEmpty(text.slice(arg.start, arg.end), dialect) ? 'maybe' : undefined;
+  };
+  /** A literal number argument's value, or undefined when it contains a field, call, conditional or quote. */
+  const literalInt = (arg: Span): number | undefined => {
+    const s = text.slice(arg.start, arg.end);
+    return /[$%[\]']/.test(s) ? undefined : toInt(s);
+  };
+  const widen = (arg: Span) => ({ start: arg.start, end: Math.max(arg.end, arg.start + 1) });
+  /** `winamp-crash` for an argument Winamp 5 dereferences as a NULL pointer when it is empty. */
+  const nullCrash = (arg: Span | undefined, noun: string) => {
+    const e = emptiness(arg);
+    if (!arg || !e) return;
+    report(
+      'winamp-crash',
+      widen(arg),
+      e === 'empty'
+        ? `Crashes Winamp 5: an empty ${noun} is passed as a NULL pointer (access violation).`
+        : `May crash Winamp 5: this ${noun} can be empty for some tracks, and an empty ${noun} is passed as a NULL pointer (access violation).`,
+    );
+  };
+
   const varEvents: { pos: number; set: boolean; name: string; span: Span }[] = [];
   for (const call of calls) {
     const name = call.name.toLowerCase();
     const head = { start: call.start, end: call.nameEnd };
     const info = FUNCTION_MAP.get(name);
+    const why = IDENT.test(call.name) ? '' : ' (the name runs up to the first "(", so check for a typo or missing ")")';
+
+    if (dialect === 'wacup' && call.name.length > MAX_NAME) {
+      report(
+        'name-too-long',
+        head,
+        `[SYNTAX ERROR IN FORMATTING STRING (4)] in WACUP 1.99.57: a function name longer than ${MAX_NAME} characters (this one is ${call.name.length}) is rejected${why}. WACUP 1.99.43 prints [UNKNOWN FUNCTION -> $${call.name}].`,
+      );
+      continue;
+    }
 
     if (!info) {
       const removed = REMOVED[name];
       if (removed) {
         report('removed-function', head, `[UNKNOWN FUNCTION -> $${call.name}] — ${removed}`);
       } else {
-        const why = IDENT.test(call.name) ? '' : ' (the name runs up to the first "(", so check for a typo or missing ")")';
         report('unknown-function', head, `[UNKNOWN FUNCTION -> $${call.name}]${why}`);
       }
       continue;
@@ -171,30 +225,95 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
 
     const n = call.args.length + call.dropped;
     const max = dialect === 'winamp' && info.maxWinamp !== undefined ? info.maxWinamp : info.max;
+    let arityOk = false;
     if (info.exact !== undefined && n !== info.exact) {
-      report('arity-strict', head, `[INVALID $${call.name}() SYNTAX] — takes exactly ${info.exact} arguments, got ${n}.`);
+      const winampError = WINAMP_ARITY_ERROR[name];
+      report(
+        'arity-strict',
+        head,
+        dialect === 'winamp' && winampError
+          ? `[INVALID ${winampError} SYNTAX] — $${call.name}() takes exactly ${info.exact} arguments, got ${n}.`
+          : `[INVALID $${call.name}() SYNTAX] — takes exactly ${info.exact} arguments, got ${n}.`,
+      );
     } else if (info.min !== undefined && n < info.min) {
       report('arity-min', head, `$${call.name}${info.sig} needs at least ${info.min} arguments, got ${n} — it will output nothing.`);
     } else if (max !== undefined && n > max) {
       report('arity-max', head, `$${call.name}${info.sig} takes at most ${max} arguments, got ${n} — it will output nothing.`);
+    } else {
+      arityOk = true;
     }
     if (call.dropped > 0) report('too-many-args', head, `Only the first 16 arguments are evaluated; ${call.dropped} ignored.`);
 
     for (const i of NUMERIC_ARGS[name] ?? []) {
       const arg = call.args[i];
       if (arg && text.slice(arg.start, arg.end).trim() === '') {
-        const at = { start: arg.start, end: Math.max(arg.end, arg.start + 1) };
-        report('empty-number', at, `Argument ${i + 1} of $${call.name}${info.sig} is empty, so it counts as 0.`);
+        const effect = dialect === 'winamp' && name === 'muldiv' && arityOk ? 'which crashes Winamp 5 (invalid parameter, 0xc0000417)' : 'so it counts as 0';
+        report('empty-number', widen(arg), `Argument ${i + 1} of $${call.name}${info.sig} is empty, ${effect}.`);
       }
     }
 
     const search = call.args[1];
     if (name === 'replace' && search) {
-      const at = { start: search.start, end: Math.max(search.end, search.start + 1) };
+      const at = widen(search);
       if (search.start === search.end) {
-        report('replace-empty-search', at, `$${call.name}() with an empty search string never finishes: WACUP freezes and has to be killed. To remove spaces, search for one: $replace(x, ,).`);
-      } else if (canBeEmpty(text.slice(search.start, search.end))) {
-        report('replace-search-may-be-empty', at, `This search can be empty for some tracks, and an empty search freezes WACUP. Wrapping it in $if() doesn't help (arguments are evaluated first); give it literal text or a fallback, e.g. $if2(…,¤).`);
+        const effect = dialect === 'winamp' ? 'crashes Winamp 5 (access violation)' : 'never finishes: WACUP freezes and has to be killed';
+        report('replace-empty-search', at, `$${call.name}() with an empty search string ${effect}. To remove spaces, search for one: $replace(x, ,).`);
+      } else if (canBeEmpty(text.slice(search.start, search.end), dialect)) {
+        const effect = dialect === 'winamp' ? 'crashes Winamp 5 (access violation)' : 'freezes WACUP';
+        report('replace-search-may-be-empty', at, `This search can be empty for some tracks, and an empty search ${effect}. Wrapping it in $if() doesn't help (arguments are evaluated first); give it literal text or a fallback, e.g. $if2(…,¤).`);
+      }
+    }
+
+    // Winamp 5 passes an empty argument as a NULL pointer. Functions with a maximum argument count
+    // output nothing before reading them when the count is wrong; the others crash regardless.
+    if (dialect === 'winamp' && arityOk) {
+      if (name === 'trim') nullCrash(call.args[0], 'argument');
+      if (name === 'pad' || name === 'lpad') nullCrash(call.args[2], 'pad string');
+      if (name === 'strchr' || name === 'strlchr' || name === 'strrchr') nullCrash(call.args[1], 'search character');
+      if (name === 'strrchr') nullCrash(call.args[0], 'string');
+      if (name === 'split') nullCrash(call.args[1], 'token');
+      const custom = call.args[2];
+      if (name === 'padcut' && custom) {
+        if (emptiness(custom)) {
+          nullCrash(custom, 'custom argument');
+        } else {
+          // A non-empty custom pads from the 4th argument; without one, padding divides by its length, 0.
+          const padstr = call.args[3];
+          const e = padstr ? emptiness(padstr) : 'empty';
+          if (e) {
+            const which = !padstr ? 'with no pad string (4th argument)' : e === 'empty' ? 'with an empty pad string' : 'when this pad string is empty for a track';
+            report('winamp-crash', widen(padstr ?? custom), `${e === 'maybe' ? 'May crash' : 'Crashes'} Winamp 5 whenever $${call.name}() has to pad: ${which}, it divides by zero (0xc0000094).`);
+          }
+        }
+      }
+      if (name === 'muldiv') {
+        // A literally empty argument is reported by empty-number.
+        for (const arg of call.args) {
+          if (emptiness(arg) === 'maybe') {
+            report('winamp-crash', widen(arg), `May crash Winamp 5: this argument can be empty for some tracks, and an empty $${call.name}() argument raises an invalid-parameter error (0xc0000417).`);
+          }
+        }
+      }
+      if (name === 'div' || name === 'mod') {
+        // Follow the running value over literal arguments (clamped to 32 bits; a 0 divisor is
+        // skipped) up to the first one that isn't literal. Dividing -2147483648 by -1 overflows.
+        let value = call.args[0] && literalInt(call.args[0]);
+        for (let i = 1; i < call.args.length && value !== undefined; i++) {
+          const d = literalInt(call.args[i]);
+          if (d === undefined) break;
+          if (value === -2147483648 && d === -1) {
+            const x = text.slice(call.args[0].start, call.args[0].end).trim();
+            const why =
+              i > 1
+                ? 'dividing by 1 or 0 leaves the running value at -2147483648, and dividing it by -1 then overflows'
+                : x === '-2147483648'
+                  ? '-2147483648 divided by -1 overflows'
+                  : `${x} is read as -2147483648 (numbers are clamped to 32 bits), and dividing it by -1 overflows`;
+            report('winamp-crash', { start: call.args[0].start, end: call.args[i].end }, `Crashes Winamp 5: ${why} (integer overflow, 0xc0000095).`);
+            break;
+          }
+          if (d !== 0) value = name === 'mod' ? value % d : Math.trunc(value / d);
+        }
       }
     }
 
@@ -213,7 +332,17 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
       const inner = calls[ci]?.start === first.start && calls[ci].close === first.end - 1 ? calls[ci] : undefined;
       const fi = lowerBound(fields, first.start);
       const hasField = fi < fields.length && fields[fi].end <= first.end;
-      if (dialect === 'wacup' && inner && ALWAYS_NONEMPTY.has(inner.name.toLowerCase())) {
+      const innerName = inner?.name.toLowerCase();
+      // $strstr is empty when either argument is, otherwise a number ("0" when not found).
+      const strstrArgs = innerName === 'strstr' && inner?.args.length === 2 && inner.dropped === 0 ? inner.args : undefined;
+      const emptyable = strstrArgs?.filter((a) => emptiness(a)).map((a) => text.slice(a.start, a.end));
+      if (dialect === 'wacup' && inner && emptyable?.length && !strstrArgs?.some((a) => a.start === a.end)) {
+        report(
+          'always-true-condition',
+          { start: inner.start, end: inner.nameEnd },
+          `$${inner.name}() returns "0" when it doesn't find the text, and "0" counts as true, so this $${call.name}() only tests that ${emptyable.join(' and ')} ${emptyable.length > 1 ? "aren't" : "isn't"} empty. Compare with $ifgreater($${inner.name}(…),0,then,else) instead.`,
+        );
+      } else if (dialect === 'wacup' && inner && (ALWAYS_NONEMPTY.has(innerName!) || (strstrArgs && !emptyable?.length))) {
         report(
           'always-true-condition',
           { start: inner.start, end: inner.nameEnd },
@@ -242,7 +371,13 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
 
   for (const f of fields) {
     const key = f.name.toLowerCase();
-    if (!FIELD_MAP.has(key) && !key.includes('/')) {
+    if (dialect === 'wacup' && f.name.length > MAX_NAME) {
+      report(
+        'name-too-long',
+        f,
+        `WACUP 1.99.57 rejects a field name longer than ${MAX_NAME} characters (this one is ${f.name.length}): it shows [TRUNCATED FORMATTING STRING -> MISSING END TAG / WORKING BUFFER TOO SMALL] in place of the whole title, or of just the function argument it's in (a […] section is dropped). WACUP 1.99.43 and Winamp 5 accept it.`,
+      );
+    } else if (!FIELD_MAP.has(key) && !key.includes('/')) {
       report('unknown-field', f, `%${f.name}% is not a known WACUP field (input plugins may still provide it).`);
     }
   }
@@ -252,4 +387,32 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
   }
 
   return out.sort((a, b) => a.start - b.start);
+}
+
+/** Rules whose findings mean the format hangs WACUP, checked before copying a format out. */
+const FREEZE_RULES = new Set<RuleId>(['replace-empty-search', 'negative-count']);
+
+/**
+ * The warning for **Copy Format as Single Line**, or undefined when the format is safe to paste.
+ * WACUP: a format that freezes it. Winamp 5: one that crashes it (`winamp-crash`, an empty
+ * `$replace` search or `$muldiv` argument), freezes it (`negative-count`), or may crash it for
+ * some tracks. Rule severity overrides are ignored, so a rule turned off still warns here.
+ */
+export function copyWarning(text: string, dialect: Dialect = 'wacup', result?: ParseResult): string | undefined {
+  const findings = lint(text, { dialect, result });
+  if (dialect === 'wacup') {
+    return findings.some((f) => FREEZE_RULES.has(f.rule)) ? 'ATF: copied, but this format freezes WACUP (see the error in the editor). Fix it before pasting.' : undefined;
+  }
+  const crashes = findings.some(
+    (f) =>
+      (f.rule === 'winamp-crash' && f.message.startsWith('Crashes')) ||
+      f.rule === 'replace-empty-search' ||
+      (f.rule === 'empty-number' && f.message.includes('crashes Winamp 5')),
+  );
+  if (crashes) return 'ATF: copied, but this format crashes Winamp 5 (see the error in the editor). Fix it before pasting.';
+  if (findings.some((f) => f.rule === 'negative-count')) return 'ATF: copied, but this format freezes Winamp 5 (see the error in the editor). Fix it before pasting.';
+  if (findings.some((f) => f.rule === 'winamp-crash' || f.rule === 'replace-search-may-be-empty')) {
+    return 'ATF: copied, but this format may crash Winamp 5 for some tracks (see the editor). Fix it before pasting.';
+  }
+  return undefined;
 }

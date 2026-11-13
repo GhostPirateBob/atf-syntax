@@ -1,0 +1,382 @@
+/* Motion rule, for every page and component:
+   - Transitions animate only transform and opacity, so they stay on the compositor. Colour and
+     layout changes are instant, FLIP (move with a transform, then ease it back), or overlay fades
+     (a ::before/::after tint whose opacity fades). Never `transition: all`.
+   - State changes (drawer, sidebar, settings, popovers) use CSS transitions, so they reverse
+     smoothly mid-way; keyframes only for one-shot effects. Entrances on insertion use
+     @starting-style. Nothing animates on first load, and nothing runs longer than about 300 ms.
+   - Less motion (prefers-reduced-motion) reduces rather than removes: --motion is 0, which every
+     translate3d()/scale() multiplies by, so slides become short opacity fades. */
+/* Colours from the Solarized Dark Cursive REMIX theme (gpb-solarized-dark). */
+:root {
+  --motion: 1;
+  --bg: #010f17;
+  --sidebar: #06121c;
+  --panel: #021821;
+  --raised: #073642;
+  --border: #0f3340;
+  --teal: #1c6a68;
+  --glow: rgba(42, 161, 152, 0.28);
+  --selection: #0d2c32;
+  --caret: #af0f0f;
+
+  --text: #93a1a1;
+  --bright: #eee8d5;
+  --muted: #586e75;
+  --dim: #657b83;
+
+  --magenta: #d33682;
+  --gold: #be9208;
+  --cyan: #2aa198;
+  --sky: #29b6f6;
+  --blue: #268bd2;
+  --green: #849900;
+  --red: #dc322f;
+  --orange: #cb4b16;
+  --violet: #6c71c4;
+
+  --error: #eb2f06;
+  --warning: #feca57;
+  --info: #0abde3;
+
+  /* Surfaces that used to be hard-coded. --tint-rgb is mixed in at various strengths for hover and
+     selected rows; --on-accent is text on --teal. */
+  --tint-rgb: 7, 54, 66;
+  --code-bg: rgba(7, 54, 66, 0.6);
+  --input-bg: #051820;
+  --playlist-bg: #000c12;
+  --comment: #637b83;
+  --on-accent: #eee8d5;
+  --shadow: rgba(0, 0, 0, 0.55);
+  /* The gear and random-recipe tabs on the editor box. */
+  --tab-bg: #093639;
+  --tab-fg: #eee8d5;
+
+  --mono: 'Iosevka Charon Mono', ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Monaco, Consolas,
+    'Liberation Mono', 'DejaVu Sans Mono', 'Courier New', Courier, monospace;
+  --sans: 'Exo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+    'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+  /* Playlist titles: a condensed face, like a real playlist column. */
+  --title-font: 'Roboto Condensed', 'Arial Narrow', 'Liberation Sans Narrow', 'Nimbus Sans Narrow',
+    'Helvetica Neue', Arial, sans-serif;
+  --title-weight: 350;
+  --editor-size: 1.15rem;
+  /* The sticky header on both pages; anchors and search targets scroll clear of it. */
+  --header-h: 50px;
+
+  color-scheme: dark;
+}
+
+/* The light theme: picked with the header switch (data-theme, see public/theme-init.js), or the
+   system preference until the user picks. */
+:root[data-theme='light'] {
+  /* Light: neutral grey surfaces (page #efefef, raised surfaces white) with Solarized text and
+     accents, kept in hue but darkened for at least 4.5:1 on #efefef and white (the plain Solarized
+     tones reach only 2.2 to 4.3 on a light background). */
+  --bg: #efefef;
+  --sidebar: #ffffff;
+  --panel: #ffffff;
+  --raised: #e6e9ea;
+  --border: #d4d8d9;
+  --teal: #1c6a68;
+  --glow: rgba(42, 161, 152, 0.22);
+  --selection: #dde3e5;
+  --caret: #af0f0f;
+
+  --text: #4d5e64;
+  --bright: #3e4e53;
+  --muted: #616a6a;
+  --dim: #5e6b6c;
+
+  --magenta: #bb3073;
+  --gold: #846400;
+  --cyan: #1e746d;
+  --sky: #1e6da5;
+  --blue: #1e6da5;
+  --green: #606f00;
+  --red: #c52d2a;
+  --orange: #b64314;
+  --violet: #5d62aa;
+
+  --error: #c52d2a;
+  --warning: #846400;
+  --info: #1e6da5;
+
+  --tint-rgb: 184, 194, 198;
+  --code-bg: rgba(147, 161, 161, 0.18);
+  --input-bg: #f7f7f7;
+  --playlist-bg: #ffffff;
+  --comment: #616a6a;
+  --on-accent: #fdf6e3;
+  --shadow: rgba(60, 70, 75, 0.18);
+  --tab-bg: #d5e5e3;
+  --tab-fg: #174f4c;
+
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    /* Light: neutral grey surfaces (page #efefef, raised surfaces white) with Solarized text and
+       accents, kept in hue but darkened for at least 4.5:1 on #efefef and white (the plain Solarized
+       tones reach only 2.2 to 4.3 on a light background). */
+    --bg: #efefef;
+    --sidebar: #ffffff;
+    --panel: #ffffff;
+    --raised: #e6e9ea;
+    --border: #d4d8d9;
+    --teal: #1c6a68;
+    --glow: rgba(42, 161, 152, 0.22);
+    --selection: #dde3e5;
+    --caret: #af0f0f;
+
+    --text: #4d5e64;
+    --bright: #3e4e53;
+    --muted: #616a6a;
+    --dim: #5e6b6c;
+
+    --magenta: #bb3073;
+    --gold: #846400;
+    --cyan: #1e746d;
+    --sky: #1e6da5;
+    --blue: #1e6da5;
+    --green: #606f00;
+    --red: #c52d2a;
+    --orange: #b64314;
+    --violet: #5d62aa;
+
+    --error: #c52d2a;
+    --warning: #846400;
+    --info: #1e6da5;
+
+    --tint-rgb: 184, 194, 198;
+    --code-bg: rgba(147, 161, 161, 0.18);
+    --input-bg: #f7f7f7;
+    --playlist-bg: #ffffff;
+    --comment: #616a6a;
+    --on-accent: #fdf6e3;
+    --shadow: rgba(60, 70, 75, 0.18);
+    --tab-bg: #d5e5e3;
+    --tab-fg: #174f4c;
+
+    color-scheme: light;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-padding-top: calc(var(--header-h) + 12px);
+}
+/* While the sidebar drawer is open on a phone. */
+html.scroll-locked {
+  overflow: hidden;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--blue);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: var(--text);
+}
+
+button:hover,
+button:focus-visible {
+  border-color: var(--teal);
+  color: var(--bright);
+  outline: none;
+}
+
+button.primary {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: var(--on-accent);
+}
+
+input[type='text'],
+input[type='number'],
+input[type='search'],
+textarea {
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--teal);
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  color: var(--bright);
+  background: var(--code-bg);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ATF token colours, shared by the editor and static snippets. */
+.tok-field {
+  color: var(--gold);
+}
+.tok-fn {
+  color: var(--magenta);
+  font-style: italic;
+}
+.tok-fn-unknown {
+  color: var(--orange);
+  font-style: italic;
+  text-decoration: underline wavy var(--orange);
+}
+.tok-paren {
+  color: var(--text);
+}
+.tok-bracket {
+  color: var(--blue);
+  font-weight: 600;
+}
+.tok-quote {
+  color: var(--cyan);
+}
+.tok-escape {
+  color: var(--red);
+}
+.tok-comma {
+  color: var(--dim);
+}
+.tok-broken {
+  color: var(--error);
+  text-decoration: underline wavy var(--error);
+}
+.tok-comment {
+  color: var(--comment);
+  font-style: italic;
+}
+.atf-text {
+  color: var(--bright);
+}
+
+.atf-focus {
+  background: rgba(190, 146, 8, 0.22);
+  outline: 1px solid rgba(190, 146, 8, 0.55);
+  border-radius: 2px;
+}
+
+.sev-error {
+  color: var(--error);
+}
+.sev-warning {
+  color: var(--warning);
+}
+.sev-info {
+  color: var(--info);
+}
+.sev-hint {
+  color: var(--dim);
+}
+
+.toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translate3d(-50%, 0, 0);
+  background: var(--raised);
+  color: var(--bright);
+  border: 1px solid var(--teal);
+  padding: 8px 16px;
+  border-radius: 6px;
+  box-shadow: 0 4px 18px var(--shadow);
+  z-index: 50;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  contain: layout paint;
+  /* Rises in as it's inserted (@starting-style); leaves with a fade (toast-leave-*). */
+  transition:
+    opacity 0.2s ease-out,
+    transform 0.2s ease-out;
+}
+@starting-style {
+  .toast {
+    opacity: 0;
+    transform: translate3d(-50%, calc(10px * var(--motion)), 0);
+  }
+}
+.toast-leave-active {
+  transition: opacity 0.18s ease-in;
+}
+.toast-leave-to {
+  opacity: 0;
+}
+.toast-action {
+  flex: none;
+  background: none;
+  border-color: var(--teal);
+  color: var(--bright);
+  font-weight: 600;
+  padding: 2px 10px;
+}
+.toast-action:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+
+/* Playlist rows draw like WACUP's GDI DrawText: no kerning, ligatures or letter spacing. Set
+   explicitly so nothing inherited leaks in; lib/measure.ts measures the same way. */
+.playlist-text {
+  letter-spacing: normal;
+  font-kerning: none;
+  font-variant-ligatures: none;
+  font-feature-settings: 'kern' 0, 'liga' 0, 'clig' 0, 'calt' 0;
+}
+
+/* Less motion: no movement, but short fades stay (see the motion rule at the top). Every
+   translate3d()/scale() in a transition multiplies its distance by --motion; the FLIP and the
+   theme cross-fade check the media query in script. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion: 0;
+  }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}

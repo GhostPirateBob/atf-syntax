@@ -1,0 +1,53 @@
+{
+  "name": "atf-playground",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "description": "Live ATF (Advanced Title Formatting) playground: type a WACUP title format, see it render for real tracks.",
+  "scripts": {
+    "dev": "vite --open",
+    "build": "vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lint": "^6.9.8",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lucide/vue": "1.64.0",
+    "lz-string": "^1.5.0",
+    "mediainfo.js": "0.3.8",
+    "minisearch": "7.2.0",
+    "vue": "rc"
+  },
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.5",
+    "@types/node": "^24.13.4",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/tsconfig": "^0.9.1",
+    "typescript": "npm:typescript-native-bridge@latest",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11",
+    "vue-tsc": "^3.3.11"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.12.0"
+  },
+  "overrides": {
+    "vue": "rc",
+    "@vue/compiler-core": "rc",
+    "@vue/compiler-dom": "rc",
+    "@vue/compiler-sfc": "rc",
+    "@vue/compiler-ssr": "rc",
+    "@vue/compiler-vapor": "rc",
+    "@vue/reactivity": "rc",
+    "@vue/runtime-core": "rc",
+    "@vue/runtime-dom": "rc",
+    "@vue/runtime-vapor": "rc",
+    "@vue/server-renderer": "rc",
+    "@vue/shared": "rc",
+    "typescript": "$typescript"
+  }
+}

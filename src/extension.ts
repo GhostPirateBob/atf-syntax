@@ -15,7 +15,7 @@ import * as vscode from 'vscode';
 import { Block, splitBlocks, toLineChar, toOffset } from './blocks';
 import { Dialect, FIELD_MAP, FIELDS, FUNCTION_MAP, FUNCTIONS, REMOVED } from './catalog';
 import { formatDocument } from './format';
-import { lint, RuleId, Severity, SeveritySetting } from './lint';
+import { copyWarning, lint, RuleId, Severity, SeveritySetting } from './lint';
 import { parse, ParseResult } from './parser';
 
 const SEVERITY: Record<Severity, vscode.DiagnosticSeverity> = {
@@ -24,9 +24,6 @@ const SEVERITY: Record<Severity, vscode.DiagnosticSeverity> = {
   info: vscode.DiagnosticSeverity.Information,
   hint: vscode.DiagnosticSeverity.Hint,
 };
-
-/** Rules whose findings mean the format hangs the player, checked before copying a format out. */
-const FREEZE_RULES = new Set<RuleId>(['replace-empty-search', 'negative-count']);
 
 /** Debounce for re-linting while typing. */
 const LINT_DELAY_MS = 150;
@@ -209,9 +206,9 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       await vscode.env.clipboard.writeText(hit.block.text);
-      const freezes = lint(hit.block.text, { result: hit.result }).some((f) => FREEZE_RULES.has(f.rule));
-      if (freezes) {
-        vscode.window.showWarningMessage('ATF: copied, but this format freezes WACUP (see the error in the editor). Fix it before pasting.');
+      const warning = copyWarning(hit.block.text, settings().dialect, hit.result);
+      if (warning) {
+        vscode.window.showWarningMessage(warning);
         return;
       }
       const note = hit.result.error ? ' (note: it has a syntax error)' : '';
