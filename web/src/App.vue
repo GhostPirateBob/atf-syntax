@@ -848,7 +848,7 @@ function hoverRange(range: { start: number; end: number } | null) {
 }
 /* The title with the tagline beside it, on two small lines. */
 .brand-h {
-  margin: 0 0 0 4px;
+  margin: 0 0 0 18px;
   font-size: 1rem;
   font-weight: normal;
 }
