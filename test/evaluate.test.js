@@ -275,3 +275,17 @@ test('real-world playlist format', () => {
   // Field-free parts, checked against the oracle: the [...] vanishes, $abbr of nothing is nothing.
   assert.equal(text(f), ' ▹ ');
 });
+
+test('a work budget stops enormous formats quickly, without claiming WACUP freezes', () => {
+  const heavy = '$len($repeat(a,1000000))'.repeat(80);
+  const started = Date.now();
+  const r = evaluate(heavy, {});
+  assert.equal(r.tooHeavy, true);
+  assert.equal(r.freeze, undefined);
+  assert.equal(r.text, '');
+  assert.ok(Date.now() - started < 2000, 'should stop well under the worker limit');
+  // A few big calls are fine: the budget only trips on many of them.
+  const ok = evaluate('$len($repeat(a,1000000))'.repeat(3), {});
+  assert.equal(ok.tooHeavy, undefined);
+  assert.equal(ok.text, '100000010000001000000');
+});

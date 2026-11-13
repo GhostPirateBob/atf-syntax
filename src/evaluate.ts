@@ -24,6 +24,12 @@ export interface EvalResult {
   /** Set when WACUP 1.99.57.25464 would never finish (it hangs). `text` is then ''. start/end = UTF-16 offsets of the offending call in `format`. */
   freeze?: { fn: string; start: number; end: number };
   /**
+   * Set when the format needs more work than the evaluator allows (see `WORK_BUDGET`), for
+   * example hundreds of megabyte-sized intermediate strings. Not a claim that WACUP hangs: it may
+   * well finish. `text` is then ''.
+   */
+  tooHeavy?: true;
+  /**
    * Set when the format has a syntax error (same object `parse()` returns). `text` is then what
    * WACUP shows: its message alone for an error at the top level, or the message inside the
    * surrounding output when the error is inside a function argument or `[…]` (WACUP evaluates
@@ -207,10 +213,20 @@ const PATH_FREEZE = 1 << 26;
 const MESSAGE_LEN = 127;
 /** Deeper nesting than this isn't evaluated (WACUP's own limit is its stack size). */
 const DEPTH_LIMIT = 500;
+/**
+ * Total work one evaluation may do, in code units of function output plus one per scope. The
+ * freeze checks above catch formats WACUP itself can't finish; this is the backstop for formats
+ * that are merely enormous (each call within limits, but far too many of them), so no format can
+ * keep the evaluator busy for long. Real formats spend a few thousand.
+ */
+const WORK_BUDGET = 64 * MAX_LEN;
 
 class Freeze {
   constructor(readonly fn: string) {}
 }
+
+/** Thrown when an evaluation spends more than `WORK_BUDGET`. */
+class TooHeavy {}
 
 const cap = (s: string) => (s.length > MAX_LEN ? s.slice(0, MAX_LEN) : s);
 
@@ -994,13 +1010,21 @@ class Evaluator {
   vars = new Map<string, string>();
   unsure = new Set<string>();
   freezeAt?: { start: number; end: number };
+  private work = 0;
 
   constructor(
     private s: string,
     private fields: Record<string, string>,
   ) {}
 
+  /** Spend `n` units of the work budget; past it the evaluation stops as `tooHeavy`. */
+  private spend(n: number): void {
+    this.work += n;
+    if (this.work > WORK_BUDGET) throw new TooHeavy();
+  }
+
   run(from: number, to: number, depth: number): Scope {
+    this.spend(1);
     const s = this.s;
     let out = '';
     let found = 0;
@@ -1075,6 +1099,7 @@ class Evaluator {
             this.unsure.add(key);
             out += '?';
           } else {
+            this.spend(r.length + 1);
             out += r;
           }
         }
@@ -1121,6 +1146,11 @@ export function evaluate(format: string, fields: Record<string, string>): EvalRe
     if (error) result.error = error;
     return result;
   } catch (e) {
+    if (e instanceof TooHeavy) {
+      const result: EvalResult = { text: '', unsure: [...ev.unsure].sort(), tooHeavy: true };
+      if (error) result.error = error;
+      return result;
+    }
     if (!(e instanceof Freeze)) throw e;
     const result: EvalResult = { text: '', unsure: [...ev.unsure].sort(), freeze: { fn: e.fn, ...(ev.freezeAt ?? { start: 0, end: format.length }) } };
     if (error) result.error = error;

@@ -9,7 +9,7 @@ export interface Row {
   label: string
   /** Output after WACUP's display habits, or '' while pending. */
   text: string
-  state: 'ok' | 'freeze' | 'error' | 'timeout' | 'pending'
+  state: 'ok' | 'freeze' | 'heavy' | 'error' | 'timeout' | 'pending'
   unsure: boolean
   cached?: string
 }
@@ -88,6 +88,7 @@ function importPasted() {
           <button class="out stretched" :class="rows[i]?.state" :aria-pressed="i === selected" :title="rows[i]?.text" @click="emit('select', i)">
             <template v-if="rows[i]?.state === 'freeze'">⚠ would freeze WACUP</template>
             <template v-else-if="rows[i]?.state === 'timeout'">⚠ didn't finish</template>
+            <template v-else-if="rows[i]?.state === 'heavy'">⚠ too heavy to preview</template>
             <template v-else>{{ rows[i]?.text || ' ' }}</template>
           </button>
           <button class="edit" :aria-label="`Edit tags of ${rows[i]?.label}`" @click.stop="editing = editing === i ? null : i">tags</button>
@@ -220,6 +221,7 @@ li.over {
   outline-offset: -2px;
 }
 .out.freeze,
+.out.heavy,
 .out.timeout {
   color: var(--error);
   font-family: var(--sans);

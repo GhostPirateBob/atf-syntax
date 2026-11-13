@@ -95,6 +95,7 @@ const rows = computed<Row[]>(() =>
     const r = o.results[i]
     if (!r) return { ...base, text: '', state: 'pending' }
     if (r.freeze) return { ...base, text: '', state: 'freeze', unsure: r.unsure.length > 0 }
+    if (r.tooHeavy) return { ...base, text: '', state: 'heavy' }
     if (r.error) return { ...base, text: r.text, state: 'error' }
     return { ...base, text: applyDisplay(r.text, view.value), state: 'ok', unsure: r.unsure.length > 0 }
   }),
@@ -252,6 +253,10 @@ function hoverRange(range: { start: number; end: number } | null) {
             <p class="sub">
               <a href="#" @click.prevent="pickRange(current.freeze)">${{ current.freeze.fn }}()</a> never finishes on WACUP 1.99.57.25464.
             </p>
+          </template>
+          <template v-else-if="current?.tooHeavy">
+            <p class="quote warn">Too heavy to preview</p>
+            <p class="sub">This format builds more text than the playground will work through (tens of millions of characters along the way). WACUP may still handle it.</p>
           </template>
           <template v-else-if="current?.error">
             <p class="quote">{{ rows[selected]?.text ?? current.text }}</p>
