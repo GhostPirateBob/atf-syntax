@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-11-13
 
 - New: the [ATF playground](https://github.com/GhostPirateBob/atf-syntax/tree/main/web), a web page where you type a format and see it render live for sample tracks or your own playlist, with the same checking as this extension. Its evaluator was checked against WACUP 1.99.57.25464's own: every decided case of 65,940 generated formats matches, behaviour it can't confirm shows `?`, and formats that would freeze WACUP are flagged instead of run.
 - Hovers corrected against the real engines: WACUP 1.99.43 and 1.99.57, and now Winamp 5.666 and 5.9.2 too (which behave identically). Among them: `$pad` repeats the whole fill string, `$len`/`$left`/`$cut`/`$right` count UTF-16 code units, `$right` with n past the end gives nothing, `$substr` units and its ignored 4th argument, `$abbr` keeps punctuation and Roman numerals, `$trim` strips all whitespace, `$caps` doesn't break words at apostrophes, `$decode`/`$ifstrequal` fold ASCII case only, `$puts` with an empty value doesn't overwrite, `systime_*` values aren't zero-padded, and many Winamp 5 differences. Where Winamp 5 **crashes** rather than freezes (an empty `$replace` search, empty arguments to `$trim`, `$pad`, `$strchr` and others), the hover now says so.
