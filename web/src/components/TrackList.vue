@@ -2,7 +2,6 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type ComponentPublicInstance } from 'vue'
 import { ClipboardPaste, FileMusic, FolderSearch, Info, ListMusic, ListRestart } from '@lucide/vue'
 import IconButton from './IconButton.vue'
-import ShownText from './ShownText.vue'
 import { EDITABLE_TAGS, type Track } from '@/lib/tracks'
 import { parseM3u } from '@/lib/m3u'
 import { AUDIO_EXTENSIONS, PLAYLIST_EXTENSIONS } from '@/lib/audio'
@@ -286,7 +285,7 @@ function importPasted() {
                   <template v-if="rows[i]?.state === 'freeze'">⚠ would freeze WACUP</template>
                   <template v-else-if="rows[i]?.state === 'timeout'">⚠ didn't finish</template>
                   <template v-else-if="rows[i]?.state === 'heavy'">⚠ too heavy to preview</template>
-                  <ShownText v-else-if="fitted(i)" :text="fitted(i)" :spaces="view.spaces" /><template v-else>{{ ' ' }}</template>
+                  <template v-else-if="fitted(i)">{{ fitted(i) }}</template><template v-else>{{ ' ' }}</template>
                 </span>
                 <span v-if="rows[i]?.duration" class="dur">{{ rows[i]?.duration }}</span>
               </span>

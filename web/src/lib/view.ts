@@ -13,7 +13,7 @@ export interface ViewSettings extends DisplayOptions {
   numbers: boolean
   /** The track length on the right of each row. The song ticker has no such column. */
   duration: boolean
-  /** Show spaces: each space in rendered titles (and the editor) gets a dotted box, like Notepad++'s Show all characters. */
+  /** Show spaces: each space in the format editor gets a dashed box, like Notepad++'s Show all characters. */
   spaces: boolean
   /** Linter dialect. The preview is always WACUP 1.99.57. */
   dialect: 'wacup' | 'winamp'

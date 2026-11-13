@@ -7,7 +7,6 @@ import { titleFont } from '@/lib/fontStacks'
 import { fitRow, fontsLoaded, useWidth } from '@/lib/rowFit'
 import { NARROW, reducedMotion, useMedia } from '@/lib/media'
 import { PREVIEW_ROWS, ROW_STATE_TEXT, previewWindow } from '@/lib/playlistWindow'
-import ShownText from './ShownText.vue'
 
 /**
  * The hero: a five-row WACUP playlist (two tracks before the selected one, it, two after; fewer
@@ -146,7 +145,7 @@ function onWheel(e: WheelEvent) {
         :title="rowTitle(s.offset, s.index)"
         @click="s.offset !== 0 && emit('select', s.index)"
       >
-        <span class="t"><span v-if="prefix(s.index)" class="num">{{ prefix(s.index) }}</span><ShownText :text="shown[k]?.title ?? ''" :spaces="view.spaces" /></span>
+        <span class="t"><span v-if="prefix(s.index)" class="num">{{ prefix(s.index) }}</span>{{ shown[k]?.title ?? '' }}</span>
         <span v-if="shown[k]?.duration" class="dur">{{ shown[k]?.duration }}</span>
       </div>
     </div>

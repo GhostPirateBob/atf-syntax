@@ -358,12 +358,9 @@ defineExpose({
   text-decoration-color: var(--dim);
 }
 /* Show spaces: the editor's .cm-space and .cm-space-other marks, and CodeMirror's trailing-space one. */
-.space {
-  outline: 1px dashed #dc322f;
-  outline-offset: -1px;
-}
+.space,
 .space-other {
-  outline: 1px dashed var(--warning);
+  outline: 1px dashed #586e75;
   outline-offset: -1px;
 }
 .trailing-space {

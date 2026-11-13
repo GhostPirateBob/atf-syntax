@@ -1,7 +1,6 @@
 /**
- * "Show spaces" (like Notepad++'s Show all characters): rendered titles split into plain text and
- * the characters to outline. Each space is its own segment, so a double space shows as two boxes.
- * Applied to text that is already cut to fit, so the "..." cut never changes.
+ * "Show spaces" (like Notepad++'s Show all characters), in the format editor: which characters get
+ * an outline. Each space is outlined on its own, so a double space shows as two boxes.
  */
 export interface TextSegment {
   text: string
@@ -51,24 +50,3 @@ export function spaceKind(ch: string): Pick<TextSegment, 'kind' | 'name'> {
   if (invisible) return { kind: 'invisible', name: `${codePoint(ch)} ${invisible}` }
   return { kind: 'text' }
 }
-
-/** `text` as runs of plain text and one segment per space-like character. Joined back, it's `text`. */
-export function splitSpaces(text: string): TextSegment[] {
-  const out: TextSegment[] = []
-  let run = ''
-  for (const ch of text) {
-    const k = spaceKind(ch)
-    if (k.kind === 'text') {
-      run += ch
-      continue
-    }
-    if (run) out.push({ text: run, kind: 'text' })
-    run = ''
-    out.push({ text: ch, ...k })
-  }
-  if (run) out.push({ text: run, kind: 'text' })
-  return out
-}
-
-/** The CSS class that outlines a segment, or '' for plain text. */
-export const SPACE_CLASS: Record<TextSegment['kind'], string> = { text: '', space: 'ws', other: 'ws ws-other', invisible: 'ws ws-zero' }

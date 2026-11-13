@@ -9,7 +9,6 @@ import { theme } from '@/lib/theme'
 import { ROW_STATE_TEXT } from '@/lib/playlistWindow'
 import { TICKER_SEPARATOR, TICKER_STEP_MS, glyphCell, nextStep, stripOffset, tickerChars, tickerStrip, totalAdvance, type TickerItem } from '@/lib/ticker'
 import { tickerFont } from '@/lib/tickerFont'
-import { SPACE_CLASS, spaceKind } from '@/lib/whitespace'
 
 /**
  * The preview while a song ticker recipe is loaded: the selected track's title on one line,
@@ -142,15 +141,6 @@ function tintedSheet(img: HTMLImageElement, colour: string): HTMLCanvasElement {
   tinted = { key, canvas: c }
   return c
 }
-/** A CSS colour (a var() or color-mix() included) as the browser resolves it, for the canvas. */
-function cssColour(value: string): string {
-  const probe = document.createElement('span')
-  probe.style.color = value
-  clipEl.value!.appendChild(probe)
-  const resolved = getComputedStyle(probe).color
-  probe.remove()
-  return resolved
-}
 function draw() {
   const c = canvasEl.value
   const f = skin.value
@@ -170,8 +160,6 @@ function draw() {
   if (!ctx) return
   ctx.imageSmoothingEnabled = false
   const src = tintedSheet(img, getComputedStyle(clipEl.value).color)
-  // Show spaces: a dotted box the width of each space's step, as the DOM strip draws with .ws.
-  const outline = props.view.spaces ? { space: cssColour('var(--error)'), other: cssColour('var(--warning)') } : undefined
   const w = Math.round(f.charWidth * s * dpr)
   const h = Math.round(cssH * dpr)
   let x = 0
@@ -182,19 +170,10 @@ function draw() {
     if (cell && sx + f.charWidth <= img.naturalWidth && sy + f.charHeight <= img.naturalHeight) {
       ctx.drawImage(src, sx, sy, f.charWidth, f.charHeight, Math.round(x * dpr), 0, w, h)
     }
-    const kind = outline && spaceKind(it.ch).kind
-    if (outline && kind && kind !== 'text') {
-      ctx.save()
-      ctx.strokeStyle = kind === 'space' ? outline.space : outline.other
-      ctx.lineWidth = dpr
-      ctx.setLineDash([dpr, dpr])
-      ctx.strokeRect(Math.round(x * dpr) + dpr / 2, dpr / 2, Math.max(dpr, Math.round(it.advance * dpr) - dpr), h - dpr)
-      ctx.restore()
-    }
     x += it.advance
   }
 }
-watch([strip, skin, skinScale, tone, theme, canvasEl, () => props.view.spaces], draw, { flush: 'post' })
+watch([strip, skin, skinScale, tone, theme, canvasEl], draw, { flush: 'post' })
 
 // ---- keys --------------------------------------------------------------------------------------
 function onKey(e: KeyboardEvent) {
@@ -227,7 +206,7 @@ function onKey(e: KeyboardEvent) {
       <div id="tk-current" class="tk-sr" role="option" aria-selected="true">{{ text || 'No title' }}</div>
       <canvas v-if="skin" ref="canvasEl" class="tk-strip" aria-hidden="true" :style="stripStyle" />
       <span v-else class="tk-strip tk-text playlist-text" aria-hidden="true" :style="stripStyle"
-        ><span v-for="(it, i) in strip" :key="i" class="g" :class="view.spaces && SPACE_CLASS[spaceKind(it.ch).kind]" :style="{ width: `${it.advance}px` }">{{ it.ch }}</span></span
+        ><span v-for="(it, i) in strip" :key="i" class="g" :style="{ width: `${it.advance}px` }">{{ it.ch }}</span></span
       >
     </div>
   </div>

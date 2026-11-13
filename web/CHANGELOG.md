@@ -7,7 +7,7 @@ Changes to the [ATF playground](https://ghostpiratebob.me/atf-syntax/). The exte
 ### New
 
 - **Song ticker mode.** The "Song tickers" recipe group turns the preview into a one-line Winamp-style ticker that scrolls one character at a time and wraps round like a stock ticker. It uses VT323 by default, or your own skin's bitmap ticker font (Winamp Modern player and shade presets), which stays in your browser only.
-- **Show spaces**, on by default (cog menu → Display): every space in titles and the editor gets a dashed box, and unusual spaces (non-breaking, ideographic, tabs) an amber one, so a `$crlf()` that WACUP draws as two spaces is easy to see.
+- **Show spaces**, on by default (cog menu → Display): every space in the format editor gets a dashed box, unusual ones (non-breaking, em, ideographic, tabs) included, so stray or doubled spaces in a format are easy to see.
 - **Undo through format changes**: loading a recipe, a saved format or an .atf file, Start fresh and reset are each one undo step, and Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y work even when the editor doesn't have focus.
 - A **format | reset** tab returns to the recipe, file or shared format you started from, with an Undo.
 - The summary shows **both verdicts**, "WACUP will accept this" and "Winamp will accept this" (or the number of Winamp 5 errors, which jumps to the first).

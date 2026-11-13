@@ -601,25 +601,6 @@ code {
   outline-offset: 1px;
 }
 
-/* Show spaces (Settings): each space in a rendered title gets a dotted box exactly its width. An
-   outline takes no room, so widths, "..." cuts and the duration column don't move. Other space
-   characters (tab, NBSP, …) are dotted in the warning colour, with their name as the tooltip;
-   zero-width ones show as a thin dotted bar. */
-.ws {
-  outline: 1px dotted var(--error);
-  outline-offset: -1px;
-}
-.ws.ws-other {
-  outline-color: var(--warning);
-}
-.ws.ws-zero {
-  display: inline-block;
-  width: 0;
-  height: 1em;
-  vertical-align: text-bottom;
-  outline: 1px dotted var(--warning);
-  outline-offset: 0;
-}
 
 /* Playlist rows draw like WACUP's GDI DrawText: no kerning, ligatures or letter spacing. Set
    explicitly so nothing inherited leaks in; lib/measure.ts measures the same way. */

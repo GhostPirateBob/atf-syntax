@@ -30,8 +30,8 @@ const highlighter = ViewPlugin.fromClass(
 )
 
 /**
- * Show spaces: every space in a span of its own (`cm-space`, a dashed red outline that takes no
- * room), other space characters (tab, NBSP, …) in amber (`cm-space-other`), as in the preview.
+ * Show spaces: every space in a span of its own (`cm-space`), and other space characters (tab,
+ * NBSP, em space, …) too (`cm-space-other`), each with a dashed #586e75 outline that takes no room.
  */
 const spaceDeco = Decoration.mark({ class: 'cm-space' })
 const otherSpaceDeco = Decoration.mark({ class: 'cm-space-other' })
@@ -76,8 +76,7 @@ const theme = EditorView.theme(
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': { backgroundColor: 'var(--selection) !important' },
     '.cm-placeholder': { color: 'var(--muted)', fontStyle: 'italic' },
     '.cm-gutters': { backgroundColor: 'transparent', border: 'none' },
-    '.cm-space': { outline: '1px dashed #dc322f', outlineOffset: '-1px' },
-    '.cm-space-other': { outline: '1px dashed var(--warning)', outlineOffset: '-1px' },
+    '.cm-space, .cm-space-other': { outline: '1px dashed #586e75', outlineOffset: '-1px' },
     '.cm-tooltip': { backgroundColor: 'var(--panel)', border: '1px solid var(--border)', color: 'var(--text)' },
     '.cm-diagnostic': { fontFamily: 'var(--sans)', padding: '4px 8px' },
     // Squiggles and tooltip markers in the theme's severity colours (exact: they're marks, not

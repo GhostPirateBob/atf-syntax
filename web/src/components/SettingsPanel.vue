@@ -124,7 +124,7 @@ function useDefaultTickerFont() {
 
     <fieldset>
       <legend>Display</legend>
-      <label class="check"><input v-model="model.spaces" type="checkbox" /> Show spaces <span class="muted">(a dotted box for each space, in titles and the editor)</span></label>
+      <label class="check"><input v-model="model.spaces" type="checkbox" /> Show spaces <span class="muted">(a dashed box for each space in the format editor)</span></label>
     </fieldset>
 
     <fieldset>
