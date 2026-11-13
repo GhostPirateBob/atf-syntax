@@ -351,7 +351,10 @@ describe('oneLine', () => {
     expect(oneLine('ab')).toBe('ab')
   })
   it('matches the Taskbar thumbnail row WACUP drew for the first sample', () => {
-    const format = RECIPES.find((r) => r.title === 'Taskbar thumbnail')!.format
+    // gen_win10shell's original default, as the owner ran it in WACUP (the recipe has since dropped the
+    // three spaces before the rating, so this checks the verbatim format WACUP's row came from).
+    const format =
+      "$if2(%title%,$filepart(%filename%))$if(%artist%,$crlf(),)%artist%[   $if(%rating%,$rating(%filename%),)]$if(%album%,$crlf(),)%album%[$if(%year%,' ('%year%')',)]"
     const row = oneLine(evaluate(format, fieldsFor(SAMPLE_TRACKS[0]!, { position: 1, length: 4 })).text)
     expect(row).toBe('Things I Thought Were Mine  Alfie Templeman     Happiness in Liquid Form (2020)')
   })

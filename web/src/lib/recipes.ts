@@ -24,8 +24,8 @@ export const RECIPES: Recipe[] = [
   {
     title: 'Taskbar thumbnail',
     group: 'WACUP defaults',
-    note: "gen_win10shell's three-line default. $crlf() only adds a line when the next line has something in it.",
-    format: "$if2(%title%,$filepart(%filename%))$if(%artist%,$crlf(),)%artist%[   $if(%rating%,$rating(%filename%),)]$if(%album%,$crlf(),)%album%[$if(%year%,' ('%year%')',)]",
+    note: "gen_win10shell's three-line default, without the three spaces before the rating. $crlf() only adds a line when the next line has something in it.",
+    format: "$if2(%title%,$filepart(%filename%))$if(%artist%,$crlf(),)%artist%[$if(%rating%,$rating(%filename%),)]$if(%album%,$crlf(),)%album%[$if(%year%,' ('%year%')',)]",
   },
   {
     title: "WACUP's default song ticker",
