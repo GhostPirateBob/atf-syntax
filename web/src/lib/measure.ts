@@ -9,7 +9,8 @@ export function measureText(text: string, cssFont: string): number {
 }
 
 /** Default face for rendered playlist titles (loaded from Google Fonts in index.html). */
-export const TITLE_FAMILY = "'Roboto Condensed', 'Arial Narrow', sans-serif"
+export const TITLE_FAMILY =
+  "'Roboto Condensed', 'Arial Narrow', 'Liberation Sans Narrow', 'Nimbus Sans Narrow', 'Helvetica Neue', Arial, sans-serif"
 export const TITLE_WEIGHT = 350
 
 /** CSS font-family list for a user-typed local font name, falling back to the title font. */
