@@ -5,7 +5,8 @@
  * @module lint
  */
 
-import { ALWAYS_NONEMPTY, Dialect, FIELD_MAP, FUNCTION_MAP, NEGATIVE_COUNT_FREEZES, NUMERIC_ARGS, REMOVED } from './catalog';
+import { ALWAYS_NONEMPTY, ALWAYS_NONEMPTY_WINAMP, Dialect, FIELD_MAP, FUNCTION_MAP, NEGATIVE_COUNT_FREEZES, NUMERIC_ARGS, REMOVED } from './catalog';
+import { toInt } from './evaluate';
 import { topLevelItems } from './format';
 import { MAX_DEPTH, parse, ParseResult, Span, SyntaxErrorCode } from './parser';
 
@@ -137,13 +138,14 @@ function lowerBound(items: readonly { start: number }[], pos: number): number {
  * Whether a format can evaluate to an empty string: true when it is made only of `%fields%`,
  * `[conditionals]` and calls that can return nothing, with no literal text.
  */
-function canBeEmpty(text: string): boolean {
+function canBeEmpty(text: string, dialect: Dialect): boolean {
   const result = parse(text);
   const calls = new Map(result.calls.map((c) => [c.start, c]));
   const dynamic = new Set([...result.fields, ...result.conds].map((x) => x.start));
+  const nonempty = dialect === 'winamp' ? ALWAYS_NONEMPTY_WINAMP : ALWAYS_NONEMPTY;
   return topLevelItems(text, result).every((item) => {
     const call = calls.get(item.start);
-    return dynamic.has(item.start) || (call !== undefined && !ALWAYS_NONEMPTY.has(call.name.toLowerCase()));
+    return dynamic.has(item.start) || (call !== undefined && !nonempty.has(call.name.toLowerCase()));
   });
 }
 
@@ -170,7 +172,12 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
   const emptiness = (arg: Span | undefined): 'empty' | 'maybe' | undefined => {
     if (!arg) return undefined;
     if (arg.start === arg.end) return 'empty';
-    return canBeEmpty(text.slice(arg.start, arg.end)) ? 'maybe' : undefined;
+    return canBeEmpty(text.slice(arg.start, arg.end), dialect) ? 'maybe' : undefined;
+  };
+  /** A literal number argument's value, or undefined when it contains a field, call, conditional or quote. */
+  const literalInt = (arg: Span): number | undefined => {
+    const s = text.slice(arg.start, arg.end);
+    return /[$%[\]']/.test(s) ? undefined : toInt(s);
   };
   const widen = (arg: Span) => ({ start: arg.start, end: Math.max(arg.end, arg.start + 1) });
   /** `winamp-crash` for an argument Winamp 5 dereferences as a NULL pointer when it is empty. */
@@ -251,7 +258,7 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
       if (search.start === search.end) {
         const effect = dialect === 'winamp' ? 'crashes Winamp 5 (access violation)' : 'never finishes: WACUP freezes and has to be killed';
         report('replace-empty-search', at, `$${call.name}() with an empty search string ${effect}. To remove spaces, search for one: $replace(x, ,).`);
-      } else if (canBeEmpty(text.slice(search.start, search.end))) {
+      } else if (canBeEmpty(text.slice(search.start, search.end), dialect)) {
         const effect = dialect === 'winamp' ? 'crashes Winamp 5 (access violation)' : 'freezes WACUP';
         report('replace-search-may-be-empty', at, `This search can be empty for some tracks, and an empty search ${effect}. Wrapping it in $if() doesn't help (arguments are evaluated first); give it literal text or a fallback, e.g. $if2(…,¤).`);
       }
@@ -287,9 +294,26 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
           }
         }
       }
-      const [x1, x2] = call.args;
-      if ((name === 'div' || name === 'mod') && x2 && text.slice(x1.start, x1.end).trim() === '-2147483648' && text.slice(x2.start, x2.end).trim() === '-1') {
-        report('winamp-crash', { start: x1.start, end: x2.end }, 'Crashes Winamp 5: -2147483648 divided by -1 overflows (integer overflow, 0xc0000095).');
+      if (name === 'div' || name === 'mod') {
+        // Follow the running value over literal arguments (clamped to 32 bits; a 0 divisor is
+        // skipped) up to the first one that isn't literal. Dividing -2147483648 by -1 overflows.
+        let value = call.args[0] && literalInt(call.args[0]);
+        for (let i = 1; i < call.args.length && value !== undefined; i++) {
+          const d = literalInt(call.args[i]);
+          if (d === undefined) break;
+          if (value === -2147483648 && d === -1) {
+            const x = text.slice(call.args[0].start, call.args[0].end).trim();
+            const why =
+              i > 1
+                ? 'dividing by 1 or 0 leaves the running value at -2147483648, and dividing it by -1 then overflows'
+                : x === '-2147483648'
+                  ? '-2147483648 divided by -1 overflows'
+                  : `${x} is read as -2147483648 (numbers are clamped to 32 bits), and dividing it by -1 overflows`;
+            report('winamp-crash', { start: call.args[0].start, end: call.args[i].end }, `Crashes Winamp 5: ${why} (integer overflow, 0xc0000095).`);
+            break;
+          }
+          if (d !== 0) value = name === 'mod' ? value % d : Math.trunc(value / d);
+        }
       }
     }
 
@@ -363,4 +387,32 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
   }
 
   return out.sort((a, b) => a.start - b.start);
+}
+
+/** Rules whose findings mean the format hangs WACUP, checked before copying a format out. */
+const FREEZE_RULES = new Set<RuleId>(['replace-empty-search', 'negative-count']);
+
+/**
+ * The warning for **Copy Format as Single Line**, or undefined when the format is safe to paste.
+ * WACUP: a format that freezes it. Winamp 5: one that crashes it (`winamp-crash`, an empty
+ * `$replace` search or `$muldiv` argument), freezes it (`negative-count`), or may crash it for
+ * some tracks. Rule severity overrides are ignored, so a rule turned off still warns here.
+ */
+export function copyWarning(text: string, dialect: Dialect = 'wacup', result?: ParseResult): string | undefined {
+  const findings = lint(text, { dialect, result });
+  if (dialect === 'wacup') {
+    return findings.some((f) => FREEZE_RULES.has(f.rule)) ? 'ATF: copied, but this format freezes WACUP (see the error in the editor). Fix it before pasting.' : undefined;
+  }
+  const crashes = findings.some(
+    (f) =>
+      (f.rule === 'winamp-crash' && f.message.startsWith('Crashes')) ||
+      f.rule === 'replace-empty-search' ||
+      (f.rule === 'empty-number' && f.message.includes('crashes Winamp 5')),
+  );
+  if (crashes) return 'ATF: copied, but this format crashes Winamp 5 (see the error in the editor). Fix it before pasting.';
+  if (findings.some((f) => f.rule === 'negative-count')) return 'ATF: copied, but this format freezes Winamp 5 (see the error in the editor). Fix it before pasting.';
+  if (findings.some((f) => f.rule === 'winamp-crash' || f.rule === 'replace-search-may-be-empty')) {
+    return 'ATF: copied, but this format may crash Winamp 5 for some tracks (see the editor). Fix it before pasting.';
+  }
+  return undefined;
 }

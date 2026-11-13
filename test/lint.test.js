@@ -209,6 +209,63 @@ test('formats that crash Winamp 5', () => {
   for (const f of ['$trim()', '$pad(ab,5,)', '$strrchr(,a)', '$split(x,,3)', '$padcut(ab,5,x)', '$div(-2147483648,-1)']) assert.deepEqual(rules(f, 'wacup'), [], f);
 });
 
+test('$div/$mod overflow follows the running value over literal arguments (Winamp 5)', () => {
+  // Checked on Winamp 5.666 and 5.9.2: <<EXCEPTION 0xc0000095>> for each crash below. WACUP 1.99.43
+  // and 1.99.57 output nothing for the same formats instead of crashing.
+  const crash = (s) => lint(s, { dialect: 'winamp' }).filter((f) => f.rule === 'winamp-crash').map((f) => s.slice(f.start, f.end));
+  assert.deepEqual(crash('$div(-2147483648,1,-1)'), ['-2147483648,1,-1']);
+  assert.deepEqual(crash('$div(-2147483648,1,1,-1)'), ['-2147483648,1,1,-1']);
+  assert.deepEqual(crash('$div( -2147483648 ,1,-1)'), [' -2147483648 ,1,-1']);
+  assert.deepEqual(crash('$div(-2147483648,-1,-1)'), ['-2147483648,-1']);
+  assert.match(lint('$div(-2147483648,1,-1)', { dialect: 'winamp' })[0].message, /dividing by 1 or 0 leaves the running value at -2147483648/);
+  // A 0 divisor is skipped, and so is an empty or non-numeric one (it reads as 0).
+  assert.deepEqual(crash('$div(-2147483648,0,-1)'), ['-2147483648,0,-1']);
+  assert.deepEqual(crash('$div(-2147483648,x,-1)'), ['-2147483648,x,-1']);
+  assert.deepEqual(crash('$mod(-2147483648,0,-1)'), ['-2147483648,0,-1']);
+  // Out-of-range numbers are clamped to 32 bits (wcstol), not wrapped; a numeric prefix is read.
+  assert.deepEqual(crash('$div(-2147483649,-1)'), ['-2147483649,-1']);
+  assert.deepEqual(crash('$div(-9999999999,-1)'), ['-9999999999,-1']);
+  assert.match(lint('$div(-9999999999,-1)', { dialect: 'winamp' })[0].message, /-9999999999 is read as -2147483648 \(numbers are clamped to 32 bits\)/);
+  assert.deepEqual(crash('$div(-2147483648,-1x)'), ['-2147483648,-1x']);
+  assert.deepEqual(crash('$mod(-2147483648,-1,5)'), ['-2147483648,-1']);
+  // No crash: the value has moved off -2147483648 (2147483648 clamps to 2147483647; x % 1 is 0).
+  for (const f of ['$div(-2147483648,2,-1)', '$div(2147483648,-1)', '$mod(-2147483648,1,-1)', '$mod(-2147483648,5,-1)', '$div(-2147483648,2147483647,-1)']) {
+    assert.deepEqual(crash(f), [], f);
+  }
+  // Unknown from the first non-literal argument on (Winamp 5 does crash on '-1' and $sub(0,1); not modelled).
+  for (const f of ['$div(-2147483648,%album%,-1)', '$div(%album%,1,-1)', "$div(-2147483648,'-1')", '$div(-2147483648,$sub(0,1))']) {
+    assert.deepEqual(crash(f), [], f);
+  }
+  for (const f of ['$div(-2147483648,1,-1)', '$div(-9999999999,-1)']) assert.deepEqual(rules(f, 'wacup'), [], f);
+});
+
+test('Winamp 5 never returns an empty $strstr, so it can\'t make an argument empty', () => {
+  // Winamp 5.666/5.9.2: $strstr(,x), $strstr(%album%,x) → 0 and $trim($strstr(%album%,x)) → 0; WACUP gives nothing.
+  const crash = (s) => lint(s, { dialect: 'winamp' }).filter((f) => f.rule === 'winamp-crash').map((f) => s.slice(f.start, f.end));
+  assert.deepEqual(crash('$trim($strstr(%album%,x))'), []);
+  assert.deepEqual(crash('$pad(ab,5,$strstr(%album%,x))'), []);
+  assert.deepEqual(crash('$trim(%album%)'), ['%album%']);
+  assert.deepEqual(rules('$replace(%title%,$strstr(%album%,x),)', 'winamp'), []);
+  // WACUP unchanged.
+  assert.deepEqual(rules('$replace(%title%,$strstr(%album%,x),)', 'wacup'), ['replace-search-may-be-empty']);
+  assert.match(lint('$if($strstr(%title%,live),y,n)')[0].message, /only tests that %title% isn't empty/);
+});
+
+test('Copy Format as Single Line warnings', () => {
+  const { copyWarning } = require('../out/lint');
+  // WACUP: freezes only, as before.
+  assert.match(copyWarning('$replace(%title%,,x)'), /freezes WACUP/);
+  assert.match(copyWarning('$tab(-1)', 'wacup'), /freezes WACUP/);
+  for (const f of ['$trim()', '$div(-2147483648,-1)', '$replace(%title%,%artist%,x)', '[%artist% - ]%title%']) assert.equal(copyWarning(f), undefined, f);
+  // Winamp 5: crashes (winamp-crash, an empty $replace search, an empty $muldiv argument), freezes, may crash.
+  for (const f of ['$trim()', '$div(-2147483648,1,-1)', '$replace(%title%,,x)', '$muldiv(,2,3)', '$tab(-1)$trim()']) {
+    assert.equal(copyWarning(f, 'winamp'), 'ATF: copied, but this format crashes Winamp 5 (see the error in the editor). Fix it before pasting.', f);
+  }
+  assert.equal(copyWarning('$padcut(%title%,-1)', 'winamp'), 'ATF: copied, but this format freezes Winamp 5 (see the error in the editor). Fix it before pasting.');
+  for (const f of ['$trim(%album%)', '$replace(%title%,%artist%,x)']) assert.match(copyWarning(f, 'winamp'), /may crash Winamp 5 for some tracks/, f);
+  for (const f of ['$trim($strstr(%album%,x))', '[%artist% - ]%title%']) assert.equal(copyWarning(f, 'winamp'), undefined, f);
+});
+
 test('names longer than 32 characters (WACUP 1.99.57)', () => {
   const field = (n) => `x%${'a'.repeat(n)}%y`;
   const fn = (n) => `x$${'b'.repeat(n)}(1)y`;

@@ -264,3 +264,11 @@ export const NEGATIVE_COUNT_FREEZES: Record<string, number> = { tab: 0, director
  * `$div`/`$mod` only for `-2147483648,-1`. `$strstr` is left out: it is empty when either argument is.
  */
 export const ALWAYS_NONEMPTY = new Set(['strchr', 'strlchr', 'strrchr', 'len', 'add', 'sub', 'mul', 'div', 'mod', 'muldiv', 'min', 'max', 'num', 'dec', 'hex']);
+
+/**
+ * The same for Winamp 5, which also never returns an empty `$strstr`: it gives `0` even when an
+ * argument is empty (`$strstr(,x)`, `$strstr(%album%,x)` → `0`; WACUP gives nothing). The other
+ * functions agree with WACUP, or crash instead of returning nothing (`$strrchr(,)`, `$div(-2147483648,-1)`).
+ * Checked on Winamp 5.666 and 5.9.2.
+ */
+export const ALWAYS_NONEMPTY_WINAMP = new Set([...ALWAYS_NONEMPTY, 'strstr']);

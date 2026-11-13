@@ -131,8 +131,8 @@ function digitValue(c: number): number {
 const INT_MAX = 2147483647;
 const INT_MIN = -2147483648;
 
-/** WACUP's integer parsing (`wcstol`): leading whitespace, optional sign, digits; clamped to 32 bits. */
-function toInt(s: string): number {
+/** WACUP's integer parsing (`wcstol`): leading whitespace, optional sign, digits; clamped to 32 bits. Winamp 5 reads numbers the same way. */
+export function toInt(s: string): number {
   let i = 0;
   while (i < s.length && isSpace(s.charCodeAt(i))) i++;
   let neg = false;
