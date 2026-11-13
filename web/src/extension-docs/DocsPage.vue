@@ -7,6 +7,7 @@ import { FIELDS, FUNCTIONS, REMOVED, RULES } from '@/core'
 import type { FunctionInfo } from '@/core'
 import { docMarkdown } from '@/lib/markdown'
 import HighlightedFormat from '@/components/HighlightedFormat.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import pkg from '@pkg'
 
 interface Setting {
@@ -72,6 +73,7 @@ const WIKI = `${REPO}/wiki`
 
 <template>
   <div class="docs">
+    <ThemeToggle class="docs-theme" />
     <nav class="toc" aria-label="Contents">
       <a class="home" href="../">← atf playground</a>
       <p class="toc-title">ATF for VS Code <span class="muted">v{{ version }}</span></p>
@@ -223,9 +225,7 @@ const WIKI = `${REPO}/wiki`
       </section>
 
       <footer>
-        <span>Generated from the extension's own tables, v{{ version }}.</span>
-        <span><a href="../third-party-notices.txt">Third-party notices</a></span>
-        <span class="muted">Not affiliated with or endorsed by WACUP or Winamp.</span>
+        <span>Generated from the extension's own tables, v{{ version }}.</span> <span><a href="../third-party-notices.txt">Third-party notices</a></span> <span>Not affiliated with or endorsed by WACUP or Winamp.</span>
       </footer>
     </main>
   </div>
@@ -233,12 +233,19 @@ const WIKI = `${REPO}/wiki`
 
 <style scoped>
 .docs {
+  position: relative;
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);
   max-width: 1180px;
   margin: 0 auto;
   gap: 32px;
   padding: 0 16px;
+}
+.docs-theme {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 5;
 }
 .toc {
   position: sticky;
@@ -405,11 +412,29 @@ pre code {
 }
 footer {
   margin-top: 48px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
+  display: block;
+  text-align: center;
   color: var(--muted);
-  font-size: 0.9em;
+  font-size: 0.78rem;
+  line-height: 1.8;
+}
+/* One line of fine print that wraps like text; copying it gives one line too. */
+footer > span {
+  margin-inline: 0.6em;
+}
+footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+footer a:hover,
+footer a:focus-visible {
+  color: var(--text);
+  text-decoration: underline;
+}
+footer a:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 @media (max-width: 800px) {
   .docs {

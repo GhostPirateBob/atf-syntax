@@ -66,7 +66,7 @@ ul {
 }
 .finding:hover {
   border-left-color: var(--teal);
-  background: rgba(7, 54, 66, 0.35);
+  background: rgba(var(--tint-rgb), 0.35);
 }
 .msg {
   flex: 1;

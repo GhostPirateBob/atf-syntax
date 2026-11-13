@@ -8,6 +8,12 @@ import { formatLength, parseM3u } from './m3u'
 import { decodeShare, encodeShare } from './share'
 import { fieldsFor, tracksFromFiles, tracksFromPlaylist } from './tracks'
 import { isAudioName, isPlaylistName, matchPlaylistFiles } from './audio'
+import { durationOf, type Track } from './tracks'
+import { RECIPES } from './recipes'
+import { fitText } from './fit'
+import { DEFAULT_VIEW, parseView } from './view'
+import { FONT_GROUPS, TITLE_FAMILY, titleFont } from './fontStacks'
+import { evaluate } from '@core/evaluate'
 
 describe('toFormat', () => {
   it('joins lines with no separator and skips # comment lines, like .atf files', () => {
@@ -93,6 +99,59 @@ describe('fieldsFor', () => {
     expect(f).toMatchObject({ track: '2', length: '3:13', folder: 'B', fullfolder: 'D:\\Music\\A\\B\\' })
     expect('album' in f).toBe(false)
   })
+  it('adds %playlist_position% and %playlist_length% from the track list, not the tags', () => {
+    const t = { id: 'x', source: 'custom' as const, tags: { artist: 'A', title: 'T', length_seconds: '260', filename: 'D:\\m\\t.mp3' } }
+    expect(fieldsFor(t, { position: 3, length: 12 })).toMatchObject({ playlist_position: '3', playlist_length: '12' })
+    expect('playlist_position' in fieldsFor(t)).toBe(false)
+    const wacup = RECIPES.find((r) => r.title === "WACUP's default song ticker")!.format
+    expect(evaluate(wacup, fieldsFor(t, { position: 3, length: 12 })).text).toBe('3. A - T (4:20)')
+    const spc = { ...t, tags: { ...t.tags, album: 'Chrono Trigger', filename: 'D:\\m\\c.spc' } }
+    expect(evaluate(wacup, fieldsFor(spc, { position: 1, length: 1 })).text).toBe('1. Chrono Trigger - T (4:20)')
+  })
+  it('shows durations like a playlist, blank when unknown', () => {
+    const t = (length_seconds?: string): Track => ({ id: 'x', source: 'custom', tags: length_seconds === undefined ? {} : { length_seconds } })
+    expect([t('260'), t('3725'), t(), t('junk')].map((x) => durationOf(x))).toEqual(['4:20', '1:02:05', '', ''])
+  })
+})
+
+describe('fitText', () => {
+  // One unit per character, so widths are easy to reason about.
+  const len = (s: string) => Array.from(s).length
+  it('cuts WACUP-style, with three ASCII dots, only when the text is too wide', () => {
+    expect(fitText('The Recipe', 10, len)).toBe('The Recipe')
+    expect(fitText('The Recipe (Black Hippy Remix)', 15, len)).toBe('The Recipe (...')
+    expect(fitText('abc', 2, len)).toBe('...')
+  })
+  it('never splits a surrogate pair', () => {
+    expect(fitText('ab😀cdef', 6, len)).toBe('ab😀...')
+  })
+})
+
+describe('view settings', () => {
+  it('fill in keys that older saved settings lack, and drop bad values', () => {
+    const old = JSON.stringify({ trimLeading: false, font: 'Tahoma', fontSize: 14, width: 300, numbers: true })
+    expect(parseView(old)).toEqual({ ...DEFAULT_VIEW, trimLeading: false, font: 'Tahoma', fontSize: 14, width: 300, numbers: true })
+    expect(parseView(JSON.stringify({ dialect: 'foobar2000', fontFamily: 7, width: '300' }))).toEqual(DEFAULT_VIEW)
+    expect(parseView('{oops')).toEqual(DEFAULT_VIEW)
+    expect(parseView(null)).toEqual(DEFAULT_VIEW)
+  })
+  it('use one picked font with only its stack\'s generic fallback, a typed font first', () => {
+    expect(titleFont('', '')).toEqual({ family: TITLE_FAMILY, weight: 350 })
+    expect(titleFont('', 'Charter')).toEqual({ family: '"Charter", serif', weight: 400 })
+    expect(titleFont('', 'Cascadia Code')).toEqual({ family: '"Cascadia Code", monospace', weight: 400 })
+    expect(titleFont('', 'Arial')).toEqual({ family: '"Arial", sans-serif', weight: 400 })
+    expect(titleFont(' Tahoma ', 'Charter')).toEqual({ family: '"Tahoma", "Charter", serif', weight: 400 })
+    expect(titleFont('Tahoma', '')).toEqual({ family: `"Tahoma", ${TITLE_FAMILY}`, weight: 400 })
+  })
+  it('list each font once, grouped by stack, without CSS keywords', () => {
+    const all = FONT_GROUPS.flatMap((g) => g.fonts)
+    expect(new Set(all).size).toBe(all.length)
+    expect(all).not.toContain('serif')
+    expect(all).not.toContain('ui-monospace')
+    expect(all).not.toContain('Arial')
+    expect(FONT_GROUPS[0]!.label).toBe('Transitional: Charter, Bitstream Charter, Sitka Text, Cambria')
+    expect(FONT_GROUPS.find((g) => g.label.startsWith('Didone'))!.fonts).not.toContain('P052')
+  })
 })
 
 describe('mediainfo', () => {
@@ -115,7 +174,7 @@ describe('mediainfo', () => {
   })
   it('builds the real-file samples from the shipped JSON', () => {
     expect(SAMPLE_TRACKS[0].tags).toMatchObject({ artist: 'Alfie Templeman', tracknumber: '0172', publisher: 'Chess Club Records', bitrate: '320' })
-    expect(SAMPLE_TRACKS.at(-1)?.tags.artist).toBeUndefined()
+    expect(SAMPLE_TRACKS.at(-1)?.tags.title).toBe('Dogs')
     expect(SAMPLE_TRACKS.every(Boolean)).toBe(true)
   })
 })

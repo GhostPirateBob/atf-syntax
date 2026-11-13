@@ -41,7 +41,7 @@ const groups = computed(() => {
     </header>
 
     <div v-if="tab === 'recipes'" class="scroll">
-      <p class="intro muted">Pick a starting point and watch it run on the tracks. Grouped by what your tags are like.</p>
+      <p class="intro muted">Pick a starting point and watch it run on the tracks.</p>
       <section v-for="[group, recipes] in groups" :key="group">
         <h3>{{ group }}</h3>
         <button v-for="r in recipes" :key="r.title" class="recipe" @click="emit('load', r)">
@@ -139,7 +139,7 @@ h3 {
 .recipe:hover,
 .item:hover {
   border-color: var(--border);
-  background: rgba(7, 54, 66, 0.35);
+  background: rgba(var(--tint-rgb), 0.35);
 }
 .recipe strong {
   color: var(--bright);

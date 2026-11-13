@@ -1,10 +1,10 @@
 /**
- * Starting points, grouped by what data you have rather than by library layout: click one and
- * see which suits your own tracks.
+ * Starting points: WACUP's own defaults, custom recipes, recipes for patchy tags or bare file
+ * names, and a showcase. Click one and see which suits your own tracks.
  */
 export interface Recipe {
   title: string
-  group: 'WACUP defaults' | 'Good tags' | 'Patchy tags' | 'Only filenames' | 'Showcase'
+  group: 'WACUP defaults' | 'Custom recipes' | 'Patchy tags' | 'Only filenames' | 'Showcase'
   note: string
   format: string
 }
@@ -23,28 +23,40 @@ export const RECIPES: Recipe[] = [
     format: "$if2(%title%,$filepart(%filename%))$if(%artist%,$crlf(),)%artist%[   $if(%rating%,$rating(%filename%),)]$if(%album%,$crlf(),)%album%[$if(%year%,' ('%year%')',)]",
   },
   {
+    title: "WACUP's default song ticker",
+    group: 'WACUP defaults',
+    note: 'Playlist number, artist (the album for SPC game music), title and length. %playlist_position% is a Taskbar Text field, so this belongs there, not in playlist titles.',
+    format: "%playlist_position%. [$ifstrequal2($fileext(%filename%),SPC,%album%,%artist%) - ]$if2(%title%,$filepart(%filename%)) '('%length%')'",
+  },
+  {
     title: 'Album artist first',
-    group: 'Good tags',
+    group: 'Custom recipes',
     note: 'Album artist stays the same across an album, so the column does not jump on "feat." tracks.',
     format: '[$if2(%albumartist%,%artist%) - ]%title%',
   },
   {
     title: 'Numbered tracks',
-    group: 'Good tags',
+    group: 'Custom recipes',
     note: 'Two-digit track numbers, dropped when a track has none.',
     format: '[$num(%tracknumber%,2). ][%artist% - ]%title%',
   },
   {
     title: 'Long albums to initials',
-    group: 'Good tags',
+    group: 'Custom recipes',
     note: 'Each part is shortened by its own length, never the whole line\'s, so a column looks the same on every row.',
     format: '[$abbr(%artist%,20) ▸ ][$abbr(%album%,24) ▹ ]%title%',
   },
   {
     title: 'Cut long titles',
-    group: 'Good tags',
+    group: 'Custom recipes',
     note: 'Keep the readable start of a long title instead of turning it into initials.',
     format: '[%artist% - ]$iflonger(%title%,30,$left(%title%,29)…,%title%)',
+  },
+  {
+    title: "Bob's song ticker",
+    group: 'Custom recipes',
+    note: 'The WACUP default with the length on the end, so the ticker shows how long the song is.',
+    format: '[%artist% - ]$if2(%title%,$filepart(%filename%)) %length%',
   },
   {
     title: 'Fall back to folder names',

@@ -107,7 +107,7 @@ tr:last-child {
   border-bottom: 1px solid var(--border);
 }
 tr:hover {
-  background: rgba(7, 54, 66, 0.45);
+  background: rgba(var(--tint-rgb), 0.45);
 }
 td {
   padding: 5px 10px;

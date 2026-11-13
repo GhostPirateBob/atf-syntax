@@ -20,10 +20,16 @@ export const EDITABLE_TAGS = [
 /**
  * Field values the evaluator sees, keyed by lower-case field name. Adds the fields WACUP derives:
  * `%track%` = `%tracknumber%`, `%length%` as `m:ss`, `%folder%` / `%fullfolder%` from the path.
+ * With `playlist`, also `%playlist_position%` (1-based) and `%playlist_length%` (track count),
+ * which come from the playlist, not the file's tags.
  */
-export function fieldsFor(track: Track): Record<string, string> {
+export function fieldsFor(track: Track, playlist?: { position: number; length: number }): Record<string, string> {
   const f: Record<string, string> = {}
   for (const [k, v] of Object.entries(track.tags)) if (v !== '') f[k.toLowerCase()] = v
+  if (playlist) {
+    f.playlist_position = String(playlist.position)
+    f.playlist_length = String(playlist.length)
+  }
   if (f.tracknumber && !f.track) f.track = f.tracknumber
   if (f.length_seconds && !f.length) {
     const s = Number(f.length_seconds)
@@ -40,6 +46,14 @@ export function fieldsFor(track: Track): Record<string, string> {
   return f
 }
 
+/** The track's length the way a playlist shows it (`m:ss`, or `h:mm:ss`), or '' if unknown. */
+export function durationOf(track: Track): string {
+  const raw = track.tags.length_seconds
+  if (!raw) return ''
+  const s = Number(raw)
+  return Number.isFinite(s) && s >= 0 ? formatLength(s) : ''
+}
+
 /** A one-line label for a track: the title, or the file name if there's no title. */
 export function trackLabel(track: Track): string {
   const t = track.tags
@@ -54,10 +68,10 @@ export const newId = () => `t${nextId++}`
 const sample = (tags: Record<string, string>): Track => ({ id: newId(), tags, source: 'sample' })
 
 /**
- * Built-in tracks: tidy tags, patchy tags, and none at all, so recipes can show their fallbacks.
- * First, every entry in sample-mediainfo.json (real files' tags as mediainfo reads them, quirks
- * included, e.g. downloader track numbers like `0172` and full release dates), however many there
- * are. Then Dogs, the hand-made "complete tags" case, and a file with no tags at all.
+ * Built-in tracks, tidy and patchy, so recipes can show their fallbacks. First, every entry in
+ * sample-mediainfo.json (real files' tags as mediainfo reads them, quirks included, e.g.
+ * downloader track numbers like `0172` and full release dates), however many there are. Then
+ * Dogs, the hand-made "complete tags" case.
  */
 const fromMediaInfo = (SAMPLE_MEDIAINFO as { filename: string; media: MediaInfoJson['media'] }[]).map((e) =>
   sample(tagsFromMediaInfo({ media: e.media }, e.filename)),
@@ -68,9 +82,6 @@ export const SAMPLE_TRACKS: Track[] = [
     artist: 'Pink Floyd', title: 'Dogs', album: 'Animals', albumartist: 'Pink Floyd',
     tracknumber: '2', year: '1977', genre: 'Progressive Rock', length_seconds: '1024',
     filename: 'D:\\Music\\Pink Floyd\\Animals\\02 Pink Floyd - Dogs.flac',
-  }),
-  sample({
-    filename: 'C:\\Users\\Joe\\Downloads\\artist_-_song_title_(official_audio).mp3', length_seconds: '214',
   }),
 ]
 

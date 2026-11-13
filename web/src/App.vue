@@ -1,21 +1,23 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { lint, parse, splitBlocks, type Finding } from '@/core'
 import { toFormat } from '@/lib/document'
 import { applyDisplay } from '@/lib/display'
 import { EvalRunner, type RunOutcome } from '@/lib/runner'
 import { decodeShare, encodeShare } from '@/lib/share'
 import { RECIPES, type Recipe } from '@/lib/recipes'
-import { SAMPLE_TRACKS, fieldsFor, newId, trackLabel, tracksFromFiles, tracksFromPlaylist, type Track } from '@/lib/tracks'
+import { SAMPLE_TRACKS, durationOf, fieldsFor, newId, trackLabel, tracksFromFiles, tracksFromPlaylist, type Track } from '@/lib/tracks'
 import type { PlaylistEntry } from '@/lib/m3u'
 import { matchPlaylistFiles } from '@/lib/audio'
 import type { Picked, PickedFile } from '@/lib/pick'
-import { fontStack, fontWeight } from '@/lib/measure'
+import { parseView, type ViewSettings } from '@/lib/view'
 import AtfEditor from './components/AtfEditor.vue'
 import PartsTable from './components/PartsTable.vue'
 import DiagnosticsList from './components/DiagnosticsList.vue'
 import TrackList, { type Row } from './components/TrackList.vue'
-import DisplaySettings, { type ViewSettings } from './components/DisplaySettings.vue'
+import MiniPlaylist from './components/MiniPlaylist.vue'
+import SettingsPanel from './components/SettingsPanel.vue'
+import ThemeToggle from './components/ThemeToggle.vue'
 import SideBar from './components/SideBar.vue'
 
 // The format a fresh visit opens with: a recipe, so it shows off more than one function.
@@ -45,13 +47,14 @@ const editor = ref<InstanceType<typeof AtfEditor>>()
 const toast = ref('')
 const atfInput = ref<HTMLInputElement>()
 const atfChoices = ref<{ label: string; text: string }[]>([])
+const settingsOpen = ref(false)
+const gear = ref<HTMLButtonElement>()
 
 function loadView(): ViewSettings {
-  const base: ViewSettings = { trimLeading: true, underscoresToSpaces: true, pct20ToSpaces: true, font: '', fontSize: 16, width: 0, numbers: false }
   try {
-    return { ...base, ...JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') }
+    return parseView(localStorage.getItem(VIEW_KEY))
   } catch {
-    return base
+    return parseView(null)
   }
 }
 watch(
@@ -69,7 +72,7 @@ watch(
 // ---- format, parse, lint ------------------------------------------------------------------
 const format = computed(() => toFormat(doc.value).format)
 const parsed = computed(() => parse(format.value))
-const findings = computed<Finding[]>(() => (format.value ? lint(format.value, { dialect: 'wacup', result: parsed.value }) : []))
+const findings = computed<Finding[]>(() => (format.value ? lint(format.value, { dialect: view.value.dialect, result: parsed.value }) : []))
 
 // ---- evaluation in a worker -------------------------------------------------------------------
 const runner = new EvalRunner(1000)
@@ -90,14 +93,14 @@ async function runNow() {
     outcome.value = undefined
     return
   }
-  const result = await runner.run(format.value, tracks.value.map(fieldsFor))
+  const result = await runner.run(format.value, tracks.value.map((t, i, all) => fieldsFor(t, { position: i + 1, length: all.length })))
   if (seq === runSeq) outcome.value = result
 }
 onBeforeUnmount(() => runner.dispose())
 
 const rows = computed<Row[]>(() =>
   tracks.value.map((t, i) => {
-    const base = { label: trackLabel(t), cached: t.cachedTitle, unsure: false }
+    const base = { label: trackLabel(t), duration: durationOf(t), cached: t.cachedTitle, unsure: false }
     const o = outcome.value
     if (!format.value) return { ...base, text: '', state: 'ok' }
     if (!o) return { ...base, text: '', state: 'pending' }
@@ -116,13 +119,52 @@ const rows = computed<Row[]>(() =>
 const oneLine = (s: string) => s.replace(/[\r\n]+/g, '')
 
 const current = computed(() => (outcome.value?.kind === 'ok' ? outcome.value.results[selected.value] : undefined))
-const nextIndex = computed(() => (tracks.value.length > 1 ? (selected.value + 1) % tracks.value.length : -1))
-const prevIndex = computed(() => (tracks.value.length > 1 ? (selected.value - 1 + tracks.value.length) % tracks.value.length : -1))
 const unsureFns = computed(() => {
   if (outcome.value?.kind !== 'ok') return []
   return [...new Set(outcome.value.results.flatMap((r) => r.unsure))].sort()
 })
-const heroFont = computed(() => ({ fontFamily: fontStack(view.value.font), fontWeight: fontWeight(view.value.font) }))
+/** States that aren't about one track replace the hero's rows. */
+const heroMessage = computed<{ text: string; tone: 'warn' | 'muted' } | undefined>(() => {
+  if (!format.value) return { text: 'Type a title format above', tone: 'muted' }
+  if (outcome.value?.kind === 'timeout') return { text: '⚠ This would freeze WACUP', tone: 'warn' }
+  if (outcome.value?.kind === 'failed') return { text: "The evaluator couldn't start", tone: 'warn' }
+  return undefined
+})
+
+const settingsPanel = ref<InstanceType<typeof SettingsPanel>>()
+const panelEl = () => settingsPanel.value?.$el as HTMLElement | undefined
+
+/** Closes the settings, returning focus to the gear only if it was inside the panel. */
+function closeSettings() {
+  const inside = !!panelEl()?.contains(document.activeElement)
+  settingsOpen.value = false
+  if (inside) gear.value?.focus()
+}
+// A press anywhere outside the panel (and not on the gear) closes it. The close waits until the
+// click is over: the panel sits in the page flow, so removing it at once would move what's under
+// the pointer before the click lands.
+function onOutsidePointer(e: PointerEvent) {
+  const t = e.target as Node
+  if (panelEl()?.contains(t) || gear.value?.contains(t)) return
+  const inside = !!panelEl()?.contains(document.activeElement)
+  document.addEventListener(
+    'pointerup',
+    () =>
+      setTimeout(async () => {
+        if (!settingsOpen.value) return
+        settingsOpen.value = false
+        await nextTick()
+        // Focus fell to the page (the press wasn't on something focusable): put it on the gear.
+        if (inside && (!document.activeElement || document.activeElement === document.body)) gear.value?.focus()
+      }),
+    { once: true },
+  )
+}
+watch(settingsOpen, (open) => {
+  if (open) document.addEventListener('pointerdown', onOutsidePointer)
+  else document.removeEventListener('pointerdown', onOutsidePointer)
+})
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutsidePointer))
 
 // ---- share link (format + sample only, never playlist data) --------------------------------------------
 let hashTimer: ReturnType<typeof setTimeout> | undefined
@@ -332,6 +374,7 @@ function hoverRange(range: { start: number; end: number } | null) {
         <button @click="openAtf">Open .atf</button>
         <button @click="saveAtf">Save .atf</button>
         <button @click="shareLink">Share link</button>
+        <ThemeToggle />
         <input ref="atfInput" type="file" accept=".atf,.txt" hidden @change="onAtfPicked" />
       </header>
 
@@ -342,50 +385,44 @@ function hoverRange(range: { start: number; end: number } | null) {
 
       <main class="center">
         <h1 class="title">atf playground</h1>
-        <p class="tagline">Advanced Title Formatting for WACUP &amp; Winamp, live</p>
+        <p class="tagline"><small>Advanced Title Formatting for WACUP &amp; Winamp, live</small></p>
 
-        <section class="hero" :style="heroFont">
-          <template v-if="!format">
-            <p class="quote muted">Type a title format below</p>
-          </template>
-          <template v-else-if="outcome?.kind === 'timeout'">
-            <p class="quote warn">⚠ This would freeze WACUP</p>
-            <p class="sub">It didn't finish within a second, so the playground stopped it. In WACUP you'd have to end the task.</p>
-          </template>
-          <template v-else-if="outcome?.kind === 'failed'">
-            <p class="quote warn">The evaluator couldn't start</p>
-            <p class="sub">{{ outcome.message }}</p>
-          </template>
-          <template v-else-if="current?.freeze">
-            <p class="quote warn">⚠ This would freeze WACUP</p>
-            <p class="sub">
-              <a href="#" @click.prevent="pickRange(current.freeze)">${{ current.freeze.fn }}()</a> never finishes on WACUP 1.99.57.25464.
-            </p>
-          </template>
-          <template v-else-if="current?.tooHeavy">
-            <p class="quote warn">Too heavy to preview</p>
-            <p class="sub">This format builds more text than the playground will work through (tens of millions of characters along the way). WACUP may still handle it.</p>
-          </template>
-          <template v-else-if="current?.error">
-            <p class="quote">{{ rows[selected]?.text ?? current.text }}</p>
-            <p class="sub error-note">There's a syntax error, so WACUP shows an error message in place of the broken part (the whole title, if it's at the top level). Details below.</p>
-          </template>
-          <template v-else>
-            <div class="wheel">
-              <button v-if="prevIndex >= 0" class="wheel-item prev" :title="`Previous track: ${rows[prevIndex]?.label}`" @click="selected = prevIndex">{{ rows[prevIndex]?.text || ' ' }}</button>
-              <p class="quote">{{ rows[selected]?.text ?? '' }}</p>
-              <button v-if="nextIndex >= 0" class="wheel-item next" :title="`Next track: ${rows[nextIndex]?.label}`" @click="selected = nextIndex">{{ rows[nextIndex]?.text || ' ' }}</button>
-            </div>
-          </template>
-        </section>
-
-        <div class="box-wrap">
-          <button class="random" @click="randomRecipe">random recipe</button>
+        <div class="box-wrap" @keydown.esc="settingsOpen && closeSettings()">
+          <button
+            ref="gear"
+            class="gear"
+            aria-label="Settings"
+            title="Settings"
+            :aria-expanded="settingsOpen"
+            aria-controls="settings-panel"
+            @click="settingsOpen = !settingsOpen"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              />
+            </svg>
+          </button>
           <div class="box">
             <AtfEditor ref="editor" v-model:doc="doc" :findings="findings" class="box-editor" />
             <button class="copy primary" title="Copy the format as one line, ready for WACUP" @click="copyFormat">Copy</button>
           </div>
+          <button class="random" @click="randomRecipe">random recipe</button>
         </div>
+        <SettingsPanel v-if="settingsOpen" ref="settingsPanel" v-model="view" @close="closeSettings" />
+
+        <section class="hero">
+          <MiniPlaylist :rows="rows" :selected="selected" :view="view" :message="heroMessage" @select="selected = $event" />
+          <p v-if="format && outcome?.kind === 'timeout'" class="sub">It didn't finish within a second, so the playground stopped it. In WACUP you'd have to end the task.</p>
+          <p v-else-if="format && outcome?.kind === 'failed'" class="sub">{{ outcome.message }}</p>
+          <p v-else-if="current?.freeze" class="sub">
+            <a href="#" @click.prevent="pickRange(current.freeze)">${{ current.freeze.fn }}()</a> never finishes on WACUP 1.99.57.25464.
+          </p>
+          <p v-else-if="current?.tooHeavy" class="sub">This format builds more text than the playground will work through (tens of millions of characters along the way). WACUP may still handle it.</p>
+          <p v-else-if="current?.error" class="sub error-note">There's a syntax error, so WACUP shows an error message in place of the broken part (the whole title, if it's at the top level). Details below.</p>
+          <p v-if="view.dialect === 'winamp'" class="dialect-note">Preview shows WACUP 1.99.57. Winamp 5 differs: for example <code>$if</code> tests whether a field resolved.</p>
+        </section>
 
         <PartsTable :format="format" :parsed="parsed" @hover="hoverRange" @pick="pickRange" />
         <DiagnosticsList v-if="format" :findings="findings" @pick="pickRange" />
@@ -407,17 +444,11 @@ function hoverRange(range: { start: number; end: number } | null) {
           @set-tag="setTag"
           @open="openPicked"
           @samples="useSamples"
-          @numbers="view.numbers = $event"
         />
-        <DisplaySettings v-model="view" />
       </section>
 
       <footer>
-        <span>The checking here is the same as the <a href="https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax" target="_blank" rel="noopener">ATF extension for VS Code</a>.</span>
-        <span><a href="./extension/">Extension docs</a></span>
-        <span><a href="https://github.com/GhostPirateBob/atf-syntax" target="_blank" rel="noopener">Source on GitHub</a></span>
-        <span><a href="./third-party-notices.txt">Third-party notices</a></span>
-        <span class="muted">Not affiliated with or endorsed by WACUP or Winamp.</span>
+        <span>The checking here is the same as the <a href="https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax" target="_blank" rel="noopener">ATF extension for VS Code</a>.</span> <span><a href="./extension/">Extension docs</a></span> <span><a href="https://github.com/GhostPirateBob/atf-syntax" target="_blank" rel="noopener">Source on GitHub</a></span> <span><a href="./third-party-notices.txt">Third-party notices</a></span> <span>Not affiliated with or endorsed by WACUP or Winamp.</span>
       </footer>
     </div>
 
@@ -479,24 +510,20 @@ function hoverRange(range: { start: number; end: number } | null) {
   letter-spacing: 0.02em;
 }
 .tagline {
-  margin: 4px 0 26px;
+  margin: 4px 0 24px;
   color: var(--muted);
 }
+.tagline small {
+  font-size: 0.85rem;
+}
 .hero {
-  min-height: 6.5em;
-  margin-bottom: 14px;
+  max-width: 960px;
+  margin: 10px auto 18px;
 }
-.quote {
-  font-size: clamp(1.3rem, 3.2vw, 2.1rem);
-  color: var(--bright);
-  margin: 0;
-  /* pre-wrap keeps runs of spaces as WACUP draws them; overflow-wrap only breaks a word too long for the line. */
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.quote.warn {
-  color: var(--warning);
-  font-style: normal;
+.dialect-note {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
 }
 .error-note {
   color: var(--error);
@@ -508,58 +535,61 @@ function hoverRange(range: { start: number; end: number } | null) {
 .sub a {
   color: var(--text);
 }
-/* Previous and next tracks above and below, like a picker wheel with only a slight tilt. */
-.wheel {
-  /* A long viewing distance: the rows tilt back without the keystone skew a short one gives wide text. */
-  perspective: 2000px;
-}
-.wheel-item {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  padding: 2px 0;
-  font: inherit;
-  font-size: clamp(1rem, 2.3vw, 1.45rem);
-  color: var(--dim);
-  opacity: 0.75;
-  white-space: pre;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  transition: color 0.15s, opacity 0.15s;
-}
-.wheel-item:hover,
-.wheel-item:focus-visible {
-  color: var(--text);
-  opacity: 1;
-}
-.wheel-item.prev {
-  transform: rotateX(20deg);
-  transform-origin: center bottom;
-  margin-bottom: 4px;
-}
-.wheel-item.next {
-  transform: rotateX(-20deg);
-  transform-origin: center top;
-  margin-top: 4px;
-}
 .box-wrap {
   position: relative;
   max-width: 960px;
   margin: 0 auto;
-  padding-top: 22px;
+  padding: 30px 0 24px;
 }
+/* Tabs on the box: the gear above its top-right corner, random recipe below its bottom-left. */
+.gear,
 .random {
   position: absolute;
+  background: var(--tab-bg);
+  border-color: var(--teal);
+  color: var(--tab-fg);
+  text-align: center;
+  align-items: center;
+}
+.gear:hover,
+.gear:focus-visible,
+.random:hover,
+.random:focus-visible {
+  background: color-mix(in srgb, var(--tab-bg) 85%, var(--teal));
+  color: var(--tab-fg);
+}
+/* Each tab leaves out the border on the side it shares with the box, so it looks attached. */
+.gear {
   right: 18px;
   top: 0;
+  height: 30px;
+  width: 38px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+}
+.gear svg {
+  transition: transform 0.2s;
+}
+.gear[aria-expanded='true'] svg {
+  transform: rotate(45deg);
+}
+.gear:focus-visible,
+.random:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+.random {
+  left: 18px;
+  bottom: 0;
+  height: 24px;
+  padding: 0 10px;
   font-family: var(--mono);
   font-size: 0.82rem;
-  background: var(--teal);
-  border-color: var(--teal);
-  color: var(--bright);
-  border-radius: 4px 4px 0 0;
+  border-top: 0;
+  border-radius: 0 0 4px 4px;
   text-decoration: underline;
 }
 .box {
@@ -595,6 +625,8 @@ function hoverRange(range: { start: number; end: number } | null) {
 }
 .lower {
   display: grid;
+  /* minmax(0, ...): a fixed playlist width inside must not widen the page on a phone. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   max-width: 1100px;
   width: 100%;
@@ -602,13 +634,30 @@ function hoverRange(range: { start: number; end: number } | null) {
   padding: 0 20px;
 }
 footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 24px;
-  justify-content: center;
+  display: block;
+  text-align: center;
   padding: 26px 20px 30px;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
+  line-height: 1.8;
+  color: var(--muted);
+}
+/* One line of fine print that wraps like text; copying it gives one line too. */
+footer > span {
+  margin-inline: 0.6em;
+}
+footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+footer a:hover,
+footer a:focus-visible {
   color: var(--text);
+  text-decoration: underline;
+}
+footer a:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 @media (max-width: 760px) {
   .app.with-sidebar {
@@ -619,7 +668,7 @@ footer {
     inset: 0 auto 0 0;
     width: min(340px, 90vw);
     z-index: 20;
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6);
+    box-shadow: 4px 0 24px var(--shadow);
   }
   .center {
     padding-top: 22px;

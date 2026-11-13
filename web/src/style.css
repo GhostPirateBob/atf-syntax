@@ -29,6 +29,19 @@
   --warning: #feca57;
   --info: #0abde3;
 
+  /* Surfaces that used to be hard-coded. --tint-rgb is mixed in at various strengths for hover and
+     selected rows; --on-accent is text on --teal. */
+  --tint-rgb: 7, 54, 66;
+  --code-bg: rgba(7, 54, 66, 0.6);
+  --input-bg: #051820;
+  --playlist-bg: #000c12;
+  --comment: #637b83;
+  --on-accent: #eee8d5;
+  --shadow: rgba(0, 0, 0, 0.55);
+  /* The gear and random-recipe tabs on the editor box. */
+  --tab-bg: #093639;
+  --tab-fg: #eee8d5;
+
   --mono: 'Iosevka Charon Mono', ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Monaco, Consolas,
     'Liberation Mono', 'DejaVu Sans Mono', 'Courier New', Courier, monospace;
   --sans: 'Exo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
@@ -40,6 +53,101 @@
   --editor-size: 1.15rem;
 
   color-scheme: dark;
+}
+
+/* The light theme: picked with the header switch (data-theme, see public/theme-init.js), or the
+   system preference until the user picks. */
+:root[data-theme='light'] {
+  /* Light: neutral grey surfaces (page #efefef, raised surfaces white) with Solarized text and
+     accents, kept in hue but darkened for at least 4.5:1 on #efefef and white (the plain Solarized
+     tones reach only 2.2 to 4.3 on a light background). */
+  --bg: #efefef;
+  --sidebar: #ffffff;
+  --panel: #ffffff;
+  --raised: #e6e9ea;
+  --border: #d4d8d9;
+  --teal: #1c6a68;
+  --glow: rgba(42, 161, 152, 0.22);
+  --selection: #dde3e5;
+  --caret: #af0f0f;
+
+  --text: #4d5e64;
+  --bright: #3e4e53;
+  --muted: #616a6a;
+  --dim: #5e6b6c;
+
+  --magenta: #bb3073;
+  --gold: #846400;
+  --cyan: #1e746d;
+  --sky: #1e6da5;
+  --blue: #1e6da5;
+  --green: #606f00;
+  --red: #c52d2a;
+  --orange: #b64314;
+  --violet: #5d62aa;
+
+  --error: #c52d2a;
+  --warning: #846400;
+  --info: #1e6da5;
+
+  --tint-rgb: 184, 194, 198;
+  --code-bg: rgba(147, 161, 161, 0.18);
+  --input-bg: #f7f7f7;
+  --playlist-bg: #ffffff;
+  --comment: #616a6a;
+  --on-accent: #fdf6e3;
+  --shadow: rgba(60, 70, 75, 0.18);
+  --tab-bg: #d5e5e3;
+  --tab-fg: #174f4c;
+
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    /* Light: neutral grey surfaces (page #efefef, raised surfaces white) with Solarized text and
+       accents, kept in hue but darkened for at least 4.5:1 on #efefef and white (the plain Solarized
+       tones reach only 2.2 to 4.3 on a light background). */
+    --bg: #efefef;
+    --sidebar: #ffffff;
+    --panel: #ffffff;
+    --raised: #e6e9ea;
+    --border: #d4d8d9;
+    --teal: #1c6a68;
+    --glow: rgba(42, 161, 152, 0.22);
+    --selection: #dde3e5;
+    --caret: #af0f0f;
+
+    --text: #4d5e64;
+    --bright: #3e4e53;
+    --muted: #616a6a;
+    --dim: #5e6b6c;
+
+    --magenta: #bb3073;
+    --gold: #846400;
+    --cyan: #1e746d;
+    --sky: #1e6da5;
+    --blue: #1e6da5;
+    --green: #606f00;
+    --red: #c52d2a;
+    --orange: #b64314;
+    --violet: #5d62aa;
+
+    --error: #c52d2a;
+    --warning: #846400;
+    --info: #1e6da5;
+
+    --tint-rgb: 184, 194, 198;
+    --code-bg: rgba(147, 161, 161, 0.18);
+    --input-bg: #f7f7f7;
+    --playlist-bg: #ffffff;
+    --comment: #616a6a;
+    --on-accent: #fdf6e3;
+    --shadow: rgba(60, 70, 75, 0.18);
+    --tab-bg: #d5e5e3;
+    --tab-fg: #174f4c;
+
+    color-scheme: light;
+  }
 }
 
 * {
@@ -87,14 +195,14 @@ button:focus-visible {
 button.primary {
   background: var(--teal);
   border-color: var(--teal);
-  color: var(--bright);
+  color: var(--on-accent);
 }
 
 input[type='text'],
 input[type='number'],
 input[type='search'],
 textarea {
-  background: #051820;
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 8px;
@@ -110,7 +218,7 @@ code {
   font-family: var(--mono);
   font-size: 0.92em;
   color: var(--bright);
-  background: rgba(7, 54, 66, 0.6);
+  background: var(--code-bg);
   padding: 0 4px;
   border-radius: 3px;
 }
@@ -157,7 +265,7 @@ code {
   text-decoration: underline wavy var(--error);
 }
 .tok-comment {
-  color: #637b83;
+  color: var(--comment);
   font-style: italic;
 }
 .atf-text {
@@ -193,7 +301,16 @@ code {
   border: 1px solid var(--teal);
   padding: 8px 16px;
   border-radius: 6px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 18px var(--shadow);
   z-index: 50;
   max-width: calc(100vw - 32px);
+}
+
+/* Playlist rows draw like WACUP's GDI DrawText: no kerning, ligatures or letter spacing. Set
+   explicitly so nothing inherited leaks in; lib/measure.ts measures the same way. */
+.playlist-text {
+  letter-spacing: normal;
+  font-kerning: none;
+  font-variant-ligatures: none;
+  font-feature-settings: 'kern' 0, 'liga' 0, 'clig' 0, 'calt' 0;
 }
