@@ -248,7 +248,8 @@ export const NUMERIC_ARGS: Record<string, number[]> = {
 
 /**
  * 0-based index of a count argument that freezes WACUP when negative. `$tab` and `$directory` loop
- * with `while (n--)` and no clamp (~4 billion times, Winamp 5 too); `$padcut` never returns either.
+ * with `while (n--)` and no clamp (~4 billion times, Winamp 5 too); `$padcut` reads its length into a `size_t`, so it pads
+ * ~4 billion characters (confirmed by WACUP's developer, who says 1.99.58.x will fix it).
  * `$repeat` and the `$path*` functions clamp.
  */
 export const NEGATIVE_COUNT_FREEZES: Record<string, number> = { tab: 0, directory: 1, padcut: 1 };

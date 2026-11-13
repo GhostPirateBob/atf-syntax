@@ -202,7 +202,7 @@ export function lint(text: string, options: LintOptions = {}): Finding[] {
     const count = countIndex === undefined ? undefined : call.args[countIndex];
     if (count && /^\s*-0*[1-9]/.test(text.slice(count.start, count.end))) {
       const message = name === 'padcut'
-        ? `A negative length makes $${call.name}() never finish: WACUP freezes, still on 1.99.57.25464.`
+        ? `A negative length makes $${call.name}() pad ~4 billion characters (it is read as unsigned): WACUP freezes, still on 1.99.57.25464.`
         : `A negative count makes $${call.name}() loop ~4 billion times: WACUP freezes or runs out of memory.`;
       report('negative-count', count, message, undefined, NEGATIVE_COUNT_FIXED_IN[name]);
     }
