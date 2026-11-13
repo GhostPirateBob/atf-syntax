@@ -254,15 +254,15 @@ function hoverRange(range: { start: number; end: number } | null) {
             </p>
           </template>
           <template v-else-if="current?.error">
-            <p class="quote">“{{ rows[selected]?.text ?? current.text }}”</p>
+            <p class="quote">{{ rows[selected]?.text ?? current.text }}</p>
             <p class="sub error-note">There's a syntax error, so WACUP shows an error message in place of the broken part (the whole title, if it's at the top level). Details below.</p>
           </template>
           <template v-else>
-            <p class="quote">“{{ rows[selected]?.text ?? '' }}”</p>
+            <p class="quote">{{ rows[selected]?.text ?? '' }}</p>
             <p v-if="nextIndex >= 0" class="sub">
               <a href="#" @click.prevent="selected = nextIndex">next</a>
               <span class="muted"> track </span>
-              <span class="next">“{{ rows[nextIndex]?.text }}”</span>
+              <span class="next">{{ rows[nextIndex]?.text }}</span>
             </p>
           </template>
         </section>
