@@ -171,7 +171,7 @@ defineExpose({ reveal })
         <p class="saved-note muted">Saved in this browser only.</p>
         <div v-for="s in savedFormats" :key="s.id" class="saved-item" :data-search-id="`saved:${s.id}`">
           <form v-if="renaming === s.id" class="rename" @submit.prevent="finishRename(s)" @keydown.esc.stop.prevent="cancelRename(s)">
-            <input v-model="renameText" type="text" aria-label="New name" maxlength="80" />
+            <input name="saved-format-name" v-model="renameText" type="text" aria-label="New name" maxlength="80" />
             <button type="submit" class="primary">Rename</button>
             <button type="button" @click="cancelRename(s)">Cancel</button>
           </form>
@@ -206,7 +206,7 @@ defineExpose({ reveal })
     </div>
 
     <div v-else class="scroll">
-      <input v-model="query" type="search" placeholder="Search fields and functions…" class="search" />
+      <input name="reference-filter" v-model="query" type="search" placeholder="Search fields and functions…" class="search" />
       <SidebarSection
         v-if="!q"
         :id="sectionId('reference:syntax')"

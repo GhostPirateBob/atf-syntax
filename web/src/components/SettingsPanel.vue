@@ -124,21 +124,21 @@ function useDefaultTickerFont() {
 
     <fieldset>
       <legend>Display</legend>
-      <label class="check"><input v-model="model.spaces" type="checkbox" /> Show spaces <span class="muted">(a dashed box for each space in the format editor)</span></label>
+      <label class="check"><input name="show-spaces" v-model="model.spaces" type="checkbox" /> Show spaces <span class="muted">(a dashed box for each space in the format editor)</span></label>
     </fieldset>
 
     <fieldset>
       <legend>Playlist</legend>
-      <label class="check"><input v-model="model.numbers" type="checkbox" /> Playlist numbers <span class="muted">(<code>1.</code> in front of each row)</span></label>
-      <label class="check"><input v-model="model.duration" type="checkbox" /> Duration column <span class="muted">(the length on the right of each row)</span></label>
+      <label class="check"><input name="playlist-numbers" v-model="model.numbers" type="checkbox" /> Playlist numbers <span class="muted">(<code>1.</code> in front of each row)</span></label>
+      <label class="check"><input name="duration-column" v-model="model.duration" type="checkbox" /> Duration column <span class="muted">(the length on the right of each row)</span></label>
       <label class="line">
         <span class="name">Width</span>
-        <input v-model.number="model.width" type="number" min="0" max="4000" step="10" /> px
+        <input name="playlist-width" v-model.number="model.width" type="number" min="0" max="4000" step="10" /> px
         <span class="muted">0 = full width</span>
       </label>
       <label class="line">
         <span class="name">Font</span>
-        <select v-model="model.fontFamily">
+        <select name="font-family" v-model="model.fontFamily">
           <option value="" :style="{ fontFamily: singleFont('') }">Roboto Condensed (default)</option>
           <option :value="ARIAL" :style="{ fontFamily: singleFont(ARIAL) }">{{ label('Arial', arialInstalled) }} (classic Winamp)</option>
           <option v-if="orphan" :value="orphan" :style="{ fontFamily: singleFont(orphan) }">{{ orphan }}</option>
@@ -152,7 +152,7 @@ function useDefaultTickerFont() {
       </label>
       <label class="line">
         <span class="name">Typed font</span>
-        <input v-model.trim="model.font" type="text" placeholder="Any installed font" />
+        <input name="custom-font" v-model.trim="model.font" type="text" placeholder="Any installed font" />
       </label>
       <p v-if="canListFonts && !localFamilies.length" class="line list-fonts">
         <span class="name" />
@@ -160,16 +160,16 @@ function useDefaultTickerFont() {
       </p>
       <label class="line">
         <span class="name">Size</span>
-        <input v-model.number="model.fontSize" type="number" min="8" max="40" /> px
+        <input name="font-size" v-model.number="model.fontSize" type="number" min="8" max="40" /> px
       </label>
       <p class="note muted">Widths are close to WACUP but not exact: Windows rounds each letter to whole pixels.</p>
     </fieldset>
 
     <fieldset>
       <legend>How WACUP shows titles</legend>
-      <label class="check"><input v-model="model.trimLeading" type="checkbox" /> Trim leading whitespace <span class="muted">(start with a <code>.</code> to keep it)</span></label>
-      <label class="check"><input v-model="model.underscoresToSpaces" type="checkbox" /> Underscores as spaces</label>
-      <label class="check"><input v-model="model.pct20ToSpaces" type="checkbox" /> <code>%20</code> as spaces</label>
+      <label class="check"><input name="trim-leading" v-model="model.trimLeading" type="checkbox" /> Trim leading whitespace <span class="muted">(start with a <code>.</code> to keep it)</span></label>
+      <label class="check"><input name="underscores-as-spaces" v-model="model.underscoresToSpaces" type="checkbox" /> Underscores as spaces</label>
+      <label class="check"><input name="pct20-as-spaces" v-model="model.pct20ToSpaces" type="checkbox" /> <code>%20</code> as spaces</label>
     </fieldset>
 
     <fieldset class="ticker-font">
@@ -187,21 +187,21 @@ function useDefaultTickerFont() {
       <template v-if="tickerFont">
         <label class="line">
           <span class="name">Preset</span>
-          <select v-model="presetId">
+          <select name="ticker-preset" v-model="presetId">
             <option v-for="p in TICKER_PRESETS" :key="p.id" :value="p.id">{{ p.label }}</option>
             <option value="">Custom</option>
           </select>
         </label>
         <p class="line">
           <span class="name">Glyph</span>
-          <input :value="metrics.charWidth" type="number" min="1" max="64" aria-label="Character width (charwidth), px" @input="setMetrics({ ...metrics, charWidth: ($event.target as HTMLInputElement).valueAsNumber })" />
+          <input name="ticker-char-width" :value="metrics.charWidth" type="number" min="1" max="64" aria-label="Character width (charwidth), px" @input="setMetrics({ ...metrics, charWidth: ($event.target as HTMLInputElement).valueAsNumber })" />
           ×
-          <input :value="metrics.charHeight" type="number" min="1" max="64" aria-label="Character height (charheight), px" @input="setMetrics({ ...metrics, charHeight: ($event.target as HTMLInputElement).valueAsNumber })" />
+          <input name="ticker-char-height" :value="metrics.charHeight" type="number" min="1" max="64" aria-label="Character height (charheight), px" @input="setMetrics({ ...metrics, charHeight: ($event.target as HTMLInputElement).valueAsNumber })" />
           px
         </p>
         <label class="line">
           <span class="name">hspacing</span>
-          <input :value="metrics.hspacing" type="number" min="-16" max="16" @input="setMetrics({ ...metrics, hspacing: ($event.target as HTMLInputElement).valueAsNumber })" /> px
+          <input name="ticker-hspacing" :value="metrics.hspacing" type="number" min="-16" max="16" @input="setMetrics({ ...metrics, hspacing: ($event.target as HTMLInputElement).valueAsNumber })" /> px
         </label>
       </template>
       <p v-if="tickerNote" class="note warn" role="status">{{ tickerNote }}</p>
@@ -209,7 +209,7 @@ function useDefaultTickerFont() {
         The PNG named by your skin's <code>&lt;bitmapfont&gt;</code> (in Winamp Modern, <code>player.songticker.font</code>), with its charwidth, charheight and hspacing.
         It stays in this browser. Glyph order: {{ glyphOrder }}.
       </p>
-      <input ref="tickerInput" type="file" accept="image/png,.png" hidden @change="onTickerPicked" />
+      <input name="ticker-font-file" ref="tickerInput" type="file" accept="image/png,.png" hidden @change="onTickerPicked" />
     </fieldset>
 
     <p class="note muted">A font you pick or type is only looked up on this computer; nothing is downloaded for it.</p>

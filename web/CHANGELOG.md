@@ -8,6 +8,17 @@ Changes to the [ATF playground](https://ghostpiratebob.me/atf-syntax/). The exte
 
 - **Tags are read in 2 to 4 background workers** (half your CPU cores), off the page. MediaInfo spends about 100 ms of solid work on each MP3 (walking its frames for the length and bitrate), which used to freeze typing and scrolling while a folder loaded. Importing 200 MP3s: **23.8 s → 8.3 s**, and 190 long tasks on the page → 1. A worker that crashes on a file is replaced and only that file fails.
 
+### Install it as an app
+
+- The playground can be **installed as an app** (a web app manifest with the extension's icon, maskable icons for Android, an Apple touch icon, and desktop and phone screenshots for the install dialog).
+- **Works offline** after one visit: a small service worker keeps the page and the files it has loaded. Pages always come from the network when you're online, so you get the newest version.
+
+### Small fixes
+
+- On phones, **random recipe** is an icon, like format and reset beside it (the words stay for screen readers, with a tooltip).
+- Every form field has a `name`, as Chrome's autofill check asks.
+- Errors for each dialect are written to the browser console in full (`[WACUP]` / `[Winamp 5]`, rule and column), a second after you stop typing: the verdicts only count them.
+
 ### Tags from your files, matched to WACUP's fields
 
 Checked against MediaInfo's output for 2,340 real MP3, M4A, Opus, FLAC and Ogg files, and against WACUP's documentation:

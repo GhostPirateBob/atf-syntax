@@ -897,7 +897,7 @@ function hoverRange(range: { start: number; end: number } | null) {
           <IconButton :icon="Link" label="Share link" collapse="header" show-icon :icon-size="14" @click="shareLink" />
           <ThemeToggle />
         </div>
-        <input ref="atfInput" type="file" accept=".atf,.txt" hidden @change="onAtfPicked" />
+        <input name="atf-file" ref="atfInput" type="file" accept=".atf,.txt" hidden @change="onAtfPicked" />
       </header>
 
       <nav v-if="atfChoices.length" class="choices" aria-label="Formats in this file">
@@ -942,7 +942,9 @@ function hoverRange(range: { start: number; end: number } | null) {
             <button type="button" @click="closeSave">Cancel</button>
             <p class="muted">Kept in this browser only. Find it under Recipes.</p>
           </form>
-          <button class="random" @click="randomRecipe"><Shuffle :size="14" aria-hidden="true" class="tab-lead" />random recipe</button>
+          <button v-tip="'Load a random recipe'" class="random" aria-label="Random recipe" @click="randomRecipe">
+            <Shuffle :size="14" aria-hidden="true" class="tab-lead" /><span class="tab-text">random recipe</span>
+          </button>
           <div class="split" role="group" aria-label="Format or reset">
             <button v-tip="'Format: wrap at top-level boundaries (Shift+Alt+F)'" class="format" aria-label="Format (wrap at top-level boundaries)" @click="formatEditor">
               <TextWrap :size="16" aria-hidden="true" class="tab-icon" />
@@ -1542,13 +1544,12 @@ footer a:focus-visible {
   .box-actions {
     flex-direction: column;
   }
-  .tab-icon {
+  /* On phones the tabs below the box are icons only (random recipe too); the words stay for
+     screen readers, and each has a tooltip. */
+  .tab-icon,
+  .tab-lead {
     width: 16px;
     height: 16px;
-  }
-  /* random recipe keeps its words on phones, without the icon. */
-  .tab-lead {
-    display: none;
   }
   .tab-text {
     position: absolute;

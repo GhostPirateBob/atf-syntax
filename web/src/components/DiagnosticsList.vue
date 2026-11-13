@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
 import { Check, CircleX, Diamond, Info, TriangleAlert } from '@lucide/vue'
 import type { Finding } from '@/core'
 
@@ -23,6 +23,27 @@ const verdicts = computed(() => [
   { key: 'winamp', ok: 'Winamp will accept this', name: 'Winamp 5', errors: props.accept.winamp },
 ])
 const plural = (n: number) => `${n} error${n === 1 ? '' : 's'}`
+
+// Each dialect's errors in full on the console, for now: the verdicts above only count them (the
+// other dialect's never reach the list). Once the format has been still for a second, so typing
+// through a half-written format doesn't log every keystroke; and only when they change.
+let logTimer: ReturnType<typeof setTimeout> | undefined
+let logged = ''
+watch(
+  () => props.accept,
+  (accept) => {
+    clearTimeout(logTimer)
+    logTimer = setTimeout(() => {
+      const key = JSON.stringify([accept.wacup, accept.winamp].map((list) => list.map((f) => [f.rule, f.start, f.message])))
+      if (key === logged) return
+      logged = key
+      for (const v of verdicts.value)
+        for (const f of v.errors) console.error(`[${v.name}] ${f.rule} at column ${f.start + 1}: ${f.message}`)
+    }, 1000)
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => clearTimeout(logTimer))
 </script>
 
 <template>
