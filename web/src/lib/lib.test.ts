@@ -6,7 +6,8 @@ import { SAMPLE_TRACKS } from './tracks'
 import { applyDisplay, DEFAULT_DISPLAY } from './display'
 import { formatLength, parseM3u } from './m3u'
 import { decodeShare, encodeShare } from './share'
-import { fieldsFor, tracksFromPlaylist } from './tracks'
+import { fieldsFor, tracksFromFiles, tracksFromPlaylist } from './tracks'
+import { isAudioName, isPlaylistName, matchPlaylistFiles } from './audio'
 
 describe('toFormat', () => {
   it('joins lines with no separator and skips # comment lines, like .atf files', () => {
@@ -112,5 +113,39 @@ describe('mediainfo', () => {
   it('builds the real-file samples from the shipped JSON', () => {
     expect(SAMPLE_TRACKS[0].tags).toMatchObject({ artist: 'Alfie Templeman', tracknumber: '0172', publisher: 'Chess Club Records', bitrate: '320' })
     expect(SAMPLE_TRACKS[4].tags.artist).toBeUndefined()
+  })
+})
+
+describe('audio files', () => {
+  it('knows audio and playlist files by extension', () => {
+    expect(['a.MP3', 'b.flac', 'c.Opus', 'd.aif', 'e.dsf'].every(isAudioName)).toBe(true)
+    expect(isAudioName('cover.jpg')).toBe(false)
+    expect(isAudioName('mp3')).toBe(false)
+    expect(isPlaylistName('Mix.M3U8')).toBe(true)
+  })
+  it('match playlist entries by file name, ignoring case, in playlist order', () => {
+    const entries = ['D:\\Music\\A\\01 One.mp3', 'D:\\Music\\A\\02 Two.FLAC', 'http://stream.example/live', 'D:\\Music\\A\\03 Three.mp3']
+    expect(matchPlaylistFiles(entries, ['02 two.flac', '01 One.mp3', 'cover.mp3'])).toEqual([1, 0, -1, -1])
+  })
+  it('break ties between same-named files by the relative path tail', () => {
+    const files = ['Album A/01 Intro.mp3', 'Album B/01 Intro.mp3', 'Album B/Disc 2/01 Intro.mp3']
+    expect(matchPlaylistFiles(['D:\\Music\\Album B\\01 Intro.mp3', 'E:/x/album b/disc 2/01 intro.mp3', 'C:\\Other\\01 Intro.mp3'], files)).toEqual([1, 2, 0])
+  })
+  it('merge file tags into the playlist, keeping its order and full paths', () => {
+    const entries = parseM3u('#EXTINF:200,Cached\nD:\\Music\\A\\01 One.mp3\n#EXTINF:99,Other\nD:\\Music\\A\\02 Two.mp3')
+    const files = [{ path: 'A/01 One.mp3', tags: { filename: 'A/01 One.mp3', artist: 'X', title: 'One', length_seconds: '201' } }]
+    const match = matchPlaylistFiles(entries.map((e) => e.filename), files.map((f) => f.path))
+    const tracks = tracksFromPlaylist(entries, match.map((i) => files[i]?.tags))
+    expect(tracks.map((t) => t.tags)).toEqual([
+      { filename: 'D:\\Music\\A\\01 One.mp3', artist: 'X', title: 'One', length_seconds: '201' },
+      { filename: 'D:\\Music\\A\\02 Two.mp3', length_seconds: '99' },
+    ])
+    expect(tracks[0]!.cachedTitle).toBe('Cached')
+    expect(fieldsFor(tracks[0]!)).toMatchObject({ folder: 'A', length: '3:21' })
+  })
+  it('turn files on their own into tracks', () => {
+    const [t] = tracksFromFiles([{ filename: 'Album/01 One.mp3', title: 'One' }])
+    expect(t).toMatchObject({ source: 'files', tags: { title: 'One' } })
+    expect(fieldsFor(t!)).toMatchObject({ folder: 'Album', fullfolder: 'Album/' })
   })
 })

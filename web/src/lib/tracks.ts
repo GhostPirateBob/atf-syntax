@@ -8,7 +8,7 @@ export interface Track {
   tags: Record<string, string>
   /** For playlist imports: the `#EXTINF` title WACUP last wrote (a cache, possibly stale or hand-edited). */
   cachedTitle?: string
-  source: 'sample' | 'playlist' | 'custom'
+  source: 'sample' | 'playlist' | 'files' | 'custom'
 }
 
 /** The tag rows shown in the track editor, in a tag-editor-like order. */
@@ -77,12 +77,19 @@ export const SAMPLE_TRACKS: Track[] = [
   }),
 ]
 
-/** Tracks from a pasted or dropped playlist: just the path and length, as a playlist has no tags. */
-export function tracksFromPlaylist(entries: PlaylistEntry[]): Track[] {
-  return entries.map((e) => ({
-    id: newId(),
-    source: 'playlist',
-    cachedTitle: e.cachedTitle,
-    tags: { filename: e.filename, ...(e.lengthSeconds !== undefined ? { length_seconds: String(e.lengthSeconds) } : {}) },
-  }))
+/**
+ * Tracks from a pasted or dropped playlist. A playlist has no tags, just the path and length.
+ * `fileTags[i]`, when given, holds tags read from the audio file entry `i` names: they're merged
+ * in, keeping the playlist's full path, and the file's own length wins over `#EXTINF`.
+ */
+export function tracksFromPlaylist(entries: PlaylistEntry[], fileTags: (Record<string, string> | undefined)[] = []): Track[] {
+  return entries.map((e, i) => {
+    const tags: Record<string, string> = e.lengthSeconds !== undefined ? { length_seconds: String(e.lengthSeconds) } : {}
+    return { id: newId(), source: 'playlist', cachedTitle: e.cachedTitle, tags: { ...tags, ...fileTags[i], filename: e.filename } }
+  })
+}
+
+/** Tracks from the user's own audio files, with the tags MediaInfo.js read from them. */
+export function tracksFromFiles(fileTags: Record<string, string>[]): Track[] {
+  return fileTags.map((tags) => ({ id: newId(), source: 'files', tags: { ...tags } }))
 }

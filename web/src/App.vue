@@ -6,8 +6,10 @@ import { applyDisplay } from '@/lib/display'
 import { EvalRunner, type RunOutcome } from '@/lib/runner'
 import { decodeShare, encodeShare } from '@/lib/share'
 import { RECIPES, type Recipe } from '@/lib/recipes'
-import { SAMPLE_TRACKS, fieldsFor, newId, trackLabel, tracksFromPlaylist, type Track } from '@/lib/tracks'
+import { SAMPLE_TRACKS, fieldsFor, newId, trackLabel, tracksFromFiles, tracksFromPlaylist, type Track } from '@/lib/tracks'
 import type { PlaylistEntry } from '@/lib/m3u'
+import { matchPlaylistFiles } from '@/lib/audio'
+import type { Picked, PickedFile } from '@/lib/pick'
 import { fontStack, fontWeight } from '@/lib/measure'
 import AtfEditor from './components/AtfEditor.vue'
 import PartsTable from './components/PartsTable.vue'
@@ -27,7 +29,13 @@ const cloneSamples = (): Track[] => SAMPLE_TRACKS.map((t) => ({ ...t, id: newId(
 const shared = decodeShare(location.hash)
 const doc = ref(shared?.doc ?? DEFAULT_DOC)
 const tracks = ref<Track[]>(cloneSamples())
-const source = ref<'sample' | 'playlist'>('sample')
+const source = ref<'sample' | 'playlist' | 'files'>('sample')
+// What the user brought, kept so a playlist and audio files can arrive one after the other.
+let playlistEntries: PlaylistEntry[] = []
+let fileTags: { path: string; tags: Record<string, string> }[] = []
+const tagged = ref(0)
+const reading = ref<{ done: number; total: number } | null>(null)
+let readSeq = 0
 const selected = ref(Math.min(shared?.sample ?? 0, tracks.value.length - 1))
 const sidebarOpen = ref(window.innerWidth >= 1100)
 const view = ref<ViewSettings>(loadView())
@@ -162,14 +170,107 @@ function randomRecipe() {
   if (pick) loadRecipe(pick)
 }
 
-function importPlaylist(entries: PlaylistEntry[]) {
-  if (!entries.length) return say('No tracks found in that playlist.')
-  tracks.value = tracksFromPlaylist(entries.slice(0, MAX_PLAYLIST))
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+/**
+ * Tags for each file, read in the browser by MediaInfo.js. The library and its .wasm load only
+ * now, on first use. A file that can't be read keeps just its name. Undefined if a newer drop
+ * (or Back to samples) took over.
+ */
+async function readFiles(files: PickedFile[], seq: number): Promise<{ tags: Record<string, string>[]; failed: number } | undefined> {
+  if (!files.length) return { tags: [], failed: 0 }
+  reading.value = { done: 0, total: files.length }
+  try {
+    let reader: typeof import('@/lib/readTags') | undefined
+    try {
+      reader = await import('@/lib/readTags')
+      await reader.ready()
+    } catch {
+      reader = undefined
+      say("Couldn't load the tag reader, so only file names are shown.")
+    }
+    const tags: Record<string, string>[] = []
+    let failed = 0
+    for (const f of files) {
+      if (seq !== readSeq) return undefined
+      let t: Record<string, string> = { filename: f.path }
+      if (reader) {
+        try {
+          t = await reader.readTags(f.file, f.path)
+        } catch {
+          failed++
+        }
+      }
+      tags.push(t)
+      if (seq === readSeq) reading.value = { done: tags.length, total: files.length }
+    }
+    return seq === readSeq ? { tags, failed } : undefined
+  } finally {
+    if (seq === readSeq) reading.value = null
+  }
+}
+
+function showPlaylist(entries: PlaylistEntry[], files: { path: string; tags: Record<string, string> }[]) {
+  const list = entries.slice(0, MAX_PLAYLIST)
+  const match = files.length ? matchPlaylistFiles(list.map((e) => e.filename), files.map((f) => f.path)) : []
+  tracks.value = tracksFromPlaylist(list, match.map((i) => files[i]?.tags))
+  tagged.value = match.filter((i) => i >= 0).length
   source.value = 'playlist'
   selected.value = 0
-  say(entries.length > MAX_PLAYLIST ? `Loaded the first ${MAX_PLAYLIST} of ${entries.length} tracks.` : `Loaded ${entries.length} track${entries.length === 1 ? '' : 's'}: paths and lengths only, no tags.`)
+}
+
+/** A playlist, audio files, or both, from a drop, a picker, or a paste. */
+async function openPicked({ entries, audio }: Picked) {
+  const seq = ++readSeq
+  reading.value = null
+  if (entries && !entries.length && !audio.length) return say('No tracks found in that playlist.')
+  if (!entries && !audio.length) return say('Nothing to open there. Drop audio files or an .m3u8.')
+  const capNote = (n: number) => (n > MAX_PLAYLIST ? ` (the first ${MAX_PLAYLIST} of ${n})` : '')
+
+  // A playlist on its own: merge in tags already read from files, if any match.
+  if (!audio.length) {
+    playlistEntries = entries!
+    showPlaylist(entries!, fileTags)
+    const n = entries!.length
+    return say(tagged.value ? `Loaded ${plural(n, 'track')}${capNote(n)}. ${tagged.value} got tags from your files.` : `Loaded ${plural(n, 'track')}${capNote(n)}: paths and lengths only, no tags.`)
+  }
+
+  // Audio files with a playlist (dropped together, or loaded before): read only the files it names.
+  const list = (entries ?? (source.value === 'playlist' ? playlistEntries : [])).slice(0, MAX_PLAYLIST)
+  const match = list.length ? matchPlaylistFiles(list.map((e) => e.filename), audio.map((f) => f.path)) : []
+  if (entries || match.some((i) => i >= 0)) {
+    const wanted = [...new Set(match.filter((i) => i >= 0))].map((i) => audio[i]!)
+    const read = await readFiles(wanted, seq)
+    if (!read) return
+    const fresh = wanted.map((f, i) => ({ path: f.path, tags: read.tags[i]! }))
+    // More files for the playlist already shown add to the tags read before; newest first, so they win.
+    fileTags = entries ? fresh : [...fresh, ...fileTags]
+    playlistEntries = entries ?? playlistEntries
+    showPlaylist(playlistEntries, fileTags)
+    const n = playlistEntries.length
+    const failed = read.failed ? ` ${plural(read.failed, 'file')} couldn't be read.` : ''
+    return say(tagged.value ? `Loaded ${plural(n, 'track')}${capNote(n)}. ${tagged.value} got tags from your files.${failed}` : `Loaded ${plural(n, 'track')}${capNote(n)}. None of the files matched it, so there are no tags.`)
+  }
+
+  // Audio files on their own, in folder and file-name order.
+  const files = [...audio].sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true })).slice(0, MAX_PLAYLIST)
+  const read = await readFiles(files, seq)
+  if (!read) return
+  fileTags = files.map((f, i) => ({ path: f.path, tags: read.tags[i]! }))
+  playlistEntries = []
+  tracks.value = tracksFromFiles(read.tags)
+  tagged.value = 0
+  source.value = 'files'
+  selected.value = 0
+  const failed = read.failed ? ` ${plural(read.failed, 'file')} couldn't be read.` : ''
+  say(`Read tags from ${plural(files.length, 'file')}${capNote(audio.length)}.${failed}`)
 }
 function useSamples() {
+  readSeq++
+  reading.value = null
+  playlistEntries = []
+  fileTags = []
+  tagged.value = 0
   tracks.value = cloneSamples()
   source.value = 'sample'
   selected.value = 0
@@ -295,9 +396,11 @@ function hoverRange(range: { start: number; end: number } | null) {
           :selected="selected"
           :view="view"
           :source="source"
+          :tagged="tagged"
+          :reading="reading"
           @select="selected = $event"
           @set-tag="setTag"
-          @import="importPlaylist"
+          @open="openPicked"
           @samples="useSamples"
           @numbers="view.numbers = $event"
         />
@@ -308,6 +411,7 @@ function hoverRange(range: { start: number; end: number } | null) {
         <span>The checking here is the same as the <a href="https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax" target="_blank" rel="noopener">ATF extension for VS Code</a>.</span>
         <span><a href="./extension/">Extension docs</a></span>
         <span><a href="https://github.com/GhostPirateBob/atf-syntax" target="_blank" rel="noopener">Source on GitHub</a></span>
+        <span><a href="./third-party-notices.txt">Third-party notices</a></span>
         <span class="muted">Not affiliated with or endorsed by WACUP or Winamp.</span>
       </footer>
     </div>

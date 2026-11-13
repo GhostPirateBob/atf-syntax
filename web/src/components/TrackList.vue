@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { EDITABLE_TAGS, type Track } from '@/lib/tracks'
-import { parseM3u, type PlaylistEntry } from '@/lib/m3u'
+import { parseM3u } from '@/lib/m3u'
+import { AUDIO_EXTENSIONS, PLAYLIST_EXTENSIONS } from '@/lib/audio'
+import { filesFromDrop, filesFromInput, sortPicked, type Picked } from '@/lib/pick'
 import { fontStack, fontWeight, measureText } from '@/lib/measure'
 import type { ViewSettings } from './DisplaySettings.vue'
 
@@ -14,11 +16,21 @@ export interface Row {
   cached?: string
 }
 
-const props = defineProps<{ tracks: Track[]; rows: Row[]; selected: number; view: ViewSettings; source: 'sample' | 'playlist' }>()
+const props = defineProps<{
+  tracks: Track[]
+  rows: Row[]
+  selected: number
+  view: ViewSettings
+  source: 'sample' | 'playlist' | 'files'
+  /** Playlist tracks that got tags from the user's files. */
+  tagged: number
+  /** Files read so far, while tags are being read. */
+  reading: { done: number; total: number } | null
+}>()
 const emit = defineEmits<{
   select: [index: number]
   setTag: [index: number, key: string, value: string]
-  import: [entries: PlaylistEntry[]]
+  open: [picked: Picked]
   samples: []
   numbers: [on: boolean]
 }>()
@@ -28,6 +40,14 @@ const pasting = ref(false)
 const pasted = ref('')
 const dragging = ref(false)
 const fileInput = ref<HTMLInputElement>()
+const folderInput = ref<HTMLInputElement>()
+const ACCEPT = [...PLAYLIST_EXTENSIONS, ...AUDIO_EXTENSIONS].map((e) => `.${e}`).join(',')
+
+const sourceLabel = computed(() => {
+  if (props.source === 'files') return 'from your files'
+  if (props.source === 'playlist') return props.tagged ? `from your playlist, ${props.tagged} with tags from your files` : 'from your playlist'
+  return 'samples'
+})
 
 const fontCss = computed(() => fontStack(props.view.font))
 const weight = computed(() => fontWeight(props.view.font))
@@ -45,21 +65,19 @@ const overflow = computed(() => {
   return props.rows.map((r, i) => measureText(numberPrefix(i) + r.text, font) > props.view.width)
 })
 
-function readFile(file: File) {
-  file.text().then((text) => emit('import', parseM3u(text)))
-}
-function onDrop(e: DragEvent) {
+async function onDrop(e: DragEvent) {
   dragging.value = false
-  const file = e.dataTransfer?.files?.[0]
-  if (file) readFile(file)
+  if (!e.dataTransfer) return
+  emit('open', await sortPicked(await filesFromDrop(e.dataTransfer)))
 }
-function onPick(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (file) readFile(file)
-  if (fileInput.value) fileInput.value.value = ''
+async function onPick(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = filesFromInput(input.files)
+  input.value = ''
+  if (files.length) emit('open', await sortPicked(files))
 }
 function importPasted() {
-  emit('import', parseM3u(pasted.value))
+  emit('open', { entries: parseM3u(pasted.value), audio: [] })
   pasted.value = ''
   pasting.value = false
 }
@@ -69,15 +87,18 @@ function importPasted() {
   <section class="tracks" :class="{ dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop">
     <header>
       <h2>Tracks</h2>
-      <span class="muted count">{{ tracks.length }} {{ source === 'playlist' ? 'from your playlist' : 'samples' }}</span>
+      <span class="muted count">{{ tracks.length }} {{ sourceLabel }}</span>
+      <span v-if="reading" class="count reading" role="status">Reading {{ reading.done }} / {{ reading.total }}…</span>
       <span class="spacer" />
       <label class="toggle" title="WACUP's &quot;1. &quot; playlist numbers in front of each row">
         <input type="checkbox" :checked="view.numbers" @change="emit('numbers', ($event.target as HTMLInputElement).checked)" /> Playlist numbers
       </label>
-      <button @click="fileInput?.click()">Open playlist…</button>
+      <button title="A playlist, audio files, or both" @click="fileInput?.click()">Open files…</button>
+      <button title="Read the tags of every audio file in a folder" @click="folderInput?.click()">Open folder…</button>
       <button @click="pasting = !pasting">Paste playlist</button>
-      <button v-if="source === 'playlist'" @click="emit('samples')">Back to samples</button>
-      <input ref="fileInput" type="file" accept=".m3u,.m3u8,.txt" hidden @change="onPick" />
+      <button v-if="source !== 'sample'" @click="emit('samples')">Back to samples</button>
+      <input ref="fileInput" type="file" :accept="ACCEPT" multiple hidden @change="onPick" />
+      <input ref="folderInput" type="file" webkitdirectory hidden @change="onPick" />
     </header>
 
     <div v-if="pasting" class="paste">
@@ -114,7 +135,11 @@ function importPasted() {
       </li>
     </ol>
     <div v-if="view.width" class="width-note muted">Rows marked ▌ are wider than {{ view.width }} px in this font.</div>
-    <p class="drop-hint muted">Drop an <code>.m3u8</code> here to see your own tracks. A playlist has paths and lengths, not tags, so fields like <code>%artist%</code> stay empty.</p>
+    <p class="drop-hint muted">
+      Drop an <code>.m3u8</code> here to see your own tracks. A playlist only has paths and lengths, so fields like <code>%artist%</code> stay empty.
+      Drop the audio files too, or a folder, to read their tags. Your files stay on your computer.
+      Without a playlist, your browser only gives the page file names, not full paths, so <code>%filename%</code> and <code>%folder%</code> start at the folder you picked.
+    </p>
   </section>
 </template>
 
@@ -142,6 +167,9 @@ h2 {
 }
 .count {
   font-size: 0.85rem;
+}
+.reading {
+  color: var(--cyan);
 }
 .spacer {
   flex: 1;

@@ -224,6 +224,7 @@ const WIKI = `${REPO}/wiki`
 
       <footer>
         <span>Generated from the extension's own tables, v{{ version }}.</span>
+        <span><a href="../third-party-notices.txt">Third-party notices</a></span>
         <span class="muted">Not affiliated with or endorsed by WACUP or Winamp.</span>
       </footer>
     </main>
