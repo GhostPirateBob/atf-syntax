@@ -13,7 +13,7 @@ const alias = {
 /**
  * `virtual:search-index`: the search's fixed documents and their MiniSearch index, built here in
  * Node (lib/searchStatic.ts, run through Vite's module runner) rather than in the page on first
- * use. Emitted as JSON.parse() of string literals, the quickest way for the page to read big data.
+ * use. Emitted as JSON strings that the page parses in parts (the quickest way to read big data).
  * Rebuilt when the wiki, the recipes, the search code or the extension's core change.
  */
 function searchIndex(): Plugin {
@@ -28,9 +28,15 @@ function searchIndex(): Plugin {
       resolve: { alias },
       server: { fs: { allow: ['..'] } },
     })
-    const { docs, index } = module.staticCorpus()
-    const literal = (value: unknown) => `JSON.parse(${JSON.stringify(JSON.stringify(value))})`
-    return `export const docs = ${literal(docs)}\nexport const index = ${literal(index)}\n`
+    const { docs, index } = module.staticCorpus() as { docs: unknown; index: { index: unknown[] } & Record<string, unknown> }
+    // As JSON strings, parsed by the page a part at a time (lib/searchCorpus.ts), so loading the
+    // module is instant and no single parse is a long task: the documents, the index without its
+    // terms, and the terms in parts of 1,500.
+    const { index: terms, ...rest } = index
+    const parts: string[] = []
+    for (let i = 0; i < terms.length; i += 1500) parts.push(JSON.stringify(terms.slice(i, i + 1500)))
+    const str = (value: string) => JSON.stringify(value)
+    return `export const docs = ${str(JSON.stringify(docs))}\nexport const meta = ${str(JSON.stringify(rest))}\nexport const termParts = [${parts.map(str).join(',')}]\n`
   }
   const affects = (file: string) => /[\\/]wiki[\\/][^\\/]+\.md$|[\\/]web[\\/]src[\\/]lib[\\/](recipes|search|searchStatic|settings)\.ts$|[\\/]atf-syntax[\\/]src[\\/]|[\\/]atf-syntax[\\/]package\.json$/.test(file)
   return {

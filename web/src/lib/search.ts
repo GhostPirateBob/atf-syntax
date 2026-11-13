@@ -3,6 +3,7 @@ import type { Options, SearchOptions } from 'minisearch'
 import type { Recipe } from './recipes'
 import type { SavedFormat } from './saved'
 import type { Setting } from './settings'
+import { encodeAction, type PlaygroundAction } from './searchAction'
 
 /**
  * The omnisearch: what it indexes, how results are shown, and where each result goes. MiniSearch
@@ -230,8 +231,7 @@ export function snippet(text: string, terms: string[], max = 120): string {
 }
 
 // ---- routing --------------------------------------------------------------------------------
-/** What the playground does for a result, also carried in its URL hash from the docs page. */
-export type PlaygroundAction = { kind: 'recipe'; title: string } | { kind: 'saved'; id: string } | { kind: 'ref'; target: string }
+export { encodeAction, parseAction, type PlaygroundAction } from './searchAction'
 
 export type Route =
   | { type: 'action'; action: PlaygroundAction }
@@ -243,30 +243,6 @@ export type Route =
 export type SearchPage = 'playground' | 'docs'
 
 export const WIKI_URL = 'https://github.com/GhostPirateBob/atf-syntax/wiki'
-
-/**
- * The playground's action hash. It never has an `f` key, so it can't be taken for a share link
- * (`#f=…&s=…`), and a share link never parses as an action.
- */
-export function encodeAction(action: PlaygroundAction): string {
-  const params = new URLSearchParams()
-  if (action.kind === 'recipe') params.set('recipe', action.title)
-  else if (action.kind === 'saved') params.set('saved', action.id)
-  else params.set('ref', action.target)
-  return '#' + params.toString()
-}
-
-export function parseAction(hash: string): PlaygroundAction | undefined {
-  const params = new URLSearchParams(hash.replace(/^#/, ''))
-  if (params.has('f')) return undefined
-  const recipe = params.get('recipe')
-  if (recipe) return { kind: 'recipe', title: recipe }
-  const saved = params.get('saved')
-  if (saved) return { kind: 'saved', id: saved }
-  const ref = params.get('ref')
-  if (ref && /^(fn|field)-./.test(ref)) return { kind: 'ref', target: ref }
-  return undefined
-}
 
 /**
  * Where a result goes. Recipes and saved formats load in the playground; functions and fields

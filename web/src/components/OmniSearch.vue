@@ -1,192 +1,62 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
-import { History, Search, X } from '@lucide/vue'
-import throttle from 'lodash-es/throttle'
-import { frames, whenIdle } from '@/lib/timing'
+import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Search, X } from '@lucide/vue'
+import { whenIdle } from '@/lib/timing'
 import { vTip } from '@/lib/tooltip'
-import { browserStorage, savedFormats } from '@/lib/saved'
-import {
-  addRecent,
-  groupHits,
-  highlight,
-  KIND_LABELS,
-  parseRecent,
-  RECENT_KEY,
-  routeFor,
-  snippet,
-  type Hit,
-  type PlaygroundAction,
-  type RecentItem,
-  type SearchDoc,
-  type SearchPage,
-} from '@/lib/search'
-import type { Searcher } from '@/lib/searchCorpus'
+import type { PlaygroundAction } from '@/lib/searchAction'
+import type { SearchPage } from '@/lib/search'
 
 /**
  * The header's search over recipes, saved formats, functions, fields, lint rules, settings and
- * the wiki: an ARIA combobox with a grouped listbox. MiniSearch and the corpus load on first open.
- * On narrow screens it is a search icon that opens a full-width overlay.
+ * the wiki: an ARIA combobox (this box, part of the first render) with a grouped listbox (the
+ * palette, OmniPalette.vue, a lazy chunk with the search code). The palette and the prebuilt index
+ * load when the page is idle, or when the box is pointed at, focused, or opened with Ctrl+K or /.
+ * Typing before they arrive goes into the box as usual, and the palette opens on that text. On
+ * narrow screens the box is a search icon that opens a full-width overlay.
  */
 const props = withDefaults(defineProps<{ page: SearchPage; refListed?: (target: string) => boolean }>(), { refListed: () => true })
 const emit = defineEmits<{ action: [action: PlaygroundAction] }>()
 
+const loadPalette = () => import('./OmniPalette.vue')
+const OmniPalette = defineAsyncComponent(loadPalette)
+
 const open = ref(false)
 const query = ref('')
-const active = ref(-1)
-const loading = ref(false)
-const searcher = shallowRef<Searcher>()
 const root = ref<HTMLElement>()
 const input = ref<HTMLInputElement>()
 const iconButton = ref<HTMLButtonElement>()
+const palette = ref<{ onKey(e: KeyboardEvent): boolean }>()
+/** From the palette: the active option and whether any show (the combobox's ARIA state). */
+const activeId = ref<string>()
+const expanded = ref(false)
 /** Narrow screens, where the field is a search icon (keep in step with the @media rule in the styles). */
 const ICON_ONLY = '(max-width: 760px)'
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 const hint = isMac ? '⌘ K' : 'Ctrl K'
 
-// ---- recent searches and picks (this browser only) ----------------------------------------------
-const store = browserStorage()
-function loadRecent(): RecentItem[] {
-  try {
-    return parseRecent(store?.getItem(RECENT_KEY) ?? null)
-  } catch {
-    return []
-  }
+// ---- loading the palette and the index ----------------------------------------------------------
+/** Fetches the palette and restores the index ahead of the first search, without a "Loading" message. */
+function warm() {
+  loadPalette().catch(() => {})
+  import('@/lib/searchSession').then((s) => s.ensureIndex(true)).catch(() => {})
 }
-const recent = ref<RecentItem[]>(loadRecent())
-function remember(item: RecentItem) {
-  recent.value = addRecent(recent.value, item)
-  try {
-    store?.setItem(RECENT_KEY, JSON.stringify(recent.value))
-  } catch {
-    /* storage blocked: recents last until the page closes */
-  }
-}
-
-// ---- the index: prebuilt, restored when the page is idle (or on first use) ----------------------
-let loadingPromise: Promise<void> | undefined
-/** Loads the corpus chunk and restores its index. `quiet`: a warm-up, so no "Loading" message. */
-function ensureIndex(quiet = false): Promise<void> {
-  if (searcher.value) return Promise.resolve()
-  if (!quiet) loading.value = true
-  loadingPromise ??= (async () => {
-    try {
-      const { makeSearcher } = await import('@/lib/searchCorpus')
-      searcher.value = await makeSearcher(savedFormats.value)
-    } finally {
-      loading.value = false
-      loadingPromise = undefined
-    }
-  })()
-  return loadingPromise
-}
-/** Warms the index ahead of the first search (pointer over, or focus on, the search box). */
-const warm = () => void ensureIndex(true).catch(() => {})
-// Ready before the first open: fetched and restored once the page has settled (after the editor).
+// Ready before the first open: once the page has settled (after the editor).
 let cancelWarm: (() => void) | undefined
 onMounted(() => (cancelWarm = whenIdle(warm, 4000)))
 onBeforeUnmount(() => cancelWarm?.())
-watch(
-  savedFormats,
-  () => {
-    searcher.value?.setSaved(savedFormats.value)
-    triggerRef(searcher)
-  },
-  { deep: true },
-)
-
-// ---- options shown --------------------------------------------------------------------------
-interface Option {
-  id: string
-  title: string
-  sig: string
-  body: string
-  mono: boolean
-  icon?: 'history'
-  kindLabel?: string
-  pick: () => void
-}
-interface OptionGroup {
-  key: string
-  label: string
-  options: Option[]
-}
-
-const MONO = new Set(['function', 'field', 'rule', 'setting'])
-const q = computed(() => query.value.trim())
-const hits = computed<Hit[]>(() => (searcher.value && q.value ? searcher.value.search(q.value) : []))
-
-const groups = computed<OptionGroup[]>(() => {
-  if (q.value) {
-    return groupHits(hits.value).map((g) => ({
-      key: g.kind,
-      label: g.label,
-      options: g.hits.map((h) => ({
-        id: `omni-opt-${h.doc.id}`,
-        title: highlight(h.doc.title, h.terms),
-        sig: h.doc.sig ? highlight(snippet(h.doc.sig, h.terms, 90), h.terms) : '',
-        body: highlight(snippet(h.doc.body, h.terms), h.terms),
-        mono: MONO.has(h.doc.kind),
-        pick: () => go(h.doc),
-      })),
-    }))
-  }
-  if (!recent.value.length) return []
-  return [
-    {
-      key: 'recent',
-      label: 'Recent',
-      options: recent.value.map((r, i) =>
-        r.type === 'query'
-          ? { id: `omni-recent-${i}`, title: highlight(r.text, []), sig: '', body: '', mono: false, icon: 'history' as const, pick: () => setQuery(r.text) }
-          : {
-              id: `omni-recent-${i}`,
-              title: highlight(r.title, []),
-              sig: '',
-              body: '',
-              mono: MONO.has(r.kind),
-              kindLabel: KIND_LABELS[r.kind],
-              pick: () => goById(r.id),
-            },
-      ),
-    },
-  ]
-})
-const flat = computed(() => groups.value.flatMap((g) => g.options))
-const activeId = computed(() => flat.value[active.value]?.id)
-const countText = computed(() => {
-  if (!open.value || !q.value || loading.value) return ''
-  const n = flat.value.length
-  return n ? `${n} result${n === 1 ? '' : 's'}. Use Up and Down to choose, Enter to open.` : 'No results.'
-})
-
-/** The results' scrolling box. */
-const pop = ref<HTMLElement>()
-/** Set by Up and Down: only a move by key needs the active option scrolled into view. */
-let keyMove = false
-// New results start at the top: a scroll write, no layout read (scrollIntoView on every keystroke
-// forced a layout each time).
-watch(query, () => {
-  active.value = q.value ? 0 : -1
-  if (pop.value) pop.value.scrollTop = 0
-})
-watch(activeId, async (id) => {
-  if (!keyMove) return
-  keyMove = false
-  await nextTick()
-  if (id) document.getElementById(id)?.scrollIntoView({ block: 'nearest' })
-})
 
 // ---- open, close, keys ------------------------------------------------------------------------
 async function openSearch() {
   open.value = true
-  void ensureIndex()
+  warm()
   await nextTick()
   input.value?.focus()
 }
 function close(refocus = false) {
   if (!open.value) return
   open.value = false
-  active.value = -1
+  activeId.value = undefined
+  expanded.value = false
   // The overlay hid the field: give focus back to the icon that opened it.
   // The icon only shows on narrow screens (the same query as the CSS below): no style read needed.
   if (refocus && iconButton.value && window.matchMedia(ICON_ONLY).matches) iconButton.value.focus()
@@ -195,23 +65,24 @@ function setQuery(text: string) {
   query.value = text
   input.value?.focus()
 }
+/** A result was picked: clear, close and let go of the box. */
+function picked() {
+  query.value = ''
+  close()
+  input.value?.blur()
+}
+function onState(s: { activeId: string | undefined; expanded: boolean }) {
+  activeId.value = s.activeId
+  expanded.value = s.expanded
+}
 
 function onKeydown(e: KeyboardEvent) {
-  const n = flat.value.length
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') keyMove = true
-  if (e.key === 'ArrowDown') {
-    if (!open.value) void openSearch()
-    else if (n) active.value = (active.value + 1) % n
-  } else if (e.key === 'ArrowUp') {
-    if (n) active.value = active.value <= 0 ? n - 1 : active.value - 1
-  } else if (e.key === 'Enter') {
-    const o = flat.value[active.value]
-    if (!o) return
-    o.pick()
-  } else if (e.key === 'Escape') {
+  if (e.key === 'Escape') {
     if (!open.value) return
     close(true)
-  } else return
+  } else if (e.key === 'ArrowDown' && !open.value) {
+    void openSearch()
+  } else if (!(open.value && palette.value?.onKey(e))) return
   e.preventDefault()
 }
 function onFocusOut(e: FocusEvent) {
@@ -235,32 +106,6 @@ function onGlobalKey(e: KeyboardEvent) {
 }
 onMounted(() => document.addEventListener('keydown', onGlobalKey))
 onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKey))
-/** The pointer over an option makes it the active one: at most once a frame, the last move always applied. */
-const onOptionMove = throttle((o: (typeof flat.value)[number]) => (active.value = flat.value.indexOf(o)), frames(1), { leading: true, trailing: true })
-onBeforeUnmount(() => onOptionMove.cancel())
-
-// ---- going to a result ------------------------------------------------------------------------
-function go(doc: SearchDoc) {
-  if (q.value) remember({ type: 'query', text: q.value })
-  remember({ type: 'pick', id: doc.id, title: doc.title, kind: doc.kind })
-  query.value = ''
-  close()
-  input.value?.blur()
-  const route = routeFor(doc, props.page, props.refListed)
-  if (route.type === 'action') emit('action', route.action)
-  else if (route.type === 'external') window.open(route.href, '_blank', 'noopener')
-  else if (route.href.startsWith('#')) {
-    // Same page: setting the hash scrolls and lights up :target. Picking the same entry again
-    // doesn't change the hash, so scroll by hand.
-    if (location.hash === route.href) document.getElementById(decodeURIComponent(route.href.slice(1)))?.scrollIntoView()
-    else location.hash = route.href
-  } else location.href = route.href
-}
-async function goById(id: string) {
-  await ensureIndex()
-  const doc = searcher.value?.byId.get(id)
-  if (doc) go(doc)
-}
 
 defineExpose({ open: openSearch })
 </script>
@@ -281,7 +126,7 @@ defineExpose({ open: openSearch })
         aria-label="Search recipes, functions and docs"
         aria-autocomplete="list"
         aria-controls="omni-list"
-        :aria-expanded="open && flat.length > 0"
+        :aria-expanded="open && expanded"
         :aria-activedescendant="open ? activeId : undefined"
         placeholder="Search recipes, functions, docs…"
         autocomplete="off"
@@ -293,38 +138,19 @@ defineExpose({ open: openSearch })
       />
       <kbd class="omni-hint" aria-hidden="true">{{ hint }}</kbd>
       <button class="omni-close" aria-label="Close search" @click="close(true)"><X :size="18" aria-hidden="true" /></button>
-
-      <div v-if="open" ref="pop" class="omni-pop" @mousedown.prevent>
-        <p v-if="loading && q" class="omni-msg">Loading the index…</p>
-        <p v-else-if="q && !flat.length" class="omni-msg">No matches for “{{ q }}”.</p>
-        <p v-else-if="!q && !flat.length" class="omni-msg">Search recipes, functions, fields, lint rules, settings and the wiki. Press <kbd>/</kbd> or <kbd>{{ hint }}</kbd> from anywhere.</p>
-        <div id="omni-list" role="listbox" aria-label="Search results" class="omni-list" :hidden="!flat.length">
-          <div v-for="g in groups" :key="g.key" role="group" :aria-labelledby="`omni-g-${g.key}`" class="omni-group">
-            <div :id="`omni-g-${g.key}`" role="presentation" class="omni-group-label">{{ g.label }}</div>
-            <div
-              v-for="o in g.options"
-              :id="o.id"
-              :key="o.id"
-              role="option"
-              class="omni-opt"
-              :class="{ active: o.id === activeId }"
-              :aria-selected="o.id === activeId"
-              @mousemove="onOptionMove(o)"
-              @click="o.pick()"
-            >
-              <span class="omni-title-line">
-                <History v-if="o.icon === 'history'" :size="14" aria-hidden="true" class="omni-hist" />
-                <span class="omni-title" :class="{ mono: o.mono }" v-html="o.title" />
-                <span v-if="o.kindLabel" class="omni-kind">{{ o.kindLabel }}</span>
-              </span>
-              <span v-if="o.sig" class="omni-sig mono" v-html="o.sig" />
-              <span v-if="o.body" class="omni-body" v-html="o.body" />
-            </div>
-          </div>
-        </div>
-      </div>
+      <OmniPalette
+        v-if="open"
+        ref="palette"
+        :query="query"
+        :page="props.page"
+        :ref-listed="props.refListed"
+        :hint="hint"
+        @action="emit('action', $event)"
+        @picked="picked"
+        @set-query="setQuery"
+        @state="onState"
+      />
     </div>
-    <span class="omni-live" role="status" aria-live="polite">{{ countText }}</span>
   </div>
 </template>
 
@@ -391,6 +217,7 @@ kbd {
 .omni.open .omni-hint {
   display: none;
 }
+/* The palette's popup (OmniPalette.vue's root): placed under the box, or full screen on phones. */
 .omni-pop {
   position: absolute;
   top: calc(100% + 6px);
@@ -418,92 +245,6 @@ kbd {
     opacity: 0;
     transform: translate3d(-50%, 0, 0) scale(calc(1 - 0.02 * var(--motion)));
   }
-}
-.omni-msg {
-  margin: 0;
-  padding: 10px 14px;
-  font-size: 0.86rem;
-  color: var(--muted);
-}
-.omni-group-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--dim);
-  padding: 8px 14px 2px;
-}
-.omni-opt {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 5px 14px 6px;
-  border-left: 3px solid transparent;
-  cursor: pointer;
-  /* Results below the popup's fold skip layout and paint until scrolled to (a query shows up to 40);
-     their size until then is about a result's. They stay in the accessibility tree. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 62px;
-}
-.omni-opt.active {
-  /* The 55 % tint over the results' panel, solid. */
-  background: color-mix(in srgb, rgb(var(--tint-rgb)) 55%, var(--sidebar));
-  border-left-color: var(--teal);
-}
-.omni-title-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.omni-title {
-  color: var(--bright);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.omni-title.mono {
-  font-family: var(--mono);
-  font-weight: normal;
-}
-.omni-hist {
-  color: var(--muted);
-  flex: none;
-}
-.omni-kind {
-  margin-left: auto;
-  flex: none;
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-.omni-sig {
-  font-size: 0.8rem;
-  color: var(--dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.omni-body {
-  font-size: 0.82rem;
-  color: var(--text);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.omni-opt :deep(mark) {
-  background: rgba(190, 146, 8, 0.28);
-  color: inherit;
-  border-radius: 2px;
-}
-.omni-live {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 .omni-backdrop {
   display: none;

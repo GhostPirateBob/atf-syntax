@@ -2,8 +2,10 @@
 
 /** The search's fixed documents and their prebuilt MiniSearch index (see searchIndex() in vite.config.ts). */
 declare module 'virtual:search-index' {
-  import type { AsPlainObject } from 'minisearch'
-  import type { SearchDoc } from '@/lib/search'
-  export const docs: SearchDoc[]
-  export const index: AsPlainObject
+  /** The documents (SearchDoc[]), as JSON. */
+  export const docs: string
+  /** The serialised MiniSearch index without its terms, as JSON. */
+  export const meta: string
+  /** The index's terms, as JSON arrays of up to 1,500 entries. */
+  export const termParts: string[]
 }
