@@ -16,7 +16,8 @@ import TrackList, { type Row } from './components/TrackList.vue'
 import DisplaySettings, { type ViewSettings } from './components/DisplaySettings.vue'
 import SideBar from './components/SideBar.vue'
 
-const DEFAULT_DOC = '[%artist% - ]$if2(%title%,$filepart(%filename%))'
+// The format a fresh visit opens with: a recipe, so it shows off more than one function.
+const DEFAULT_DOC = RECIPES.find((r) => r.title === 'Long albums to initials')?.format ?? '[%artist% - ]$if2(%title%,$filepart(%filename%))'
 const VIEW_KEY = 'atf-playground:view'
 const MAX_PLAYLIST = 500
 
