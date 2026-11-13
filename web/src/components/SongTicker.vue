@@ -54,7 +54,7 @@ const defaultFont = computed(() => `400 ${defaultPx.value}px ${DEFAULT_FAMILY}`)
 const defaultReady = ref(0)
 onMounted(async () => {
   try {
-    await import('@fontsource/vt323/index.css')
+    await import('@/vt323.css')
     await document.fonts.load(`20px VT323`)
   } catch {
     /* offline or blocked: the monospace fallback measures just as well */
