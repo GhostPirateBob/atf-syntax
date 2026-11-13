@@ -30,13 +30,14 @@ const fileInput = ref<HTMLInputElement>()
 
 const fontCss = computed(() => fontStack(props.view.font))
 const weight = computed(() => fontWeight(props.view.font))
-// Widths measured before the web font arrives would use the fallback face, so re-measure once it has.
-const fontsReady = ref(false)
-document.fonts?.ready.then(() => (fontsReady.value = true))
+// Web fonts arrive after the country check (or never, in the GDPR area), so re-measure each time a
+// font finishes loading rather than once.
+const fontsLoaded = ref(0)
+document.fonts?.addEventListener('loadingdone', () => fontsLoaded.value++)
 const fontSize = computed(() => Math.min(40, Math.max(8, props.view.fontSize || 15)))
 const overflow = computed(() => {
   if (!props.view.width) return props.rows.map(() => false)
-  void fontsReady.value
+  void fontsLoaded.value
   const font = `${weight.value} ${fontSize.value}px ${fontCss.value}`
   return props.rows.map((r) => measureText(r.text, font) > props.view.width)
 })
