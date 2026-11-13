@@ -682,23 +682,29 @@ async function readFiles(files: PickedFile[], seq: number): Promise<{ tags: Reco
       reader = undefined
       say("Couldn't load the tag reader, so only file names are shown.")
     }
-    const tags: Record<string, string>[] = []
+    // The reader's workers parse side by side: keep one file in flight per worker, in order.
+    const tags: Record<string, string>[] = new Array(files.length)
     let failed = 0
-    for (const f of files) {
-      if (seq !== readSeq) return undefined
-      let t: Record<string, string> = { filename: f.path }
-      if (reader) {
-        try {
-          t = await reader.readTags(f.file, f.path)
-        } catch {
-          failed++
+    let done = 0
+    let next = 0
+    const lane = async () => {
+      while (next < files.length && seq === readSeq) {
+        const i = next++
+        const f = files[i]!
+        let t: Record<string, string> = { filename: f.path }
+        if (reader) {
+          try {
+            t = await reader.readTags(f.file, f.path)
+          } catch {
+            failed++
+          }
         }
+        tags[i] = t
+        done++
+        if (seq === readSeq) reading.value = { done, total: files.length }
       }
-      tags.push(t)
-      if (seq === readSeq) reading.value = { done: tags.length, total: files.length }
-      // MediaInfo parses on this thread: yield between files so the page stays responsive.
-      await yieldToMain()
     }
+    await Promise.all(Array.from({ length: reader ? reader.concurrency : 1 }, lane))
     return seq === readSeq ? { tags, failed } : undefined
   } finally {
     if (seq === readSeq) reading.value = null
