@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
 import { History, Search, X } from '@lucide/vue'
 import throttle from 'lodash-es/throttle'
-import { frames } from '@/lib/timing'
+import { frames, whenIdle } from '@/lib/timing'
 import { vTip } from '@/lib/tooltip'
 import { browserStorage, savedFormats } from '@/lib/saved'
 import {
@@ -62,15 +62,16 @@ function remember(item: RecentItem) {
   }
 }
 
-// ---- the index, built on first open ---------------------------------------------------------
+// ---- the index: prebuilt, restored when the page is idle (or on first use) ----------------------
 let loadingPromise: Promise<void> | undefined
-function ensureIndex(): Promise<void> {
+/** Loads the corpus chunk and restores its index. `quiet`: a warm-up, so no "Loading" message. */
+function ensureIndex(quiet = false): Promise<void> {
   if (searcher.value) return Promise.resolve()
+  if (!quiet) loading.value = true
   loadingPromise ??= (async () => {
-    loading.value = true
     try {
       const { makeSearcher } = await import('@/lib/searchCorpus')
-      searcher.value = makeSearcher(savedFormats.value)
+      searcher.value = await makeSearcher(savedFormats.value)
     } finally {
       loading.value = false
       loadingPromise = undefined
@@ -78,12 +79,17 @@ function ensureIndex(): Promise<void> {
   })()
   return loadingPromise
 }
+/** Warms the index ahead of the first search (pointer over, or focus on, the search box). */
+const warm = () => void ensureIndex(true).catch(() => {})
+// Ready before the first open: fetched and restored once the page has settled (after the editor).
+let cancelWarm: (() => void) | undefined
+onMounted(() => (cancelWarm = whenIdle(warm, 4000)))
+onBeforeUnmount(() => cancelWarm?.())
 watch(
   savedFormats,
-  async () => {
-    if (!searcher.value) return
-    const { makeSearcher } = await import('@/lib/searchCorpus')
-    searcher.value = makeSearcher(savedFormats.value)
+  () => {
+    searcher.value?.setSaved(savedFormats.value)
+    triggerRef(searcher)
   },
   { deep: true },
 )
@@ -261,11 +267,11 @@ defineExpose({ open: openSearch })
 
 <template>
   <div ref="root" class="omni" :class="{ open }" @focusout="onFocusOut">
-    <button ref="iconButton" v-tip="`Search (${hint})`" class="omni-icon" aria-label="Search" @click="openSearch">
+    <button ref="iconButton" v-tip="`Search (${hint})`" class="omni-icon" aria-label="Search" @pointerenter="warm" @focus="warm" @click="openSearch">
       <Search :size="16" aria-hidden="true" />
     </button>
     <div v-if="open" class="omni-backdrop" aria-hidden="true" @click="close(true)" />
-    <div class="omni-field">
+    <div class="omni-field" @pointerenter="warm">
       <Search class="omni-lens" :size="16" aria-hidden="true" />
       <input
         ref="input"
@@ -433,6 +439,10 @@ kbd {
   padding: 5px 14px 6px;
   border-left: 3px solid transparent;
   cursor: pointer;
+  /* Results below the popup's fold skip layout and paint until scrolled to (a query shows up to 40);
+     their size until then is about a result's. They stay in the accessibility tree. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 62px;
 }
 .omni-opt.active {
   /* The 55 % tint over the results' panel, solid. */

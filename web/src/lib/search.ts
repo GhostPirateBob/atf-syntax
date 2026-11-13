@@ -185,13 +185,24 @@ export function runSearch(index: MiniSearch<SearchDoc>, byId: Map<string, Search
 
 // ---- highlighting ---------------------------------------------------------------------------
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c)
-const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-function matchRanges(text: string, terms: string[]): [number, number][] {
-  const words = [...new Set(terms.filter(Boolean))].sort((a, b) => b.length - a.length)
-  if (!words.length) return []
-  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${words.map(escapeRegExp).join('|')})(?![\\p{L}\\p{N}])`, 'giu')
-  return [...text.matchAll(re)].map((m) => [m.index, m.index + m[0].length])
+/** A word: a run of letters and digits, as `tokenize` splits them. */
+const WORD = /[\p{L}\p{N}]+/gu
+/**
+ * The whole-word matches of `terms` in `text` (case-insensitive): one pass over the words with a set
+ * lookup. (A pattern of all the terms was slow: a prefix query matches dozens of words per hit, and
+ * every hit has a different set.) `first`: stop at the first match.
+ */
+function matchRanges(text: string, terms: string[], first = false): [number, number][] {
+  if (!terms.length) return []
+  const wanted = new Set(terms.map((t) => t.toLowerCase()))
+  const out: [number, number][] = []
+  for (const m of text.matchAll(WORD)) {
+    if (!wanted.has(m[0].toLowerCase())) continue
+    out.push([m.index, m.index + m[0].length])
+    if (first) break
+  }
+  return out
 }
 
 /** HTML for `text` with every whole-word match of `terms` in <mark>. The text is escaped first. */
@@ -208,7 +219,7 @@ export function highlight(text: string, terms: string[]): string {
 /** About `max` characters of `text`, starting a little before the first match. */
 export function snippet(text: string, terms: string[], max = 120): string {
   if (text.length <= max) return text
-  const first = matchRanges(text, terms)[0]?.[0] ?? 0
+  const first = matchRanges(text, terms, true)[0]?.[0] ?? 0
   let start = Math.max(0, first - 30)
   if (start > 0) {
     const space = text.lastIndexOf(' ', start)

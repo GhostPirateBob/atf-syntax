@@ -1,33 +1,35 @@
-// Loaded on first use of the search (a dynamic import), so MiniSearch, the wiki pages and the
-// extension manifest stay out of the page's first download.
+// Loaded on first use of the search, or when the page is idle (a dynamic import), so MiniSearch and
+// the corpus stay out of the page's first download. The fixed part of the corpus comes with its
+// index already built (`virtual:search-index`, made at build time by vite.config.ts from
+// lib/searchStatic.ts); only the saved formats, which live in this browser, are indexed here.
 import MiniSearch from 'minisearch'
-import { FIELDS, FUNCTIONS, RULES } from '@/core'
-import pkg from '@pkg'
-import { RECIPES } from './recipes'
+import { docs, index } from 'virtual:search-index'
 import type { SavedFormat } from './saved'
-import { settingsFrom } from './settings'
-import { buildDocs, createIndex, runSearch, type Hit, type SearchDoc } from './search'
-
-/** The repo's wiki pages (wiki/*.md), bundled as text. */
-const WIKI = import.meta.glob('../../../wiki/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const SETTINGS = settingsFrom(pkg)
+import { INDEX_OPTIONS, buildDocs, runSearch, type Hit, type SearchDoc } from './search'
 
 export interface Searcher {
   search(query: string): Hit[]
   byId: Map<string, SearchDoc>
+  /** Replaces the saved formats in the index (they change while the page is open). */
+  setSaved(saved: SavedFormat[]): void
 }
 
-export function makeSearcher(saved: SavedFormat[]): Searcher {
-  const docs = buildDocs({
-    recipes: RECIPES,
-    saved,
-    functions: FUNCTIONS,
-    fields: FIELDS,
-    rules: Object.values(RULES),
-    settings: SETTINGS,
-    wiki: WIKI,
-  })
-  const index = createIndex(MiniSearch, docs)
+const savedDocs = (saved: SavedFormat[]) =>
+  buildDocs({ recipes: [], saved, functions: [], fields: [], rules: [], settings: [], wiki: {} })
+
+/** The searcher, its index restored in slices (no long task), with `saved` added. */
+export async function makeSearcher(saved: SavedFormat[]): Promise<Searcher> {
+  const mini = await MiniSearch.loadJSAsync<SearchDoc>(index, INDEX_OPTIONS)
   const byId = new Map(docs.map((d) => [d.id, d]))
-  return { search: (q) => runSearch(index, byId, q), byId }
+  let savedIds: string[] = []
+  const setSaved = (list: SavedFormat[]) => {
+    for (const id of savedIds) byId.delete(id)
+    if (savedIds.length) mini.discardAll(savedIds)
+    const fresh = savedDocs(list)
+    mini.addAll(fresh)
+    for (const d of fresh) byId.set(d.id, d)
+    savedIds = fresh.map((d) => d.id)
+  }
+  setSaved(saved)
+  return { search: (q) => runSearch(mini, byId, q), byId, setSaved }
 }
