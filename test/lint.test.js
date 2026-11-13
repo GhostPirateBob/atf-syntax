@@ -80,6 +80,9 @@ test('formats that freeze WACUP', () => {
   assert.deepEqual(rules('$tab(-1)'), ['negative-count']);
   assert.deepEqual(rules('$directory(%filename%,-2)'), ['negative-count']);
   assert.deepEqual(rules('$tab(2)$directory(%filename%,1)$repeat(x,-1)'), []);
+  assert.deepEqual(rules('$padcut(%title%,-1)'), ['negative-count']);
+  assert.deepEqual(rules('$padcut(,-20)'), ['negative-count']);
+  assert.deepEqual(rules('$padcut(%title%,0)$padcut(%title%,20)'), []);
 });
 
 test('freeze messages name the WACUP build that fixed them, under wacup only', () => {
@@ -93,6 +96,14 @@ test('freeze messages name the WACUP build that fixed them, under wacup only', (
   for (const [format, build] of cases) {
     assert.match(message(format, 'wacup'), new RegExp(`Fixed in WACUP ${build.replaceAll('.', '\\.')}\\.$`), format);
     assert.doesNotMatch(message(format, 'winamp'), /Fixed in/, format);
+  }
+});
+
+test('$padcut freezes on every WACUP build checked, so its message names no fix', () => {
+  for (const dialect of ['wacup', 'winamp']) {
+    const msg = lint('$padcut(%title%,-1)', { dialect })[0].message;
+    assert.doesNotMatch(msg, /Fixed in/, dialect);
+    assert.match(msg, /\$padcut\(\)/, dialect);
   }
 });
 

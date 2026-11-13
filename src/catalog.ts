@@ -83,7 +83,7 @@ export const FUNCTIONS: FunctionInfo[] = [
   F('shortest', '(a1, a2, …)', 'The shortest argument.'),
   F('longest', '(a1, a2, …)', 'The longest argument.'),
   F('abbr', '(a1[, minlen[, case]])', '**Initials** (not truncation): `$abbr(Advanced Title Formatting)` → `ATF`. Only when len ≥ minlen. case: 1 lower, 2 upper (WACUP).', { max: 3, maxWinamp: 2 }),
-  F('padcut', '(a1, n)', 'Pad with spaces or cut to exactly n.', { min: 2 }),
+  F('padcut', '(a1, n)', 'Pad with spaces or cut to exactly n. **A negative n freezes WACUP**, still on 1.99.57.25464 (the newest build checked).', { min: 2 }),
   F('pad', '(s, n[, padstr])', 'Right-pad to at least n.', { min: 2 }),
   F('lpad', '(s, n[, padstr])', 'Left-pad to at least n. `$lpad(%tracknumber%,3,0)`.', { min: 2 }),
   F('padout', '(s, n[, padstr])', 'Like `$pad`, but pads by *n* without accounting for the length of *s* (WACUP changelog b4994).', { min: 2, only: 'wacup' }),
@@ -247,10 +247,11 @@ export const NUMERIC_ARGS: Record<string, number[]> = {
 };
 
 /**
- * 0-based index of a count argument that WACUP (and Winamp 5) loops on with `while (n--)` and no
- * clamp, so a negative value runs ~4 billion times. `$repeat` and the `$path*` functions clamp.
+ * 0-based index of a count argument that freezes WACUP when negative. `$tab` and `$directory` loop
+ * with `while (n--)` and no clamp (~4 billion times, Winamp 5 too); `$padcut` never returns either.
+ * `$repeat` and the `$path*` functions clamp.
  */
-export const NEGATIVE_COUNT_FREEZES: Record<string, number> = { tab: 0, directory: 1 };
+export const NEGATIVE_COUNT_FREEZES: Record<string, number> = { tab: 0, directory: 1, padcut: 1 };
 
 /** Functions whose output is never empty — `$if(<one of these>,…)` is always true in WACUP. */
 export const ALWAYS_NONEMPTY = new Set(['strstr', 'strchr', 'strlchr', 'strrchr', 'len', 'add', 'sub', 'mul', 'div', 'mod', 'muldiv', 'min', 'max', 'num', 'dec', 'hex']);
