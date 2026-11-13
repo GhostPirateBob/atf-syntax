@@ -8,7 +8,9 @@
  * Model: every format, function argument and `[…]` section is its own evaluation scope. A syntax
  * error replaces that scope's output with WACUP's message and stops the scope; the enclosing scope
  * carries on. An unknown function or a strict-arity violation also replaces the scope's output so
- * far, but evaluation continues after the call. Arguments are evaluated eagerly, left to right.
+ * far, but evaluation continues after the call. Arguments are evaluated eagerly, left to right, the
+ * untaken branches of `$if` and the other selectors included: WACUP 1.99.57.25464 runs their side
+ * effects (`$puts`) and hangs on a freeze inside them.
  * All lengths and offsets are UTF-16 code units, as in WACUP.
  *
  * @module evaluate
@@ -19,7 +21,12 @@ import { MAX_ARGS, parse, ParseError } from './parser';
 export interface EvalResult {
   /** What WACUP shows: the rendered title, or WACUP's error text for a syntax error. */
   text: string;
-  /** Lower-case names of functions used whose behaviour isn't confirmed against WACUP's evaluator. Their output is rendered as `?`. Sorted, unique. */
+  /**
+   * Lower-case names of functions used whose behaviour isn't confirmed against WACUP's evaluator,
+   * when their output (rendered as `?`) can reach `text`. One whose value is thrown away, such as
+   * `$rating` in the untaken branch of `$if(%rating%,$rating(),)`, isn't listed. Sorted, unique.
+   * (A freeze or `tooHeavy` result lists every one called.)
+   */
   unsure: string[];
   /** Set when WACUP 1.99.57.25464 would never finish (it hangs). `text` is then ''. start/end = UTF-16 offsets of the offending call in `format`. */
   freeze?: { fn: string; start: number; end: number };
@@ -946,15 +953,68 @@ const FUNCS: Record<string, Fn> = {
   bitdepth: () => null,
 };
 
-/** Functions that read an argument by its tracked length, so an embedded terminator is harmless. */
-const LENGTH_SAFE = new Set(['len']);
+/**
+ * The selectors: which arguments their output depends on (the ones they test, plus the branch they
+ * pick). Every other function depends on all its arguments. WACUP 1.99.57.25464 still evaluates
+ * every argument, untaken branches included: `$if(,$puts(x,1),)$get(x)` → `1`, and
+ * `$if2(a,$padcut(ab,-1))` hangs. So this only decides whether an unconfirmed (`?`) value in an
+ * argument reaches the output; it never skips evaluating one.
+ */
+const DEPS: Record<string, (a: string[]) => number[]> = {
+  if: (a) => [0, a[0] !== '' ? 1 : 2],
+  if2: (a) => (a[0] !== '' ? [0] : [0, 1]),
+  if3: (a) => {
+    const k = a.slice(0, -1).findIndex((x) => x !== '');
+    return [...Array(k < 0 ? a.length : k + 1).keys()];
+  },
+  decode: (a) => {
+    if (a.length < 2) return [];
+    const d = [0];
+    for (let s = 1; s + 1 < a.length; s += 2) {
+      d.push(s);
+      if (strEq(a[0], a[s])) return [...d, s + 1];
+    }
+    return [...d, a.length - 1];
+  },
+  ifgreater: (a) => [0, 1, toInt(a[0]) > toInt(a[1]) ? 2 : 3],
+  iflonger: (a) => [0, 1, a[0].length > toInt(a[1]) ? 2 : 3],
+  ifstrequal: (a) => (strEq(a[0], a[1]) ? [0, 1, 2] : [0, 1]),
+  ifstrequal2: (a) => [0, 1, strEq(a[0], a[1]) ? 2 : 3],
+  ifstrnotequal: (a) => ((a[0] !== '' || a[1] !== '') && !strEq(a[0], a[1]) ? [0, 1, 2] : [0, 1]),
+  select: (a) => {
+    const i = toInt(a[0]) >>> 0;
+    return i > 0 && i < a.length ? [0, i] : [0];
+  },
+  // Always output nothing (`$puts` still stores; see trackPut).
+  puts: () => [],
+  null: () => [],
+};
+
+/**
+ * Functions that read an argument by its tracked length, so an embedded terminator is harmless:
+ * `$len` counts it, variables store it, and these selectors only test for an empty string. Others
+ * read up to the terminator (`$replace`, `$substr`, `$caps`, `$strstr` …) or past it (`$upper`).
+ */
+const LENGTH_SAFE = new Set(['len', 'put', 'puts', 'get', 'if', 'if2', 'if3', 'select']);
 
 // ---------------------------------------------------------------------------------------------
 // The walk.
 
+/** Names of unconfirmed functions whose `?` reached a value. */
+type Taint = Set<string> | undefined;
+
+/** `a` with `b` added, sharing `a` or `b` when one of them adds nothing. */
+function join(a: Taint, b: Taint): Taint {
+  if (!b?.size) return a;
+  if (!a?.size) return b;
+  return new Set([...a, ...b]);
+}
+
 interface Scope {
   text: string;
   found: number;
+  /** Unconfirmed functions whose output reached `text`. */
+  taint?: Taint;
 }
 
 interface Scan {
@@ -1008,7 +1068,14 @@ const syntaxError = (code: number) =>
 
 class Evaluator {
   vars = new Map<string, string>();
+  /** Every unconfirmed function called, whether or not its output was used. */
   unsure = new Set<string>();
+  /** Unconfirmed values stored in each variable. */
+  private varTaint = new Map<string, Taint>();
+  /** Unconfirmed values used as a variable name: the variable written can't be known, so every `$get` carries them. */
+  private nameTaint: Taint;
+  /** Calls nested too deep to evaluate: their side effects are unknown, so they make the whole result unconfirmed. */
+  sticky = new Set<string>();
   freezeAt?: { start: number; end: number };
   private work = 0;
 
@@ -1028,6 +1095,7 @@ class Evaluator {
     const s = this.s;
     let out = '';
     let found = 0;
+    let taint: Taint;
     const fail = (code: number): Scope => ({ text: syntaxError(code), found });
     let p = from;
     while (p < to) {
@@ -1062,11 +1130,13 @@ class Evaluator {
         const name = s.slice(p + 1, q);
         if (depth >= DEPTH_LIMIT) {
           this.unsure.add(name.toLowerCase());
+          this.sticky.add(name.toLowerCase());
           out += '?';
           p = s2 + 1;
           continue;
         }
         const args: string[] = [];
+        const taints: Taint[] = [];
         let a = q + 1;
         while (a <= s2 && args.length < MAX_ARGS) {
           const arg = skip(s, a, to, ',)');
@@ -1075,18 +1145,23 @@ class Evaluator {
           const r = this.run(a, arg.pos, depth + 1);
           found += r.found;
           args.push(r.text);
+          taints.push(r.taint);
           a = arg.pos + 1;
         }
         const key = name.toLowerCase();
         const fn = Object.prototype.hasOwnProperty.call(FUNCS, key) ? FUNCS[key] : undefined;
         const strict = STRICT[key];
+        const allTaint = () => taints.reduce(join, undefined);
         if (!fn || !/^[\x21-\x7e]+$/.test(name)) {
           out = `[UNKNOWN FUNCTION -> $${s.slice(p + 1, to)}]`.slice(0, MESSAGE_LEN);
+          taint = undefined;
         } else if (strict && args.length !== strict[1]) {
           out = `[INVALID $${strict[0]}() SYNTAX -> ${s.slice(p + 1, to)}]`.slice(0, MESSAGE_LEN);
+          taint = undefined;
         } else if (!LENGTH_SAFE.has(key) && args.some((x) => x.includes('\0'))) {
           this.unsure.add(key);
           out += '?';
+          taint = join(join(taint, new Set([key])), allTaint());
         } else {
           let r: string | null;
           try {
@@ -1098,9 +1173,17 @@ class Evaluator {
           if (r === null) {
             this.unsure.add(key);
             out += '?';
+            taint = join(join(taint, new Set([key])), allTaint());
           } else {
+            // WACUP appends a result only when its first character isn't a terminator; a terminator
+            // later on is kept (lengths count it) and ends the final title there.
+            if (r.charCodeAt(0) === 0) r = '';
             this.spend(r.length + 1);
             out += r;
+            const deps = DEPS[key];
+            taint = join(taint, deps ? deps(args).reduce((t: Taint, i) => join(t, taints[i]), undefined) : allTaint());
+            if (key === 'put' || key === 'puts') this.trackPut(args, taints);
+            else if (key === 'get') taint = join(join(taint, this.varTaint.get(asciiLower(args[0]))), this.nameTaint);
           }
         }
         p = s2 + 1;
@@ -1117,10 +1200,11 @@ class Evaluator {
       } else if (c === '[') {
         const close = skip(s, p + 1, to, ']');
         if (!close.ok) return fail(8);
-        const r = depth >= DEPTH_LIMIT ? { text: '', found: 0 } : this.run(p + 1, close.pos, depth + 1);
+        const r: Scope = depth >= DEPTH_LIMIT ? { text: '', found: 0 } : this.run(p + 1, close.pos, depth + 1);
         if (r.found) {
           out += r.text;
           found += r.found;
+          taint = join(taint, r.taint);
         }
         p = close.pos + 1;
       } else if (c === ']' || c === '(' || c === ')') {
@@ -1131,7 +1215,20 @@ class Evaluator {
       }
       if (out.length > MAX_LEN) out = out.slice(0, MAX_LEN);
     }
-    return { text: out, found };
+    return { text: out, found, taint };
+  }
+
+  /**
+   * After a `$put`/`$puts` (same conditions as theirs): a clean store clears the variable's taint;
+   * with an unconfirmed name or value, whether and what it stored is unknown, so the old value's
+   * taint is kept and the new one added.
+   */
+  private trackPut(a: string[], taints: Taint[]): void {
+    const t = join(taints[0], taints[1]);
+    const name = asciiLower(a[0] ?? '');
+    if (taints[0]?.size) this.nameTaint = join(this.nameTaint, t);
+    if (t?.size) this.varTaint.set(name, join(this.varTaint.get(name), t));
+    else if (a.length >= 2 && a[0] !== '' && a[1] !== '') this.varTaint.delete(name);
   }
 }
 
@@ -1140,9 +1237,9 @@ export function evaluate(format: string, fields: Record<string, string>): EvalRe
   const { error } = parse(format);
   const ev = new Evaluator(format, fields);
   try {
-    const { text } = ev.run(0, format.length, 0);
+    const { text, taint } = ev.run(0, format.length, 0);
     const nul = text.indexOf('\0');
-    const result: EvalResult = { text: nul < 0 ? text : text.slice(0, nul), unsure: [...ev.unsure].sort() };
+    const result: EvalResult = { text: nul < 0 ? text : text.slice(0, nul), unsure: [...new Set([...(taint ?? []), ...ev.sticky])].sort() };
     if (error) result.error = error;
     return result;
   } catch (e) {

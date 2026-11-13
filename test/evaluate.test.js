@@ -244,6 +244,104 @@ test('unconfirmed behaviour renders as ? and is listed', () => {
   assert.equal(text('$abbr(Mix Tape)'), 'MixT');
 });
 
+test('untaken branches still run on WACUP 1.99.57.25464: side effects happen, freezes hang', () => {
+  // Oracle: every selector evaluates every argument (Winamp 5 too).
+  const side = [
+    ['$if(,$puts(x,1),)$get(x)', '1'],
+    ['$if(a,,$puts(x,1))$get(x)', '1'],
+    ['$if($put(n,$add($get(n),1)),$get(n),)|$get(n)', '1|1'],
+    ['$if2(a,$puts(x,1))$get(x)', 'a1'],
+    ['$if3(a,b,$puts(x,1))|$get(x)', 'a|1'],
+    ['$ifgreater(2,1,a,$puts(x,1))|$get(x)', 'a|1'],
+    ['$iflonger(abc,1,a,$puts(x,1))|$get(x)', 'a|1'],
+    ['$ifstrequal(a,b,$puts(x,1))|$get(x)', '|1'],
+    ['$ifstrequal2(a,a,b,$puts(x,1))|$get(x)', 'b|1'],
+    ['$ifstrnotequal(a,a,$puts(x,1))|$get(x)', '|1'],
+    ['$select(1,a,$puts(x,1))|$get(x)', 'a|1'],
+    ['$select(5,$puts(x,1),$puts(y,1))|$get(x)$get(y)', '|11'],
+    ['$decode(x,x,a,$puts(y,1))|$get(y)', 'a|1'],
+    ['$decode(x,x,a,z,$puts(y,1),c)|$get(y)', 'a|1'],
+    // A syntax error stays inside its own argument.
+    ['$if(a,ok,x(y)z)', 'ok'],
+    ['$if(,x(y)z,ok)', 'ok'],
+    ['$if(a,x(y)z,ok)', '[SYNTAX ERROR IN FORMATTING STRING (9)]'],
+  ];
+  for (const [f, want] of side) assert.equal(text(f), want, f);
+  // `$if2(a,$tab(-1))` gives `a` only because `$tab(-1)` no longer hangs at all.
+  assert.equal(text('$if2(a,$tab(-1))'), 'a');
+  for (const f of ['$if2(a,$padcut(ab,-1))', '$if(a,b,$padcut(ab,-1))', '$if3(a,$padcut(ab,-1),b)', '$select(1,a,$padcut(ab,-1))', '$decode(x,x,a,$padcut(ab,-1))', '$ifgreater(2,1,a,$padcut(ab,-1))', '$iflonger(abc,1,a,$padcut(ab,-1))', '$ifstrequal(a,b,$padcut(ab,-1))', '$ifstrequal2(a,a,b,$padcut(ab,-1))', '$ifstrnotequal(a,a,$padcut(ab,-1))']) {
+    assert.equal(evaluate(f, {}).freeze?.fn, 'padcut', f);
+  }
+});
+
+test('an unconfirmed value thrown away by a selector leaves the result confirmed', () => {
+  const taskbar = "$if2(%title%,$filepart(%filename%))$if(%artist%,$crlf(),)%artist%[$if(%rating%,$rating(%filename%),)]$if(%album%,$crlf(),)%album%[$if(%year%,' ('%year%')',)]";
+  const track = { title: 'T', artist: 'A', album: 'B', year: '2020', filename: 'C:\\m\\t.mp3' };
+  assert.deepEqual(evaluate(taskbar, track), { text: 'T\r\nA\r\nB (2020)', unsure: [] });
+  assert.deepEqual(evaluate(taskbar, { ...track, rating: '4' }), { text: 'T\r\nA?\r\nB (2020)', unsure: ['rating'] });
+  const cases = [
+    // [format, text, unsure]
+    ['$if(,$rating(),b)', 'b', []],
+    ['$if(a,$rating(),b)', '?', ['rating']],
+    ['$if($rating(),a,b)', 'a', ['rating']],
+    ['$if2(a,$rating())', 'a', []],
+    ['$if2(,$rating())', '?', ['rating']],
+    ['$if3(a,$rating(),$bitdepth())', 'a', []],
+    ['$if3(,$rating(),b)', '?', ['rating']],
+    ['$ifgreater(2,1,a,$rating())', 'a', []],
+    ['$iflonger(abc,1,a,$rating())', 'a', []],
+    ['$ifstrequal(a,b,$rating())', '', []],
+    ['$ifstrequal2(a,a,b,$rating())', 'b', []],
+    ['$ifstrnotequal(a,a,$rating())', '', []],
+    ['$select(1,a,$rating())', 'a', []],
+    ['$select(2,a,$rating())', '?', ['rating']],
+    ['$decode(x,x,a,$rating())', 'a', []],
+    ['$decode(x,$rating(),a,b)', 'b', ['rating']],
+    // Ordinary functions depend on every argument; variables carry their value's status.
+    ['$left($rating(),0)', '', ['rating']],
+    ['$puts(v,$rating())$if(,$get(v),b)', 'b', []],
+    ['$puts(v,$rating())$get(v)', '?', ['rating']],
+    ['$puts(v,$rating())$puts(v,x)$get(v)', 'x', []],
+    ['$puts($rating(),x)$get(w)', '', ['rating']],
+    ['$if(,$abbr(The Mix),b)', 'b', []],
+  ];
+  for (const [f, want, unsure] of cases) assert.deepEqual(evaluate(f, {}), { text: want, unsure }, f);
+  const rated = { rating: '4', filename: 'x.mp3' };
+  assert.deepEqual(evaluate('$if(%rating%,$rating(%filename%),)', rated), { text: '?', unsure: ['rating'] });
+  assert.deepEqual(evaluate('$if(%rating%,$rating(%filename%),)', {}), { text: '', unsure: [] });
+  assert.deepEqual(evaluate('$puts(r,$rating(x))', {}), { text: '', unsure: [] });
+  assert.deepEqual(evaluate('$puts(r,$rating(x))$get(r)', {}), { text: '?', unsure: ['rating'] });
+  assert.deepEqual(evaluate('$puts(r,$rating(x))$len($get(r))', {}), { text: '1', unsure: ['rating'] });
+  assert.deepEqual(evaluate('$if($rating(x),a,b)', {}), { text: 'a', unsure: ['rating'] });
+  assert.deepEqual(evaluate('[$if($rating(x),a,b)%title%]', { title: 't' }), { text: 'at', unsure: ['rating'] });
+  assert.deepEqual(evaluate('[$rating(x)]', {}), { text: '', unsure: [] });
+});
+
+test('a result starting with a terminator adds nothing; a later terminator is kept and ends the title', () => {
+  const cases = [
+    // $pathrtrim(a) leaves just a terminator.
+    ['$pathrtrim(a)|x', '|x'],
+    ['q$pathrtrim(a)|x', 'q|x'],
+    ['$len($pathrtrim(a))|x', '0|x'],
+    ['$len(q$pathrtrim(ab)y)|x', '2|x'],
+    ['$if($pathrtrim(a),T,F)|x', 'F|x'],
+    ['$puts(v,$pathrtrim(a))$len($get(v))|x', '0|x'],
+    ['$len($pathrtrim(C:\\ab\\cd,2))|x', '5|x'],
+    // $pathrtrim(a\b) gives "a" plus a terminator; $pathlpart(ab) gives "ab" plus one.
+    ['q$pathrtrim(a\\b)|x', 'qa'],
+    ['$len($pathrtrim(a\\b))|x', '2|x'],
+    ['$pathlpart(ab)|x', 'ab'],
+    ['$len($pathlpart(ab)y)|x', '4|x'],
+    ['$puts(v,$pathlpart(ab))$len($get(v))|x', '3|x'],
+    ['$len($if(a,$pathlpart(ab),))|x', '3|x'],
+    ['[$pathlpart(ab)]|x', '|x'],
+  ];
+  for (const [f, want] of cases) assert.equal(text(f), want, f);
+  // Other functions disagree on whether they read past a terminator (`$replace` stops there, `$upper` doesn't): unconfirmed.
+  assert.deepEqual(evaluate('$upper($pathlpart(ab))|x', {}), { text: '?|x', unsure: ['upper'] });
+  assert.deepEqual(evaluate('$upper($pathrtrim(a))|x', {}), { text: '|x', unsure: [] });
+});
+
 test('$systime_* are not zero-padded', () => {
   for (const f of ['month', 'day', 'hour', 'minute', 'second']) assert.match(text(`$systime_${f}()`), /^[1-9]?\d$/);
   assert.match(text('$systime_year()'), /^\d{4}$/);
