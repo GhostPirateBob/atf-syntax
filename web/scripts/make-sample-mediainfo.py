@@ -26,6 +26,7 @@ SAMPLES = [
     r"Alfie Templeman\Happiness in Liquid Form\02 Alfie Templeman - Things I Thought Were Mine.mp3",
     r"JAY-Z\Magna Carta... Holy Grail\05 JAY-Z feat. Frank Ocean - Oceans.mp3",
     r"The Notorious B.I.G_\Ready to Die\10 Juicy.mp3",
+    r"Daft Punk\Discovery\1-01 One More Time.mp3",
 ]
 
 # Hand edits applied over mediainfo's output, keyed by file name:
@@ -35,6 +36,12 @@ OVERRIDES = {
         "Performer": "JAY-Z",
         "Performer_Sort": "Jay-Z",
         "Album": "Magna Carta Holy Grail",
+    },
+    # The tidy one: a downloader's running number (0318) and a 2021 reissue date replaced with the
+    # album's track number and its 2001 release date.
+    "1-01 One More Time.mp3": {
+        "Track_Position": "1",
+        "Recorded_Date": "2001-02-26",
     },
 }
 

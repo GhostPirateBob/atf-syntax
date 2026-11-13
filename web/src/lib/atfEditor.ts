@@ -1,11 +1,12 @@
 import { EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, highlightSpecialChars, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, isolateHistory, redo, undo } from '@codemirror/commands'
 import { setDiagnostics, type Action, type Diagnostic } from '@codemirror/lint'
 import type { Finding } from '@/core'
 import { docPos, docRange, toFormat, type FormatView } from './document'
 import { tokenize } from './tokens'
 import { NUL_RULE, nulOffsets } from './nulChar'
+import { originField, originHistory, replaceSpec, type Origin } from './docHistory'
 
 /** Split a format range into document ranges that skip comment lines. */
 function docSegments(view: FormatView, start: number, end: number): { from: number; to: number }[] {
@@ -97,7 +98,11 @@ const removeNuls: Action = {
 
 export interface AtfEditor {
   view: EditorView
-  setDoc(doc: string): void
+  /** Replaces the whole document, as one undo step (see lib/docHistory.ts); with `origin`, sets that too. */
+  setDoc(doc: string, origin?: Origin | null): void
+  /** Steps back or forward through the history, as Ctrl+Z and Ctrl+Shift+Z / Ctrl+Y do. */
+  undo(): boolean
+  redo(): boolean
   insert(text: string): void
   /** Select a range of the joined format string and scroll it into view. */
   selectFormatRange(start: number, end: number): void
@@ -129,12 +134,17 @@ function formatOffset(view: FormatView, pos: number): number {
 export interface EditorOptions {
   /** Shift+Alt+F, VS Code's Format Document. */
   onFormat?: () => void
+  /** Where the starting document came from. */
+  origin?: Origin | null
+  /** Called when the origin changes: a replacement, or an undo or redo of one. */
+  onOrigin?: (origin: Origin | null) => void
 }
 
 export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc: string) => void, options: EditorOptions = {}): AtfEditor {
   const formatKey = { key: 'Shift-Alt-f', preventDefault: true, run: () => (options.onFormat?.(), true) }
   const extensions: Extension[] = [
     history(),
+    originHistory(options.origin ?? null),
     keymap.of([formatKey, ...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
     // Control characters show as a red dot (a NUL is a warning too: see lib/nulChar.ts).
@@ -146,6 +156,8 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
     EditorView.contentAttributes.of({ 'aria-label': 'ATF title format', spellcheck: 'false', autocorrect: 'off', autocapitalize: 'off' }),
     EditorView.updateListener.of((u) => {
       if (u.docChanged) onChange(u.state.doc.toString())
+      const origin = u.state.field(originField)
+      if (origin !== u.startState.field(originField)) options.onOrigin?.(origin)
     }),
   ]
   const view = new EditorView({ parent, state: EditorState.create({ doc, extensions }) })
@@ -153,10 +165,12 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
 
   return {
     view,
-    setDoc(next) {
-      if (next === view.state.doc.toString()) return
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } })
+    setDoc(next, origin) {
+      const spec = replaceSpec(view.state, next, origin)
+      if (spec) view.dispatch(spec)
     },
+    undo: () => undo(view),
+    redo: () => redo(view),
     insert(text) {
       const { from, to } = view.state.selection.main
       view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } })

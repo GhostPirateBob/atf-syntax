@@ -86,16 +86,8 @@ export const RECIPES: Recipe[] = [
 ]
 
 /**
- * What the current format came from, as far as the duration column cares: set by loading a
- * recipe, cleared by loading anything else (a saved format, a share link, an .atf file, Start
- * fresh), kept while the format is edited.
+ * The duration column shows when the setting is on, except while a song ticker recipe is the
+ * format's origin (see lib/docHistory.ts: loading a recipe sets it, edits keep it, loading anything
+ * else clears it).
  */
-export type FormatSource = { kind: 'recipe'; recipe: Recipe } | { kind: 'other' } | { kind: 'edit' }
-
-export function nextActiveRecipe(current: Recipe | undefined, event: FormatSource): Recipe | undefined {
-  if (event.kind === 'recipe') return event.recipe
-  return event.kind === 'edit' ? current : undefined
-}
-
-/** The duration column shows when the setting is on, except for song ticker recipes. */
 export const showsDuration = (column: boolean, active: Recipe | undefined): boolean => column && !active?.ticker

@@ -70,21 +70,24 @@ export const newId = () => `t${nextId++}`
 const sample = (tags: Record<string, string>): Track => ({ id: newId(), tags, source: 'sample' })
 
 /**
- * Built-in tracks, tidy and patchy, so recipes can show their fallbacks. First, every entry in
+ * Built-in tracks, tidy and patchy, so recipes can show their fallbacks: every entry in
  * sample-mediainfo.json (real files' tags as mediainfo reads them, quirks included, e.g.
- * downloader track numbers like `0172` and full release dates), however many there are. Then
- * Dogs, the hand-made "complete tags" case.
+ * downloader track numbers like `0172` and full release dates), however many there are, plus
+ * Dogs, the hand-made "complete tags" case. Dogs stays at index 3, where it was before later
+ * entries were added, so share links (`s=3`) still open it; later entries follow it.
  */
 const fromMediaInfo = (SAMPLE_MEDIAINFO as { filename: string; media: MediaInfoJson['media'] }[]).map((e) =>
   sample(tagsFromMediaInfo({ media: e.media }, e.filename)),
 )
+const DOGS_AT = 3
 export const SAMPLE_TRACKS: Track[] = [
-  ...fromMediaInfo,
+  ...fromMediaInfo.slice(0, DOGS_AT),
   sample({
     artist: 'Pink Floyd', title: 'Dogs', album: 'Animals', albumartist: 'Pink Floyd',
     tracknumber: '2', year: '1977', genre: 'Progressive Rock', length_seconds: '1024',
     filename: 'D:\\Music\\Pink Floyd\\Animals\\02 Pink Floyd - Dogs.flac',
   }),
+  ...fromMediaInfo.slice(DOGS_AT),
 ]
 
 /**

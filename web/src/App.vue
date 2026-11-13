@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { Copy, Menu, Download, FolderOpen, Link, Save, Settings, TextWrap } from '@lucide/vue'
+import { Copy, Menu, Download, FolderOpen, Link, RotateCcw, Save, Settings, TextWrap } from '@lucide/vue'
 import { FIELD_MAP, FUNCTION_MAP, lint, parse, splitBlocks, type Finding } from '@/core'
 import { toFormat } from '@/lib/document'
 import { applyDisplay, oneLine } from '@/lib/display'
 import { EvalRunner, type RunOutcome } from '@/lib/runner'
 import { decodeShare, encodeShare } from '@/lib/share'
-import { RECIPES, nextActiveRecipe, showsDuration, type FormatSource, type Recipe } from '@/lib/recipes'
+import { RECIPES, showsDuration, type Recipe } from '@/lib/recipes'
+import type { Origin } from '@/lib/docHistory'
 import { SAMPLE_TRACKS, durationOf, fieldsFor, newId, trackLabel, tracksFromFiles, tracksFromPlaylist, type Track } from '@/lib/tracks'
 import { nulFindings } from '@/lib/nulChar'
 import { exportTitle, toM3u8, type ExportRow, type PlaylistEntry } from '@/lib/m3u'
@@ -29,7 +30,11 @@ import ThemeToggle from './components/ThemeToggle.vue'
 import SideBar from './components/SideBar.vue'
 
 // The format a fresh visit opens with: a recipe, so it shows off more than one function.
-const DEFAULT_DOC = RECIPES.find((r) => r.title === 'Long albums to initials')?.format ?? '[%artist% - ]$if2(%title%,$filepart(%filename%))'
+const DEFAULT_RECIPE = RECIPES.find((r) => r.title === 'Long albums to initials')
+const DEFAULT_DOC = DEFAULT_RECIPE?.format ?? '[%artist% - ]$if2(%title%,$filepart(%filename%))'
+const recipeOrigin = (r: Recipe): Origin => ({ label: r.title, text: r.format, recipe: r.title })
+/** What Reset goes back to when the format's own origin isn't known (an autosave, typing from scratch). */
+const DEFAULT_ORIGIN: Origin = DEFAULT_RECIPE ? recipeOrigin(DEFAULT_RECIPE) : { label: 'the default format', text: DEFAULT_DOC }
 const VIEW_KEY = 'atf-playground:view'
 const MAX_PLAYLIST = 500
 
@@ -43,9 +48,13 @@ const store = browserStorage()
 // A share link wins; otherwise the autosaved format, if it isn't the default; otherwise the default.
 const start = initialDoc(shared?.doc, readLast(store), DEFAULT_DOC)
 const doc = ref(start.doc)
+/**
+ * Where the format came from (see lib/docHistory.ts). The editor owns it: loading something sets
+ * it, edits keep it, undo and redo bring back the one before.
+ */
+const origin = shallowRef<Origin | null>(shared ? { label: 'the shared format', text: shared.doc } : null)
 /** The recipe the format came from, until something else is loaded (edits keep it). */
-const activeRecipe = ref<Recipe>()
-const setSource = (event: FormatSource) => (activeRecipe.value = nextActiveRecipe(activeRecipe.value, event))
+const activeRecipe = computed(() => RECIPES.find((r) => r.title === origin.value?.recipe))
 const durationShown = computed(() => showsDuration(view.value.duration, activeRecipe.value))
 const tracks = ref<Track[]>(cloneSamples())
 const source = ref<'sample' | 'playlist' | 'files'>('sample')
@@ -72,7 +81,7 @@ const view = ref<ViewSettings>(loadView())
 const editor = ref<InstanceType<typeof AtfEditor>>()
 const toast = ref<{ text: string; action?: { label: string; run: () => void } }>()
 const atfInput = ref<HTMLInputElement>()
-const atfChoices = ref<{ label: string; text: string }[]>([])
+const atfChoices = ref<{ label: string; text: string; origin: Origin }[]>([])
 const settingsOpen = ref(false)
 const gear = ref<HTMLButtonElement>()
 
@@ -98,10 +107,16 @@ watch(
 // ---- format, parse, lint ------------------------------------------------------------------
 const format = computed(() => toFormat(doc.value).format)
 const parsed = computed(() => parse(format.value))
+// Both dialects, for the summary of what each will accept; the list and squiggles use the setting's.
+const lintIn = (dialect: ViewSettings['dialect']) => (format.value ? lint(format.value, { dialect, result: parsed.value }) : [])
+const wacupFindings = computed(() => lintIn('wacup'))
+const winampFindings = computed(() => lintIn('winamp'))
 // Plus a warning at a NUL, which the extension's linter doesn't know about (see lib/nulChar.ts).
 const findings = computed<Finding[]>(() =>
-  format.value ? [...nulFindings(format.value), ...lint(format.value, { dialect: view.value.dialect, result: parsed.value })].sort((a, b) => a.start - b.start) : [],
+  format.value ? [...nulFindings(format.value), ...(view.value.dialect === 'winamp' ? winampFindings : wacupFindings).value].sort((a, b) => a.start - b.start) : [],
 )
+const errorsOnly = (list: Finding[]) => list.filter((f) => f.severity === 'error')
+const acceptance = computed(() => ({ wacup: errorsOnly(wacupFindings.value), winamp: errorsOnly(winampFindings.value) }))
 
 // ---- evaluation in a worker -------------------------------------------------------------------
 const runner = new EvalRunner(1000)
@@ -194,8 +209,11 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutsidePoint
 
 // ---- share link (format + sample only, never playlist data) --------------------------------------------
 let hashTimer: ReturnType<typeof setTimeout> | undefined
+/** Set by Reset: while the format and track are still what it left, the address stays the clean page URL. */
+let cleanUrl: { doc: string; selected: number; source: string } | undefined
 function writeHash() {
-  const isDefault = doc.value === DEFAULT_DOC && (source.value !== 'sample' || selected.value === DEFAULT_SAMPLE)
+  const clean = !!cleanUrl && doc.value === cleanUrl.doc && selected.value === cleanUrl.selected && source.value === cleanUrl.source
+  const isDefault = clean || (doc.value === DEFAULT_DOC && (source.value !== 'sample' || selected.value === DEFAULT_SAMPLE))
   const url = isDefault ? location.pathname + location.search : encodeShare({ doc: doc.value, sample: source.value === 'sample' ? selected.value : undefined })
   history.replaceState(null, '', url)
 }
@@ -292,11 +310,13 @@ const onScroll = () => (scrolled.value = window.scrollY > 4)
 onMounted(() => {
   requestAnimationFrame(() => requestAnimationFrame(() => (motion.value = true)))
   document.addEventListener('keydown', onDrawerKey)
+  document.addEventListener('keydown', onUndoKey)
   window.addEventListener('scroll', onScroll, { passive: true })
   onScroll()
 })
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDrawerKey)
+  document.removeEventListener('keydown', onUndoKey)
   window.removeEventListener('scroll', onScroll)
   document.documentElement.classList.remove('scroll-locked')
 })
@@ -322,7 +342,7 @@ onMounted(() => {
     void onSearchAction(startAction)
   }
   if (start.restored && startAction?.kind !== 'recipe' && startAction?.kind !== 'saved') {
-    say('Restored your last format.', { label: 'Start fresh', run: () => ((doc.value = DEFAULT_DOC), setSource({ kind: 'other' })) })
+    say('Restored your last format.', { label: 'Start fresh', run: () => replaceDoc(DEFAULT_DOC, DEFAULT_ORIGIN) })
   }
 })
 
@@ -361,15 +381,48 @@ async function shareLink() {
   }
 }
 
+/**
+ * Puts a whole new format in the editor as one undo step, so Ctrl+Z steps back through recipes,
+ * saved formats, opened files and resets like edits. Undo and redo bring `doc` (so the share link
+ * and the autosave) and `origin` back with it.
+ */
+function replaceDoc(text: string, from: Origin | null) {
+  editor.value?.replace(text, from)
+}
 function loadRecipe(recipe: Recipe) {
-  doc.value = recipe.format
-  setSource({ kind: 'recipe', recipe })
+  replaceDoc(recipe.format, recipeOrigin(recipe))
   say(`Loaded "${recipe.title}"`)
 }
 function loadSaved(saved: SavedFormat) {
-  doc.value = saved.doc
-  setSource({ kind: 'other' })
+  replaceDoc(saved.doc, { label: saved.name, text: saved.doc })
   say(`Loaded "${saved.name}"`)
+}
+
+// ---- reset (back to where the format came from) -------------------------------------------------
+const resetBase = computed(() => origin.value ?? DEFAULT_ORIGIN)
+const atBase = computed(() => doc.value === resetBase.value.text)
+function resetEditor() {
+  if (atBase.value) return
+  const base = resetBase.value
+  replaceDoc(base.text, base)
+  // The address bar goes back to the clean page URL, and stays so until the format or track changes.
+  cleanUrl = { doc: base.text, selected: selected.value, source: source.value }
+  clearTimeout(hashTimer)
+  history.replaceState(null, '', location.pathname + location.search)
+  say(`Reset to ${base.label}`, { label: 'Undo', run: () => doc.value === base.text && editor.value?.undo() })
+}
+/**
+ * Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y outside the editor (say, just after picking a recipe in the
+ * sidebar) step through the editor's history too. Text fields keep their own undo.
+ */
+function onUndoKey(e: KeyboardEvent) {
+  if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.altKey) return
+  if ((e.target as Element | null)?.closest?.('input, textarea, select, [contenteditable]')) return
+  const key = e.key.toLowerCase()
+  const run = key === 'z' ? (e.shiftKey ? 'redo' : 'undo') : key === 'y' && !e.shiftKey ? 'redo' : undefined
+  if (!run) return
+  e.preventDefault()
+  editor.value?.[run]()
 }
 function removeSaved(saved: SavedFormat) {
   const index = savedFormats.value.findIndex((s) => s.id === saved.id)
@@ -563,9 +616,9 @@ async function onAtfPicked(e: Event) {
     return { label: `Format ${i + 1}`, text: lines.slice(first, last + 1).join('\n') }
   })
   if (!blocks.length) return say('That file has no formats in it.')
-  atfChoices.value = blocks.length > 1 ? blocks : []
-  doc.value = blocks[0]!.text
-  setSource({ kind: 'other' })
+  const named = blocks.map((b) => ({ ...b, origin: { label: blocks.length > 1 ? `${b.label} of ${file.name}` : file.name, text: b.text } }))
+  atfChoices.value = named.length > 1 ? named : []
+  replaceDoc(named[0]!.text, named[0]!.origin)
   say(blocks.length > 1 ? `${blocks.length} formats in ${file.name}: pick one above.` : `Opened ${file.name}`)
 }
 function saveAtf() {
@@ -668,7 +721,7 @@ function hoverRange(range: { start: number; end: number } | null) {
       </header>
 
       <nav v-if="atfChoices.length" class="choices">
-        <button v-for="c in atfChoices" :key="c.label" :class="{ active: c.text === doc }" @click="(doc = c.text), setSource({ kind: 'other' })">{{ c.label }}</button>
+        <button v-for="c in atfChoices" :key="c.label" :class="{ active: c.text === doc }" @click="replaceDoc(c.text, c.origin)">{{ c.label }}</button>
         <button class="dismiss" aria-label="Close format picker" @click="atfChoices = []">✕</button>
       </nav>
 
@@ -687,7 +740,7 @@ function hoverRange(range: { start: number; end: number } | null) {
             <Settings :size="20" aria-hidden="true" />
           </button>
           <div class="box">
-            <AtfEditor ref="editor" v-model:doc="doc" :findings="findings" class="box-editor" @format="formatEditor" />
+            <AtfEditor ref="editor" v-model:doc="doc" v-model:origin="origin" :findings="findings" class="box-editor" @format="formatEditor" />
             <div class="box-actions">
               <IconButton :icon="Copy" label="Copy" class="copy primary" title="Copy the format as one line, ready for WACUP" @click="copyFormat" />
               <IconButton
@@ -710,10 +763,23 @@ function hoverRange(range: { start: number; end: number } | null) {
             <p class="muted">Kept in this browser only. Find it under Recipes.</p>
           </form>
           <button class="random" @click="randomRecipe">random recipe</button>
-          <button class="format" aria-label="Format (wrap at top-level boundaries)" title="Format: wrap at top-level boundaries (Shift+Alt+F)" @click="formatEditor">
-            <TextWrap :size="16" aria-hidden="true" class="format-icon" />
-            <span class="format-text">format</span>
-          </button>
+          <div class="split" role="group" aria-label="Format or reset">
+            <button class="format" aria-label="Format (wrap at top-level boundaries)" title="Format: wrap at top-level boundaries (Shift+Alt+F)" @click="formatEditor">
+              <TextWrap :size="16" aria-hidden="true" class="tab-icon" />
+              <span class="tab-text">format</span>
+            </button>
+            <!-- aria-disabled, not disabled: it stays focusable, so its tooltip still says why it does nothing. -->
+            <button
+              class="reset"
+              :aria-disabled="atBase"
+              :aria-label="`Reset to ${resetBase.label}`"
+              :title="atBase ? `Nothing to reset: this is ${resetBase.label} as loaded` : `Reset to ${resetBase.label} (Ctrl+Z undoes it)`"
+              @click="resetEditor"
+            >
+              <RotateCcw :size="16" aria-hidden="true" class="tab-icon" />
+              <span class="tab-text">reset</span>
+            </button>
+          </div>
         </div>
         <Transition name="strip">
           <SettingsPanel v-if="settingsOpen" ref="settingsPanel" v-model="view" @close="closeSettings" />
@@ -733,7 +799,7 @@ function hoverRange(range: { start: number; end: number } | null) {
         </section>
 
         <PartsTable :format="format" :parsed="parsed" @hover="hoverRange" @pick="pickRange" />
-        <DiagnosticsList v-if="format" :findings="findings" @pick="pickRange" />
+        <DiagnosticsList v-if="format" :findings="findings" :accept="acceptance" @pick="pickRange" />
         <p v-if="unsureFns.length" class="unsure-note">
           <strong>?</strong> marks output from <code v-for="f in unsureFns" :key="f">${{ f }}()</code>, which hasn't been checked against WACUP's own evaluator yet.
         </p>
@@ -944,10 +1010,11 @@ function hoverRange(range: { start: number; end: number } | null) {
   margin: 52px auto 36px;
   padding: 30px 0 24px;
 }
-/* Tabs on the box: the gear above its top-right corner, random recipe and format below it. */
+/* Tabs on the box: the gear above its top-right corner, random recipe and format | reset below it. */
 .gear,
 .random,
-.format {
+.format,
+.reset {
   position: absolute;
   isolation: isolate;
   background: var(--tab-bg);
@@ -960,7 +1027,8 @@ function hoverRange(range: { start: number; end: number } | null) {
    tab, the same colour as mixing it in. */
 .gear::before,
 .random::before,
-.format::before {
+.format::before,
+.reset::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -976,7 +1044,9 @@ function hoverRange(range: { start: number; end: number } | null) {
 .random:hover::before,
 .random:focus-visible::before,
 .format:hover::before,
-.format:focus-visible::before {
+.format:focus-visible::before,
+.reset:not([aria-disabled='true']):hover::before,
+.reset:not([aria-disabled='true']):focus-visible::before {
   opacity: 1;
 }
 .gear:hover,
@@ -984,7 +1054,9 @@ function hoverRange(range: { start: number; end: number } | null) {
 .random:hover,
 .random:focus-visible,
 .format:hover,
-.format:focus-visible {
+.format:focus-visible,
+.reset:hover,
+.reset:focus-visible {
   color: var(--tab-fg);
 }
 /* Each tab leaves out the border on the side it shares with the box, so it looks attached. */
@@ -1007,12 +1079,14 @@ function hoverRange(range: { start: number; end: number } | null) {
 }
 .gear:focus-visible,
 .random:focus-visible,
-.format:focus-visible {
+.format:focus-visible,
+.reset:focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: 1px;
 }
 .random,
-.format {
+.format,
+.reset {
   bottom: 0;
   height: 24px;
   padding: 0 10px;
@@ -1025,12 +1099,37 @@ function hoverRange(range: { start: number; end: number } | null) {
 .random {
   left: 18px;
 }
-.format {
+/* format | reset: a split pair of tabs, sharing one border between them. */
+.split {
+  position: absolute;
   right: 18px;
+  bottom: 0;
+  display: flex;
+}
+.format,
+.reset {
+  position: relative;
   display: inline-flex;
   gap: 5px;
 }
-.format-icon {
+.format {
+  border-bottom-right-radius: 0;
+}
+.reset {
+  border-left: 0;
+  border-bottom-left-radius: 0;
+}
+/* Focus ring above the neighbouring tab. */
+.format:focus-visible,
+.reset:focus-visible {
+  z-index: 1;
+}
+.reset[aria-disabled='true'] {
+  cursor: default;
+  text-decoration: none;
+  color: color-mix(in srgb, var(--tab-fg) 55%, var(--tab-bg));
+}
+.tab-icon {
   display: none;
 }
 .box {
@@ -1204,10 +1303,10 @@ footer a:focus-visible {
   .box-actions {
     flex-direction: column;
   }
-  .format-icon {
+  .tab-icon {
     display: block;
   }
-  .format-text {
+  .tab-text {
     position: absolute;
     width: 1px;
     height: 1px;

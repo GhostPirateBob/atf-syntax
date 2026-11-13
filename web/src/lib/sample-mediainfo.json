@@ -169,5 +169,64 @@
     }
    ]
   }
+ },
+ {
+  "filename": "D:\\Music\\Daft Punk\\Discovery\\1-01 One More Time.mp3",
+  "media": {
+   "track": [
+    {
+     "@type": "General",
+     "AudioCount": "1",
+     "ImageCount": "1",
+     "FileExtension": "mp3",
+     "Format": "MPEG Audio",
+     "FileSize": "12892447",
+     "Duration": "320.333",
+     "OverallBitRate_Mode": "CBR",
+     "OverallBitRate": "320000",
+     "StreamSize": "75730",
+     "Title": "One More Time",
+     "Album": "Discovery",
+     "Album_Performer": "Daft Punk",
+     "Album_Performer_Sort": "Daft Punk",
+     "Part_Position": "1",
+     "Part_Position_Total": "2",
+     "Track": "One More Time",
+     "Track_Position": "1",
+     "Performer": "Daft Punk",
+     "Performer_Sort": "Daft Punk",
+     "Publisher": "Alternative Distribution Alliance",
+     "Original_Released_Date": "2001-02-26",
+     "Recorded_Date": "2001-02-26",
+     "Encoded_Library": "LAME3.98r",
+     "ISRC": "GBAHT1305744",
+     "Cover": "Yes",
+     "Cover_Type": "Cover",
+     "Cover_Mime": "image/jpeg"
+    },
+    {
+     "@type": "Audio",
+     "Format": "MPEG Audio",
+     "Format_Version": "1",
+     "Format_Profile": "Layer 3",
+     "Format_Settings_Mode": "Joint stereo",
+     "Format_Settings_ModeExtension": "MS Stereo",
+     "Duration": "320.333",
+     "Source_Duration": "320.418",
+     "BitRate_Mode": "CBR",
+     "BitRate": "320000",
+     "Channels": "2",
+     "SamplesPerFrame": "1152",
+     "SamplingRate": "44100",
+     "SamplingCount": "14126700",
+     "FrameRate": "38.281",
+     "FrameCount": "12265",
+     "Compression_Mode": "Lossy",
+     "StreamSize": "12815673",
+     "Encoded_Library": "LAME3.98r",
+     "Encoded_Library_Settings": "-m j -q 3 --lowpass 20.5 -b 320"
+    }
+   ]
+  }
  }
 ]

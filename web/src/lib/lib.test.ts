@@ -181,9 +181,19 @@ describe('mediainfo', () => {
   })
   it('builds the real-file samples from the shipped JSON', () => {
     expect(SAMPLE_TRACKS[0].tags).toMatchObject({ artist: 'Alfie Templeman', tracknumber: '0172', publisher: 'Chess Club Records', bitrate: '320' })
-    expect(SAMPLE_TRACKS.slice(0, 3).map((t) => t.tags.year)).toEqual(['2020', '2013', '1994'])
-    expect(SAMPLE_TRACKS.at(-1)?.tags.title).toBe('Dogs')
+    expect(SAMPLE_TRACKS.map((t) => t.tags.year)).toEqual(['2020', '2013', '1994', '1977', '2001'])
     expect(SAMPLE_TRACKS.every(Boolean)).toBe(true)
+  })
+  it('keeps each sample at the index share links use (s=N), with new samples only at the end', () => {
+    expect(SAMPLE_TRACKS.map((t) => t.tags.title)).toEqual(['Things I Thought Were Mine', 'Oceans', 'Juicy', 'Dogs', 'One More Time'])
+    expect(decodeShare(encodeShare({ doc: '%title%', sample: 3 }))?.sample).toBe(3)
+  })
+  it('reads the Daft Punk sample with tidy tags (the script replaces its downloader track number and reissue date)', () => {
+    expect(SAMPLE_TRACKS[4]!.tags).toMatchObject({
+      artist: 'Daft Punk', title: 'One More Time', album: 'Discovery', albumartist: 'Daft Punk',
+      year: '2001', tracknumber: '1', disc: '1', length_seconds: '320', bitrate: '320',
+      filename: 'D:\\Music\\Daft Punk\\Discovery\\1-01 One More Time.mp3',
+    })
   })
 })
 

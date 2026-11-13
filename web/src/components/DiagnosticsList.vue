@@ -2,7 +2,11 @@
 import { computed } from 'vue'
 import type { Finding } from '@/core'
 
-const props = defineProps<{ findings: Finding[] }>()
+/**
+ * `findings` are in the dialect chosen in settings; `accept` holds each dialect's error-severity
+ * findings, for the line saying which of WACUP and Winamp 5 will take the format.
+ */
+const props = defineProps<{ findings: Finding[]; accept: { wacup: Finding[]; winamp: Finding[] } }>()
 const emit = defineEmits<{ pick: [range: { start: number; end: number }] }>()
 
 const counts = computed(() => {
@@ -11,6 +15,11 @@ const counts = computed(() => {
   return c
 })
 const icon = { error: '●', warning: '▲', info: '◆', hint: '·' } as const
+const verdicts = computed(() => [
+  { key: 'wacup', ok: 'WACUP will accept this', name: 'WACUP', errors: props.accept.wacup },
+  { key: 'winamp', ok: 'Winamp will accept this', name: 'Winamp 5', errors: props.accept.winamp },
+])
+const plural = (n: number) => `${n} error${n === 1 ? '' : 's'}`
 </script>
 
 <template>
@@ -19,7 +28,15 @@ const icon = { error: '●', warning: '▲', info: '◆', hint: '·' } as const
       <span :class="counts.error ? 'sev-error' : 'muted'">● {{ counts.error }} error{{ counts.error === 1 ? '' : 's' }}</span>
       <span :class="counts.warning ? 'sev-warning' : 'muted'">▲ {{ counts.warning }} warning{{ counts.warning === 1 ? '' : 's' }}</span>
       <span :class="counts.info + counts.hint ? 'sev-info' : 'muted'">◆ {{ counts.info + counts.hint }} note{{ counts.info + counts.hint === 1 ? '' : 's' }}</span>
-      <span v-if="!findings.length" class="ok">✓ WACUP will accept this</span>
+      <span class="verdicts">
+        <template v-for="v in verdicts" :key="v.key">
+          <span v-if="!v.errors.length" class="verdict ok"><span class="tick" aria-hidden="true">✓</span> {{ v.ok }}</span>
+          <!-- The first error's message is the tooltip; a click selects it in the editor. -->
+          <button v-else class="verdict bad" :title="v.errors[0]!.message" @click="emit('pick', v.errors[0]!)">
+            <span aria-hidden="true">✗</span> {{ v.name }}: {{ plural(v.errors.length) }}
+          </button>
+        </template>
+      </span>
     </p>
     <ul v-if="findings.length">
       <li v-for="(f, i) in findings" :key="i">
@@ -42,12 +59,43 @@ const icon = { error: '●', warning: '▲', info: '◆', hint: '·' } as const
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 18px;
+  gap: 4px 18px;
   margin: 0;
   font-size: 0.88rem;
 }
+/* The two verdicts stay together, and wrap onto a line of their own when the counts fill it. */
+.verdicts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 18px;
+}
+.verdict {
+  white-space: nowrap;
+}
 .ok {
-  color: var(--green);
+  color: var(--accept-text);
+}
+.tick {
+  color: var(--accept-icon);
+}
+.bad {
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--error);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.bad:hover,
+.bad:focus-visible {
+  color: var(--error);
+  text-decoration-style: solid;
+}
+.bad:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
 }
 ul {
   list-style: none;
