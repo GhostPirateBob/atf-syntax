@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig, runnerImport, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { VAPOR_COMPONENTS } from './vapor.config'
 
 const alias = {
   '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -54,17 +55,42 @@ function searchIndex(): Plugin {
   }
 }
 
+/**
+ * Vapor mode (`--mode vapor`, see vapor.config.ts): adds the `vapor` attribute to the `<script
+ * setup>` of the listed components before plugin-vue compiles them. Runs only in that mode.
+ */
+function vaporComponents(files: readonly string[]): Plugin {
+  const dir = fileURLToPath(new URL('./src/components/', import.meta.url)).replace(/\\/g, '/')
+  const wanted = new Set(files.map((f) => dir + f))
+  return {
+    name: 'atf-vapor-components',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!wanted.has(id.replace(/\\/g, '/'))) return
+      const out = code.replace(/<script setup lang="ts">/, '<script setup lang="ts" vapor>')
+      if (out === code) this.warn(`${id}: no <script setup lang="ts"> to make Vapor`)
+      // Only the <script setup> tag's own line changes (no code on it): the existing source map
+      // still holds, so say so (map: null) rather than leave Rolldown to warn.
+      return { code: out, map: null }
+    },
+  }
+}
+
 // The playground imports the extension's core (parser, linter, catalogue, evaluator) straight
 // from ../src, so the VS Code extension and the web page always agree.
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: './',
   // No component (ours or @lucide/vue's functional icons) uses the Options API: leave it out.
-  plugins: [vue({ features: { optionsAPI: false } }), searchIndex()],
+  plugins: [...(mode === 'vapor' ? [vaporComponents(VAPOR_COMPONENTS)] : []), vue({ features: { optionsAPI: false } }), searchIndex()],
+  // false except in vapor mode, so every other build drops the Vapor interop (and runtime) entirely.
+  define: { __VAPOR__: JSON.stringify(mode === 'vapor') },
   resolve: { alias },
   server: {
     fs: { allow: ['..'] },
   },
   build: {
+    // Vapor builds go beside the real one, never over it (the Pages workflow deploys dist).
+    outDir: mode === 'vapor' ? 'dist-vapor' : 'dist',
     // Source maps as separate .map files beside each chunk (the worker's too: it is built with the
     // same setting), linked by a sourceMappingURL comment; never inlined.
     sourcemap: true,
@@ -83,4 +109,4 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
-})
+}))

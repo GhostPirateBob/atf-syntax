@@ -1,6 +1,6 @@
 {
   "extends": "@tsconfig/node24/tsconfig.json",
-  "include": ["vite.config.*", "vitest.config.*", "src/**/*.test.ts"],
+  "include": ["vite.config.*", "vitest.config.*", "vapor.config.ts", "src/**/*.test.ts"],
   "compilerOptions": {
     "module": "preserve",
     "moduleResolution": "bundler",
