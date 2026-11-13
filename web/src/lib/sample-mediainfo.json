@@ -73,15 +73,15 @@
      "OverallBitRate": "320000",
      "StreamSize": "85066",
      "Title": "Oceans",
-     "Album": "Magna Carta... Holy Grail",
+     "Album": "Magna Carta Holy Grail",
      "Album_Performer": "JAY-Z",
      "Album_Performer_Sort": "Jay-Z",
      "Part_Position": "1",
      "Part_Position_Total": "1",
      "Track": "Oceans",
      "Track_Position": "0683",
-     "Performer": "JAY-Z feat. Frank Ocean",
-     "Performer_Sort": "Jay-Z feat. Ocean, Frank",
+     "Performer": "JAY-Z",
+     "Performer_Sort": "Jay-Z",
      "Publisher": "Roc Nation",
      "Original_Released_Date": "2013-07-08",
      "Recorded_Date": "2013-07-08",
@@ -166,49 +166,6 @@
      "StreamSize": "8179039",
      "Encoded_Library": "LAME3.90.",
      "Encoded_Library_Settings": "-m j -V 2 -q 2 --lowpass 19 --vbr-old -b 128"
-    }
-   ]
-  }
- },
- {
-  "filename": "D:\\Music\\ZZ_LOOSE\\Kaptein Frosk (music video in description)-291000340.mp3",
-  "media": {
-   "track": [
-    {
-     "@type": "General",
-     "AudioCount": "1",
-     "FileExtension": "mp3",
-     "Format": "MPEG Audio",
-     "FileSize": "4074065",
-     "Duration": "101.590",
-     "OverallBitRate_Mode": "CBR",
-     "OverallBitRate": "320000",
-     "StreamSize": "8368",
-     "Title": "Kaptein Frosk (music video in description)-291000340",
-     "Track": "Kaptein Frosk (music video in description)-291000340",
-     "Encoded_Library": "Lavc61.8.",
-     "Comment": "b"
-    },
-    {
-     "@type": "Audio",
-     "Format": "MPEG Audio",
-     "Format_Version": "1",
-     "Format_Profile": "Layer 3",
-     "Format_Settings_Mode": "Joint stereo",
-     "Format_Settings_ModeExtension": "MS Stereo",
-     "Duration": "101.590",
-     "Source_Duration": "101.642",
-     "BitRate_Mode": "CBR",
-     "BitRate": "320000",
-     "Channels": "2",
-     "SamplesPerFrame": "1152",
-     "SamplingRate": "44100",
-     "SamplingCount": "4480128",
-     "FrameRate": "38.281",
-     "FrameCount": "3890",
-     "Compression_Mode": "Lossy",
-     "StreamSize": "4064653",
-     "Encoded_Library": "Lavc61.8."
     }
    ]
   }

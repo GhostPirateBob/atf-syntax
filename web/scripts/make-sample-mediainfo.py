@@ -22,9 +22,17 @@ SAMPLES = [
      r"D:\Music\JAY-Z\Magna Carta... Holy Grail\05 JAY-Z feat. Frank Ocean - Oceans.mp3"),
     (r"D:\__MUSIC\The Notorious B.I.G_\Ready to Die\10 Juicy.mp3",
      r"D:\Music\The Notorious B.I.G_\Ready to Die\10 Juicy.mp3"),
-    (r"D:\__MUSIC\ZZ_LOOSE\Kaptein Frosk (music video in description)-291000340.mp3",
-     r"D:\Music\ZZ_LOOSE\Kaptein Frosk (music video in description)-291000340.mp3"),
 ]
+
+# Hand edits applied over mediainfo's output, keyed by the shown path's file name:
+# {file name: {mediainfo General-track field: value}}.
+OVERRIDES = {
+    "05 JAY-Z feat. Frank Ocean - Oceans.mp3": {
+        "Performer": "JAY-Z",
+        "Performer_Sort": "Jay-Z",
+        "Album": "Magna Carta Holy Grail",
+    },
+}
 
 DROP = {
     "CompleteName", "FolderName", "FileName", "FileNameExtension",
@@ -37,6 +45,9 @@ for real, shown in SAMPLES:
     raw = subprocess.run(["mediainfo", "--Output=JSON", real], capture_output=True, check=True).stdout
     tracks = json.loads(raw.decode("utf-8"))["media"]["track"]
     kept = [{k: v for k, v in t.items() if k not in DROP} for t in tracks if t.get("@type") in ("General", "Audio")]
+    for t in kept:
+        if t.get("@type") == "General":
+            t.update(OVERRIDES.get(shown.rsplit("\\", 1)[-1], {}))
     entries.append({"filename": shown, "media": {"track": kept}})
 
 OUT.write_text(json.dumps(entries, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")

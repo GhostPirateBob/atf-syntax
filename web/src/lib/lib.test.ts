@@ -112,7 +112,8 @@ describe('mediainfo', () => {
   })
   it('builds the real-file samples from the shipped JSON', () => {
     expect(SAMPLE_TRACKS[0].tags).toMatchObject({ artist: 'Alfie Templeman', tracknumber: '0172', publisher: 'Chess Club Records', bitrate: '320' })
-    expect(SAMPLE_TRACKS[4].tags.artist).toBeUndefined()
+    expect(SAMPLE_TRACKS.at(-1)?.tags.artist).toBeUndefined()
+    expect(SAMPLE_TRACKS.every(Boolean)).toBe(true)
   })
 })
 

@@ -55,23 +55,20 @@ const sample = (tags: Record<string, string>): Track => ({ id: newId(), tags, so
 
 /**
  * Built-in tracks: tidy tags, patchy tags, and none at all, so recipes can show their fallbacks.
- * Four are real files' tags as mediainfo reads them (sample-mediainfo.json), quirks included:
- * downloader track numbers like `0172`, full release dates, a title still carrying its download
- * ID, a track with no artist. Dogs is the hand-made "complete tags" case; the last has no tags.
+ * First, every entry in sample-mediainfo.json (real files' tags as mediainfo reads them, quirks
+ * included, e.g. downloader track numbers like `0172` and full release dates), however many there
+ * are. Then Dogs, the hand-made "complete tags" case, and a file with no tags at all.
  */
-const [alfie, oceans, juicy, frosk] = (SAMPLE_MEDIAINFO as { filename: string; media: MediaInfoJson['media'] }[]).map((e) =>
+const fromMediaInfo = (SAMPLE_MEDIAINFO as { filename: string; media: MediaInfoJson['media'] }[]).map((e) =>
   sample(tagsFromMediaInfo({ media: e.media }, e.filename)),
 )
 export const SAMPLE_TRACKS: Track[] = [
-  alfie,
-  oceans,
+  ...fromMediaInfo,
   sample({
     artist: 'Pink Floyd', title: 'Dogs', album: 'Animals', albumartist: 'Pink Floyd',
     tracknumber: '2', year: '1977', genre: 'Progressive Rock', length_seconds: '1024',
     filename: 'D:\\Music\\Pink Floyd\\Animals\\02 Pink Floyd - Dogs.flac',
   }),
-  juicy,
-  frosk,
   sample({
     filename: 'C:\\Users\\Joe\\Downloads\\artist_-_song_title_(official_audio).mp3', length_seconds: '214',
   }),
