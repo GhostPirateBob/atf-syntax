@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Playground: page analytics use only the plain Google tag (gtag.js), no Tag Manager.
+- Playground: the page no longer scrolls sideways, and keeps the scrollbar's space so content doesn't shift.
+- The sample-track generator (web/scripts) reads the music folder from `ATF_SAMPLE_MUSIC`.
+
 ## 0.5.0 — 2026-11-13
 
 - New: the [ATF playground](https://ghostpiratebob.me/atf-syntax/), a web page where you type a format and see it render live for sample tracks or your own playlist, with the same checking as this extension. Its evaluator was checked against WACUP 1.99.57.25464's own: every decided case of 65,940 generated formats matches, behaviour it can't confirm shows `?`, and formats that would freeze WACUP are flagged instead of run.
