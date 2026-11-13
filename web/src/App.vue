@@ -36,7 +36,7 @@ const atfInput = ref<HTMLInputElement>()
 const atfChoices = ref<{ label: string; text: string }[]>([])
 
 function loadView(): ViewSettings {
-  const base: ViewSettings = { trimLeading: true, underscoresToSpaces: true, pct20ToSpaces: true, font: '', fontSize: 16, width: 0 }
+  const base: ViewSettings = { trimLeading: true, underscoresToSpaces: true, pct20ToSpaces: true, font: '', fontSize: 16, width: 0, numbers: false }
   try {
     return { ...base, ...JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') }
   } catch {

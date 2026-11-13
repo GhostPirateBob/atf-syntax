@@ -6,6 +6,8 @@ export interface ViewSettings {
   font: string
   fontSize: number
   width: number
+  /** WACUP's "1. " playlist numbers in front of each row. */
+  numbers: boolean
 }
 
 const model = defineModel<ViewSettings>({ required: true })
@@ -18,6 +20,7 @@ const model = defineModel<ViewSettings>({ required: true })
       <label><input v-model="model.trimLeading" type="checkbox" /> Trim leading whitespace <span class="muted">(WACUP drops it, even em spaces: start with a <code>.</code> instead)</span></label>
       <label><input v-model="model.underscoresToSpaces" type="checkbox" /> Show underscores as spaces</label>
       <label><input v-model="model.pct20ToSpaces" type="checkbox" /> Show <code>%20</code> as spaces</label>
+      <label><input v-model="model.numbers" type="checkbox" /> Show playlist numbers <span class="muted">(<code>1. </code> in front of each row, as WACUP draws them)</span></label>
       <label class="row">
         Font
         <input v-model.trim="model.font" type="text" placeholder="Roboto Condensed (default), or a font installed on this computer" />

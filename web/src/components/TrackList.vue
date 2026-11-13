@@ -35,11 +35,13 @@ const weight = computed(() => fontWeight(props.view.font))
 const fontsLoaded = ref(0)
 document.fonts?.addEventListener('loadingdone', () => fontsLoaded.value++)
 const fontSize = computed(() => Math.min(40, Math.max(8, props.view.fontSize || 15)))
+const numberPrefix = (i: number) => (props.view.numbers ? `${i + 1}. ` : '')
 const overflow = computed(() => {
   if (!props.view.width) return props.rows.map(() => false)
   void fontsLoaded.value
   const font = `${weight.value} ${fontSize.value}px ${fontCss.value}`
-  return props.rows.map((r) => measureText(r.text, font) > props.view.width)
+  // WACUP draws the number in the same row, so it counts toward the width.
+  return props.rows.map((r, i) => measureText(numberPrefix(i) + r.text, font) > props.view.width)
 })
 
 function readFile(file: File) {
@@ -86,6 +88,7 @@ function importPasted() {
       <li v-for="(t, i) in tracks" :key="t.id" :class="{ selected: i === selected, over: overflow[i] }">
         <div class="row">
           <button class="out stretched" :class="rows[i]?.state" :aria-pressed="i === selected" :title="rows[i]?.text" @click="emit('select', i)">
+            <span v-if="view.numbers" class="num">{{ numberPrefix(i) }}</span>
             <template v-if="rows[i]?.state === 'freeze'">⚠ would freeze WACUP</template>
             <template v-else-if="rows[i]?.state === 'timeout'">⚠ didn't finish</template>
             <template v-else-if="rows[i]?.state === 'heavy'">⚠ too heavy to preview</template>
@@ -175,6 +178,9 @@ li:hover {
   position: absolute;
   inset: 0;
   z-index: 1;
+}
+.num {
+  color: var(--muted);
 }
 /* Controls that must stay clickable sit above the stretched area. */
 .edit,
