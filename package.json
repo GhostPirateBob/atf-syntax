@@ -143,6 +143,18 @@
               "default": "warning",
               "markdownDescription": "Nested more than 128 levels deep, so the format isn't checked."
             },
+            "name-too-long": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "error",
+              "markdownDescription": "WACUP 1.99.57: a `%field%` or `$function(` name longer than 32 characters shows `[TRUNCATED FORMATTING STRING -> MISSING END TAG / WORKING BUFFER TOO SMALL]` or `[SYNTAX ERROR IN FORMATTING STRING (4)]`. 1.99.43 and Winamp 5 accept it."
+            },
             "unknown-function": {
               "type": "string",
               "enum": [
@@ -189,7 +201,7 @@
                 "off"
               ],
               "default": "error",
-              "markdownDescription": "Wrong argument count for `$if`, `$if2`, `$ifgreater`, `$iflonger` or `$IfStrEqual*`; prints `[INVALID $name() SYNTAX]`."
+              "markdownDescription": "Wrong argument count for `$if`, `$if2`, `$ifgreater`, `$iflonger` or `$IfStrEqual*`; prints `[INVALID $name() SYNTAX]` (Winamp 5: `[INVALID $IF SYNTAX]`, `[INVALID $IFLONGER SYNTAX]` or `[INVALID $IFGREATER SYNTAX]`)."
             },
             "arity-min": {
               "type": "string",
@@ -237,7 +249,7 @@
                 "off"
               ],
               "default": "warning",
-              "markdownDescription": "An empty numeric argument (e.g. `$left(%artist%,)`), which counts as 0."
+              "markdownDescription": "An empty numeric argument (e.g. `$left(%artist%,)`), which counts as 0. An empty `$muldiv` argument crashes Winamp 5."
             },
             "replace-empty-search": {
               "type": "string",
@@ -249,7 +261,7 @@
                 "off"
               ],
               "default": "error",
-              "markdownDescription": "`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed. Fixed in WACUP 1.99.56.25334."
+              "markdownDescription": "`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed (Winamp 5 crashes). Fixed in WACUP 1.99.56.25334."
             },
             "replace-search-may-be-empty": {
               "type": "string",
@@ -261,7 +273,7 @@
                 "off"
               ],
               "default": "warning",
-              "markdownDescription": "`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes. Fixed in WACUP 1.99.56.25334."
+              "markdownDescription": "`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes (Winamp 5 crashes). Fixed in WACUP 1.99.56.25334."
             },
             "negative-count": {
               "type": "string",
@@ -275,6 +287,18 @@
               "default": "error",
               "markdownDescription": "`$tab(-1)`, `$directory(path,-1)` or `$padcut(a,-1)`: a negative count never finishes, so WACUP freezes. `$tab`/`$directory` fixed in WACUP 1.99.57.25452; `$padcut` still freezes in 1.99.57.25464."
             },
+            "winamp-crash": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "default": "error",
+              "markdownDescription": "Winamp 5: an argument that crashes it, e.g. an empty `$trim()`, `$pad`/`$lpad` pad string, `$strchr` character or `$split` token, or `$div(-2147483648,-1)`. Fields and calls that can be empty get a \"may crash\" message."
+            },
             "always-true-condition": {
               "type": "string",
               "enum": [
@@ -285,7 +309,7 @@
                 "off"
               ],
               "default": "warning",
-              "markdownDescription": "WACUP: `$if($strchr(…),…)` and similar always take the first branch, because the result is never empty."
+              "markdownDescription": "WACUP: `$if($strchr(…),…)` and similar always take the first branch, because the result is never empty. `$if($strstr(…),…)` only tests that its arguments aren't empty."
             },
             "always-false-condition": {
               "type": "string",
