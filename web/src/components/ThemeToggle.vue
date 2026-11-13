@@ -2,12 +2,13 @@
 import { computed } from 'vue'
 import { Moon, Sun } from '@lucide/vue'
 import { setTheme, theme } from '@/lib/theme'
+import { vTip } from '@/lib/tooltip'
 
 const next = computed(() => (theme.value === 'dark' ? 'light' : 'dark'))
 </script>
 
 <template>
-  <button class="theme-toggle" :aria-label="`Switch to ${next} theme`" :title="`Switch to ${next} theme`" @click="setTheme(next)">
+  <button v-tip="`Switch to ${next} theme`" class="theme-toggle" :aria-label="`Switch to ${next} theme`" @click="setTheme(next)">
     <!-- A sun in the dark theme (switch to light), a moon in the light theme. -->
     <Sun v-if="theme === 'dark'" :size="18" aria-hidden="true" />
     <Moon v-else :size="18" aria-hidden="true" />

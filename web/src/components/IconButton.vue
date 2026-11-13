@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
+import { vTip } from '@/lib/tooltip'
 
 /**
  * A button with an icon and a text label. Below `collapse` (narrow: 640 px, header: 1280 px) only
- * the icon shows; the label stays as the accessible name and the tooltip.
+ * the icon shows; the label stays as the accessible name and the tooltip (v-tip, lib/tooltip.ts).
  */
 withDefaults(defineProps<{ icon: Component; label: string; title?: string; collapse?: 'narrow' | 'header' | 'always'; showIcon?: boolean; iconSize?: number }>(), {
   title: undefined,
@@ -14,7 +15,7 @@ withDefaults(defineProps<{ icon: Component; label: string; title?: string; colla
 </script>
 
 <template>
-  <button class="icon-btn" :class="[`collapse-${collapse}`, { 'show-icon': showIcon }]" :aria-label="label" :title="title ?? label">
+  <button v-tip="title ?? label" class="icon-btn" :class="[`collapse-${collapse}`, { 'show-icon': showIcon }]" :aria-label="label">
     <component :is="icon" :size="iconSize" aria-hidden="true" class="ico" />
     <span class="lbl">{{ label }}</span>
   </button>
@@ -29,6 +30,7 @@ withDefaults(defineProps<{ icon: Component; label: string; title?: string; colla
   gap: 6px;
   white-space: nowrap;
   flex: none;
+  line-height: 1;
 }
 .ico {
   flex: none;

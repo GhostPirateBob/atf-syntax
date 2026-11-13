@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { History, Search, X } from '@lucide/vue'
 import throttle from 'lodash-es/throttle'
 import { frames } from '@/lib/timing'
+import { vTip } from '@/lib/tooltip'
 import { browserStorage, savedFormats } from '@/lib/saved'
 import {
   addRecent,
@@ -260,7 +261,7 @@ defineExpose({ open: openSearch })
 
 <template>
   <div ref="root" class="omni" :class="{ open }" @focusout="onFocusOut">
-    <button ref="iconButton" class="omni-icon" aria-label="Search" :title="`Search (${hint})`" @click="openSearch">
+    <button ref="iconButton" v-tip="`Search (${hint})`" class="omni-icon" aria-label="Search" @click="openSearch">
       <Search :size="16" aria-hidden="true" />
     </button>
     <div v-if="open" class="omni-backdrop" aria-hidden="true" @click="close(true)" />

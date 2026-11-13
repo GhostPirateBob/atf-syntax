@@ -37,6 +37,9 @@ const INVISIBLE: Record<string, string> = {
   '﻿': 'ZERO WIDTH NO-BREAK SPACE (BOM)',
 }
 
+/** U+0020 and the other space characters (tab, NBSP, …), for marking them in the editor. */
+export const SPACE_CHARS = new RegExp(`[ ${Object.keys(OTHER).join('')}]`, 'g')
+
 const codePoint = (ch: string) => `U+${ch.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`
 
 /** What kind of character `ch` is for Show spaces, with its name for the unusual ones. */

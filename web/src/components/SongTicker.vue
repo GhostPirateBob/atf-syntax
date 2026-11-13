@@ -7,7 +7,7 @@ import { measureText } from '@/lib/measure'
 import { fontsLoaded, useWidth } from '@/lib/rowFit'
 import { theme } from '@/lib/theme'
 import { ROW_STATE_TEXT } from '@/lib/playlistWindow'
-import { TICKER_SEPARATOR, TICKER_STEP_MS, glyphCell, nextStep, stripOffset, tickerChars, tickerFits, tickerStrip, totalAdvance, type TickerItem } from '@/lib/ticker'
+import { TICKER_SEPARATOR, TICKER_STEP_MS, glyphCell, nextStep, stripOffset, tickerChars, tickerStrip, totalAdvance, type TickerItem } from '@/lib/ticker'
 import { tickerFont } from '@/lib/tickerFont'
 import { SPACE_CLASS, spaceKind } from '@/lib/whitespace'
 
@@ -15,8 +15,11 @@ import { SPACE_CLASS, spaceKind } from '@/lib/whitespace'
  * The preview while a song ticker recipe is loaded: the selected track's title on one line,
  * scrolled left one character every TICKER_STEP_MS like Winamp's ticker, then `  ***  ` and round
  * again. The strip of glyphs moves by a stepped transform (no transition), so each step is a
- * compositor-only change. It stands still when the title fits, while hovered or focused, while the
- * page is hidden, and with less motion (showing the start of the title). Drawn in the user's skin
+ * compositor-only change. Like a stock ticker it always runs, a short title too (the strip repeats
+ * to fill the box, so it wraps in from the right seamlessly). It stands still while hovered (WCAG
+ * 2.2.2's pause) and while the page is hidden. Not while focused: a click on it, or a ticker recipe picked just
+ * before, would leave focus there and stop it for good. With less motion it still steps (it only
+ * ever jumps a glyph at a time, nothing glides), since a ticker that never moves isn't a preview. Drawn in the user's skin
  * ticker font (a bitmap sheet, on a canvas tinted with the theme's text colour) if they set one in
  * Settings, otherwise in the bundled VT323 pixel font.
  */
@@ -31,7 +34,6 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [index: number] }>()
 
 const narrow = useMedia(NARROW)
-const reduced = useMedia('(prefers-reduced-motion: reduce)')
 // The same zoom and width as the playlist preview it replaces.
 const zoom = computed(() => (narrow.value ? 1 : 1.5))
 const CHROME = 2 * 10 + 2 * 1 + 8
@@ -94,7 +96,7 @@ const unit = computed(() => [...textItems.value, ...items(TICKER_SEPARATOR)])
 
 const clipEl = ref<HTMLElement>()
 const boxWidth = useWidth(clipEl)
-const scrolls = computed(() => !props.message && !reduced.value && boxWidth.value > 0 && !tickerFits(textItems.value, boxWidth.value))
+const scrolls = computed(() => !props.message && boxWidth.value > 0 && textItems.value.length > 0)
 const strip = computed(() => (scrolls.value ? tickerStrip(unit.value, boxWidth.value) : textItems.value))
 
 const step = ref(0)
@@ -102,14 +104,12 @@ const offset = computed(() => (scrolls.value && unit.value.length ? stripOffset(
 const stripStyle = computed(() => ({ transform: `translate3d(${-offset.value}px, 0, 0)` }))
 // A new title starts from its beginning. (Not when the box is resized: that just carries on.)
 watch(text, () => (step.value = 0))
-watch(reduced, (on) => on && (step.value = 0))
 
 const hovering = ref(false)
-const focused = ref(false)
 const hidden = ref(document.visibilityState === 'hidden')
 const onVisibility = () => (hidden.value = document.visibilityState === 'hidden')
 document.addEventListener('visibilitychange', onVisibility)
-const running = computed(() => scrolls.value && !hovering.value && !focused.value && !hidden.value)
+const running = computed(() => scrolls.value && !hovering.value && !hidden.value)
 let timer: ReturnType<typeof setInterval> | undefined
 watch(
   running,
@@ -223,8 +223,6 @@ function onKey(e: KeyboardEvent) {
       aria-activedescendant="tk-current"
       :title="text || undefined"
       @keydown="onKey"
-      @focus="focused = true"
-      @blur="focused = false"
     >
       <div id="tk-current" class="tk-sr" role="option" aria-selected="true">{{ text || 'No title' }}</div>
       <canvas v-if="skin" ref="canvasEl" class="tk-strip" aria-hidden="true" :style="stripStyle" />

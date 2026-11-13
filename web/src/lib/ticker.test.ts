@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GLYPH_ROWS, TICKER_MAX_CHARS, TICKER_SEPARATOR, glyphCell, nextStep, stripOffset, tickerChars, tickerFits, tickerStrip, totalAdvance, type TickerItem } from './ticker'
+import { GLYPH_ROWS, TICKER_MAX_CHARS, TICKER_SEPARATOR, glyphCell, nextStep, stripOffset, tickerChars, tickerStrip, totalAdvance, type TickerItem } from './ticker'
 import { DEFAULT_TICKER_METRICS, cleanMetrics, parseTickerFont, presetForMetrics, presetForSheet } from './tickerFont'
 
 const mono = (s: string, w = 9): TickerItem[] => Array.from(s).map((ch) => ({ ch, advance: w }))
@@ -53,10 +53,6 @@ describe('bitmap font glyph map', () => {
 })
 
 describe('ticker steps', () => {
-  it('stands still when the text fits', () => {
-    expect(tickerFits(mono('ABC'), 27)).toBe(true)
-    expect(tickerFits(mono('ABC'), 26)).toBe(false)
-  })
   it('loops on the text then the separator', () => {
     expect(TICKER_SEPARATOR).toBe('  ***  ')
     const unit = mono(`Dogs${TICKER_SEPARATOR}`)

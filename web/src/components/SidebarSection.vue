@@ -27,7 +27,7 @@ const estimate = computed(() => `auto ${props.expanded ? 40 + 120 * (props.count
       </button>
     </h3>
     <div v-show="expanded" :id="`${id}-list`" class="sb-list" :class="{ entering }">
-      <slot />
+      <div class="sb-card"><slot /></div>
     </div>
   </section>
 </template>
@@ -92,12 +92,10 @@ const estimate = computed(() => `auto ${props.expanded ? 40 + 120 * (props.count
 .sb-toggle[aria-expanded='true'] .sb-chev {
   transform: rotate(180deg);
 }
-/* The list sits on its own surface (--sb-list-bg in style.css), and each section's items on it
-   form one card (--recipe-bg) with rounded outer corners: the first item's top corners and the
-   last item's bottom ones. */
+/* Each section's items form one card on the sidebar: they rest on --sb-list-bg (style.css), and
+   the card (.sb-card) takes the spacing and the rounded corners, which the first item's top
+   corners and the last item's bottom ones follow, so edges and corners line up exactly. */
 .sb-list {
-  padding: 4px 0 10px;
-  background: var(--sb-list-bg);
   /* Secondary text, rules between items and the hover tint, retuned for the list's surface. */
   --muted: var(--sb-muted);
   --dim: var(--sb-muted);
@@ -114,46 +112,51 @@ const estimate = computed(() => `auto ${props.expanded ? 40 + 120 * (props.count
   --error-text: var(--sb-error-text);
   --warning-text: var(--sb-warning-text);
 }
-.sb-section .sb-list > * {
-  background: var(--recipe-bg);
+.sb-card {
+  margin: 4px 0 10px;
+  border-radius: var(--radius-sm);
+  overflow: clip;
 }
-.sb-section .sb-list > :first-child {
+.sb-section > .sb-list > .sb-card > * {
+  background: var(--sb-list-bg);
+}
+.sb-section > .sb-list > .sb-card > :first-child {
   border-top-left-radius: var(--radius-sm);
   border-top-right-radius: var(--radius-sm);
 }
-.sb-section .sb-list > :last-child {
+.sb-section > .sb-list > .sb-card > :last-child {
   border-bottom-left-radius: var(--radius-sm);
   border-bottom-right-radius: var(--radius-sm);
 }
 /* Just expanded: the items fade and drop 4 px into place, staggered by 10 ms (60 ms at most). With
    less motion, --motion is 0, so they only fade. */
-.sb-list.entering > * {
+.sb-list.entering .sb-card > * {
   transition:
     opacity 0.15s ease-out,
     transform 0.15s ease-out;
 }
 @starting-style {
-  .sb-list.entering > * {
+  .sb-list.entering .sb-card > * {
     opacity: 0;
     transform: translate3d(0, calc(-4px * var(--motion)), 0);
   }
 }
-.sb-list.entering > :nth-child(2) {
+.sb-list.entering .sb-card > :nth-child(2) {
   transition-delay: 10ms;
 }
-.sb-list.entering > :nth-child(3) {
+.sb-list.entering .sb-card > :nth-child(3) {
   transition-delay: 20ms;
 }
-.sb-list.entering > :nth-child(4) {
+.sb-list.entering .sb-card > :nth-child(4) {
   transition-delay: 30ms;
 }
-.sb-list.entering > :nth-child(5) {
+.sb-list.entering .sb-card > :nth-child(5) {
   transition-delay: 40ms;
 }
-.sb-list.entering > :nth-child(6) {
+.sb-list.entering .sb-card > :nth-child(6) {
   transition-delay: 50ms;
 }
-.sb-list.entering > :nth-child(n + 7) {
+.sb-list.entering .sb-card > :nth-child(n + 7) {
   transition-delay: 60ms;
 }
 </style>

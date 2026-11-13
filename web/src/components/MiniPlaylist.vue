@@ -140,7 +140,7 @@ function onWheel(e: WheelEvent) {
         :key="s.offset"
         :ref="s.offset === 0 ? (el) => (currentRow = el as HTMLElement) : undefined"
         class="pl-row playlist-text"
-        :class="[{ current: s.offset === 0 }, rows[s.index]?.state]"
+        :class="[{ current: s.offset === 0, odd: s.index % 2 === 1 }, rows[s.index]?.state]"
         role="option"
         :aria-selected="s.offset === 0"
         :title="rowTitle(s.offset, s.index)"
@@ -187,6 +187,12 @@ function onWheel(e: WheelEvent) {
   color: var(--dim);
   white-space: pre;
   cursor: pointer;
+}
+/* Zebra rows by track (so a stripe moves with its track), as in a Winamp playlist with alternating
+   row colours; the selected row keeps its own colour. */
+.pl-row.odd:not(.current) {
+  background: var(--pl-stripe);
+  color: var(--pl-stripe-text);
 }
 .pl-row:not(.current):hover {
   color: var(--text);

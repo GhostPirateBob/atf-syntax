@@ -34,8 +34,15 @@ describe('tokenize', () => {
   const kinds = (s: string) => tokenize(s).map((t) => `${t.kind}:${s.slice(t.start, t.end)}`)
   it('follows WACUP lexical rules', () => {
     expect(kinds("[%artist% - ]$if2(%title%,'(x)')")).toEqual([
-      'bracket:[', 'field:%artist%', 'text: - ', 'bracket:]', 'fn:$if2', 'paren:(', 'field:%title%', 'comma:,', "quote:'(x)'", 'paren:)',
+      'bracket:[', 'field-sigil:%', 'field:artist', 'field-sigil:%', 'text: - ', 'bracket:]', 'fn-sigil:$', 'fn:if2', 'paren:(',
+      'field-sigil:%', 'field:title', 'field-sigil:%', 'comma:,', "quote:'(x)'", 'paren:)',
     ])
+  })
+  it('marks integer arguments inside calls, not digits in words or outside calls', () => {
+    expect(kinds('$left(%a%,12)')).toContain('number:12')
+    expect(kinds('$sub(5,-3)')).toEqual(['fn-sigil:$', 'fn:sub', 'paren:(', 'number:5', 'comma:,', 'number:-3', 'paren:)'])
+    expect(kinds('$if(abc1,x2y)').filter((k) => k.startsWith('number'))).toEqual([])
+    expect(kinds('track 01').filter((k) => k.startsWith('number'))).toEqual([])
   })
   it('treats a top-level comma as text and recognises escapes', () => {
     expect(kinds("a,b %% $$ ''")).toEqual(['text:a,b ', 'escape:%%', 'text: ', 'escape:$$', 'text: ', "escape:''"])

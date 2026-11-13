@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, shallowRef } from 'vue'
-import { Pencil, Trash } from '@lucide/vue'
+import { ChefHat, Library, Pencil, Trash } from '@lucide/vue'
 import { FIELDS, FUNCTIONS } from '@/core'
 import { inlineMarkdown } from '@/lib/markdown'
 import { RECIPES, recipeGroups, type Recipe } from '@/lib/recipes'
 import { browserStorage, renameSaved, savedFormats, updateSaved, type SavedFormat } from '@/lib/saved'
 import { expandSection, isExpanded, readCollapsed, sectionFor, toggleSection, writeCollapsed } from '@/lib/collapsed'
 import { toFormat } from '@/lib/document'
-import { reducedMotion } from '@/lib/media'
+import { NARROW, reducedMotion, useMedia } from '@/lib/media'
+import { vTip } from '@/lib/tooltip'
 import { yieldToMain } from '@/lib/timing'
 import HighlightedFormat from './HighlightedFormat.vue'
 import SidebarSection from './SidebarSection.vue'
@@ -15,6 +16,8 @@ import SidebarSection from './SidebarSection.vue'
 const emit = defineEmits<{ insert: [text: string]; load: [recipe: Recipe]; loadSaved: [saved: SavedFormat]; delete: [saved: SavedFormat]; close: [] }>()
 
 const tab = ref<'reference' | 'recipes'>('recipes')
+/** Phones: the tabs are icons, named by aria-label and the tooltip. */
+const narrow = useMedia(NARROW)
 const query = ref('')
 
 const SYNTAX = [
@@ -124,8 +127,12 @@ const groups = recipeGroups(RECIPES)
 <template>
   <aside ref="root" class="sidebar">
     <header>
-      <button :class="{ active: tab === 'recipes' }" @click="tab = 'recipes'">Recipes</button>
-      <button :class="{ active: tab === 'reference' }" @click="tab = 'reference'">Reference</button>
+      <button v-tip="narrow ? 'Recipes' : undefined" class="tab" :class="{ active: tab === 'recipes' }" :aria-label="narrow ? 'Recipes' : undefined" @click="tab = 'recipes'">
+        <ChefHat :size="14" aria-hidden="true" /><span class="tab-label">Recipes</span>
+      </button>
+      <button v-tip="narrow ? 'Reference' : undefined" class="tab" :class="{ active: tab === 'reference' }" :aria-label="narrow ? 'Reference' : undefined" @click="tab = 'reference'">
+        <Library :size="14" aria-hidden="true" /><span class="tab-label">Reference</span>
+      </button>
       <span class="spacer" />
       <button class="close" aria-label="Close sidebar" @click="emit('close')">✕</button>
     </header>
@@ -156,8 +163,8 @@ const groups = recipeGroups(RECIPES)
               <HighlightedFormat :format="flatFormat(s.doc)" class="preview" />
             </button>
             <span class="saved-actions">
-              <button class="mini" :aria-label="`Rename ${s.name}`" title="Rename" @click="startRename(s)"><Pencil :size="14" aria-hidden="true" /></button>
-              <button class="mini" :aria-label="`Delete ${s.name}`" title="Delete" @click="emit('delete', s)"><Trash :size="14" aria-hidden="true" /></button>
+              <button v-tip="'Rename'" class="mini" :aria-label="`Rename ${s.name}`" @click="startRename(s)"><Pencil :size="14" aria-hidden="true" /></button>
+              <button v-tip="'Delete'" class="mini" :aria-label="`Delete ${s.name}`" @click="emit('delete', s)"><Trash :size="14" aria-hidden="true" /></button>
             </span>
           </template>
         </div>
@@ -242,7 +249,7 @@ const groups = recipeGroups(RECIPES)
 header {
   display: flex;
   gap: 4px;
-  padding: 8px;
+  padding: 8px 20px 8px 8px;
   border-bottom: 1px solid var(--border);
 }
 header button {
@@ -252,6 +259,32 @@ header button {
 header button.active {
   border-color: var(--teal);
   color: var(--bright);
+}
+/* The tabs: an icon before the word (box-tab style); on phones the icon alone, at least 32 px. */
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  line-height: 1;
+  min-height: 32px;
+}
+.tab svg {
+  flex: none;
+}
+@media (max-width: 640px) {
+  .tab {
+    justify-content: center;
+    min-width: 34px;
+    padding: 0;
+  }
+  .tab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 .spacer {
   flex: 1;
@@ -288,9 +321,11 @@ header button.active {
   position: relative;
   contain: paint;
 }
-.recipe:hover,
-.item:hover {
-  background-color: color-mix(in srgb, rgb(var(--tint-rgb)) 35%, var(--recipe-bg));
+/* (Through .sb-card, so it outranks the card's resting colour in SidebarSection.vue.) */
+.sb-card > .recipe:hover,
+.sb-card > .item:hover,
+.sb-card > .saved-item > .recipe:hover {
+  background-color: color-mix(in srgb, rgb(var(--tint-rgb)) var(--sb-hover-mix), var(--sb-list-bg));
 }
 .recipe:hover,
 .item:hover {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
-import { Copy, Menu, Download, FolderOpen, Link, RotateCcw, Save, Settings, Shuffle, TextWrap } from '@lucide/vue'
+import { BookOpen, BookText, Copy, Menu, Download, FolderOpen, GitFork, Link, RotateCcw, Save, Settings, Shuffle, TextWrap } from '@lucide/vue'
 import { FIELD_MAP, FUNCTION_MAP, lint, parse, splitBlocks, type Finding } from '@/core'
 import { toFormat } from '@/lib/document'
 import { applyDisplay, oneLine } from '@/lib/display'
@@ -22,7 +22,8 @@ import { parseView, type ViewSettings } from '@/lib/view'
 import { addSaved, browserStorage, defaultSaveName, deleteSaved, initialDoc, readLast, savedFormats, undoDelete, updateSaved, writeLast, type SavedFormat } from '@/lib/saved'
 import { parseAction, type PlaygroundAction } from '@/lib/search'
 import { formatDoc } from '@/lib/formatDoc'
-import { NARROW, useMedia } from '@/lib/media'
+import { useMedia } from '@/lib/media'
+import { prefetchTooltip, vTip } from '@/lib/tooltip'
 import IconButton from './components/IconButton.vue'
 import OmniSearch from './components/OmniSearch.vue'
 import AtfEditor from './components/AtfEditor.vue'
@@ -99,8 +100,10 @@ const menuButton = ref<InstanceType<typeof IconButton>>()
 /** Off for the first frames, so a sidebar opened while the page loads (a #ref= link) doesn't slide in on wide screens. */
 const motion = ref(false)
 const scrolled = ref(false)
-const narrow = useMedia(NARROW)
-const TAGLINE = 'Advanced Title Formatting for WACUP & Winamp, live'
+/** Phones: the footer's doc links are icons (named by aria-label and the tooltip). */
+const narrow = useMedia('(max-width: 640px)')
+/** The brand link's tooltip (the tagline used to show beside the title). */
+const TAGLINE = 'atf playground - Advanced Title Formatting for WACUP & Winamp, live'
 const view = ref<ViewSettings>(loadView())
 const editor = ref<InstanceType<typeof AtfEditor>>()
 const toast = ref<{ text: string; action?: { label: string; run: () => void } }>()
@@ -437,6 +440,7 @@ onMounted(() => {
   // the components render at once (and the settings strip's entrance plays on the first open).
   const prefetch = () => {
     for (const c of [SettingsPanel, SongTicker]) void c.__asyncLoader?.()
+    prefetchTooltip()
   }
   if (window.requestIdleCallback) window.requestIdleCallback(prefetch, { timeout: 4000 })
   else setTimeout(prefetch, 2000)
@@ -878,17 +882,16 @@ function hoverRange(range: { start: number; end: number } | null) {
             @click="sidebarOpen ? closeSidebar() : openSidebar()"
           />
           <h1 class="brand-h">
-            <a class="brand" href="./" :title="narrow ? TAGLINE : undefined">
+            <a v-tip="TAGLINE" class="brand" href="./">
               <span class="title">atf<span class="title-rest"> playground</span></span>
-              <span class="tagline">{{ TAGLINE }}</span>
             </a>
           </h1>
         </div>
         <OmniSearch class="top-search" page="playground" :ref-listed="refListed" @action="onSearchAction" />
         <div class="top-right">
-          <IconButton :icon="FolderOpen" label="Open .atf" collapse="header" @click="openAtf" />
-          <IconButton :icon="Download" label="Save .atf" collapse="header" @click="saveAtf" />
-          <IconButton :icon="Link" label="Share link" collapse="header" @click="shareLink" />
+          <IconButton :icon="FolderOpen" label="Open .atf" collapse="header" show-icon :icon-size="14" @click="openAtf" />
+          <IconButton :icon="Download" label="Save .atf" collapse="header" show-icon :icon-size="14" @click="saveAtf" />
+          <IconButton :icon="Link" label="Share link" collapse="header" show-icon :icon-size="14" @click="shareLink" />
           <ThemeToggle />
         </div>
         <input ref="atfInput" type="file" accept=".atf,.txt" hidden @change="onAtfPicked" />
@@ -905,8 +908,8 @@ function hoverRange(range: { start: number; end: number } | null) {
           <button
             ref="gear"
             class="gear"
+            v-tip="'Settings'"
             aria-label="Settings"
-            title="Settings"
             :aria-expanded="settingsOpen"
             aria-controls="settings-panel"
             @click="settingsOpen = !settingsOpen"
@@ -938,7 +941,7 @@ function hoverRange(range: { start: number; end: number } | null) {
           </form>
           <button class="random" @click="randomRecipe"><Shuffle :size="14" aria-hidden="true" class="tab-lead" />random recipe</button>
           <div class="split" role="group" aria-label="Format or reset">
-            <button class="format" aria-label="Format (wrap at top-level boundaries)" title="Format: wrap at top-level boundaries (Shift+Alt+F)" @click="formatEditor">
+            <button v-tip="'Format: wrap at top-level boundaries (Shift+Alt+F)'" class="format" aria-label="Format (wrap at top-level boundaries)" @click="formatEditor">
               <TextWrap :size="16" aria-hidden="true" class="tab-icon" />
               <span class="tab-text">format</span>
             </button>
@@ -947,7 +950,7 @@ function hoverRange(range: { start: number; end: number } | null) {
               class="reset"
               :aria-disabled="atBase"
               :aria-label="`Reset to ${resetBase.label}`"
-              :title="atBase ? `Nothing to reset: this is ${resetBase.label} as loaded` : `Reset to ${resetBase.label} (Ctrl+Z undoes it)`"
+              v-tip="atBase ? `Nothing to reset: this is ${resetBase.label} as loaded` : `Reset to ${resetBase.label} (Ctrl+Z undoes it)`"
               @click="resetEditor"
             >
               <RotateCcw :size="16" aria-hidden="true" class="tab-icon" />
@@ -999,7 +1002,7 @@ function hoverRange(range: { start: number; end: number } | null) {
       </div>
 
       <footer>
-        <span>The checking here is the same as the <a href="https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax" target="_blank" rel="noopener">ATF extension for VS Code</a>.</span> <span><a href="./extension/">Extension docs</a></span> <span><a href="https://github.com/GhostPirateBob/atf-syntax/wiki" target="_blank" rel="noopener">Wiki</a></span> <span><a href="https://github.com/GhostPirateBob/atf-syntax" target="_blank" rel="noopener">Source on GitHub</a></span> <span><a href="./third-party-notices.txt">Third-party notices</a></span> <span>Not affiliated with or endorsed by WACUP or Winamp.</span>
+        <span>The checking here is the same as the <a href="https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax" target="_blank" rel="noopener">ATF extension for VS Code</a>.</span> <span><a v-tip="narrow ? 'Extension docs' : undefined" class="foot-link" href="./extension/" :aria-label="narrow ? 'Extension docs' : undefined"><BookText :size="14" aria-hidden="true" /><span class="foot-text">Extension docs</span></a></span> <span><a v-tip="narrow ? 'Wiki' : undefined" class="foot-link" href="https://github.com/GhostPirateBob/atf-syntax/wiki" target="_blank" rel="noopener" :aria-label="narrow ? 'Wiki' : undefined"><BookOpen :size="14" aria-hidden="true" /><span class="foot-text">Wiki</span></a></span> <span><a v-tip="narrow ? 'Source on GitHub' : undefined" class="foot-link" href="https://github.com/GhostPirateBob/atf-syntax" target="_blank" rel="noopener" :aria-label="narrow ? 'Source on GitHub' : undefined"><GitFork :size="14" aria-hidden="true" /><span class="foot-text">Source on GitHub</span></a></span> <span><a href="./third-party-notices.txt">Third-party notices</a></span> <span>Not affiliated with or endorsed by WACUP or Winamp.</span>
       </footer>
     </div>
 
@@ -1090,7 +1093,7 @@ function hoverRange(range: { start: number; end: number } | null) {
   gap: 6px;
   min-width: 0;
 }
-/* The title with the tagline beside it, on two small lines. */
+/* The title; the tagline is its tooltip. */
 .brand-h {
   margin: 0 0 0 18px;
   font-size: 1rem;
@@ -1137,12 +1140,6 @@ function hoverRange(range: { start: number; end: number } | null) {
   color: var(--blue);
   letter-spacing: 0.02em;
   white-space: nowrap;
-}
-.tagline {
-  max-width: 11rem;
-  font-size: 0.65rem;
-  color: var(--muted);
-  white-space: normal;
 }
 .drawer-backdrop {
   position: fixed;
@@ -1300,6 +1297,11 @@ function hoverRange(range: { start: number; end: number } | null) {
   border-left: 0;
   border-bottom-left-radius: 0;
 }
+/* format | reset: their words aren't underlined, hovered or focused either (the focus ring shows focus). */
+.format,
+.reset {
+  text-decoration: none;
+}
 /* Focus ring above the neighbouring tab. */
 .format:focus-visible,
 .reset:focus-visible {
@@ -1449,6 +1451,32 @@ footer a:focus-visible {
   outline-offset: 2px;
   border-radius: 2px;
 }
+/* The doc links: an icon before the words (box-tab style); on phones the icon alone, 32 px square. */
+.foot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  line-height: 1;
+  vertical-align: middle;
+}
+.foot-link svg {
+  flex: none;
+}
+@media (max-width: 640px) {
+  .foot-link {
+    justify-content: center;
+    min-width: 32px;
+    min-height: 32px;
+  }
+  .foot-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 @media (max-width: 760px) {
   /* The drawer: slides in from the left over a dimmed page (the same slide as the wide sidebar). */
   .side {
@@ -1484,11 +1512,8 @@ footer a:focus-visible {
   .title {
     font-size: 1.15rem;
   }
-  /* "atf" on phones; the tagline moves to the tooltip (the link's title), and screen readers still hear
-     "atf playground" from the visually hidden rest of the title. */
-  .tagline {
-    display: none;
-  }
+  /* "atf" on phones; screen readers still hear "atf playground" from the visually hidden rest of
+     the title. */
   .title-rest {
     position: absolute;
     width: 1px;

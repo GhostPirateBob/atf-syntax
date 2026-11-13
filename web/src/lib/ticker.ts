@@ -4,10 +4,12 @@
  * the timer and draws.
  */
 
+import { frames } from './timing'
+
 /** What follows the title before it starts again: Winamp 2's (and Webamp's) `  ***  `. */
 export const TICKER_SEPARATOR = '  ***  '
-/** One step every 200 ms: Winamp 2's ticker moves one glyph about five times a second. */
-export const TICKER_STEP_MS = 200
+/** One glyph every 20 frames (333 ms), in the owner's 250 to 500 ms range for a readable ticker. */
+export const TICKER_STEP_MS = frames(20)
 /** Longer titles are cut here, so the strip stays a sane size (a canvas has a width limit). */
 export const TICKER_MAX_CHARS = 1024
 
@@ -21,9 +23,6 @@ export interface TickerItem {
 export const tickerChars = (text: string): string[] => Array.from(text).slice(0, TICKER_MAX_CHARS)
 
 export const totalAdvance = (items: readonly TickerItem[]): number => items.reduce((sum, it) => sum + it.advance, 0)
-
-/** Whether text this wide shows whole in `width` px, so it stands still. Half a pixel of slack. */
-export const tickerFits = (items: readonly TickerItem[], width: number): boolean => totalAdvance(items) <= width + 0.5
 
 /**
  * The strip for a loop `unit` (the title then the separator): the unit repeated until it covers

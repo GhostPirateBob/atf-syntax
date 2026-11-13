@@ -1,6 +1,7 @@
 import type { Finding } from '@/core'
 import { docRange, toFormat, type FormatView } from './document'
 import { tokenize } from './tokens'
+import { spaceKind } from './whitespace'
 
 // The format's highlighting as document ranges, shared by the editor (lib/atfEditor.ts) and the
 // static copy shown until the editor has loaded (components/AtfEditor.vue), so both colour a
@@ -98,7 +99,7 @@ export function staticLines(doc: string, opts: { spaces?: boolean; squiggles?: {
     for (const k of here) cuts.add(Math.max(0, k.from - from)).add(Math.min(text.length, k.to - from))
     const trailing = opts.spaces ? text.length - (/\s*$/.exec(text)?.[0].length ?? 0) : text.length
     cuts.add(trailing)
-    for (let i = 0; i < text.length; i++) if (SPECIAL.test(text[i]!) || (opts.spaces && (text[i] === ' ' || text[i] === '\t'))) cuts.add(i).add(i + 1)
+    for (let i = 0; i < text.length; i++) if (SPECIAL.test(text[i]!) || (opts.spaces && spaceKind(text[i]!).kind !== 'text')) cuts.add(i).add(i + 1)
     const points = [...cuts].sort((a, b) => a - b)
     const groups: PieceGroup[] = []
     for (let i = 0; i + 1 < points.length; i++) {
@@ -110,8 +111,9 @@ export function staticLines(doc: string, opts: { spaces?: boolean; squiggles?: {
       const outer = covering.filter((k) => squiggles.includes(k)).map((k) => k.cls).join(' ')
       const cls = covering.filter((k) => !squiggles.includes(k)).map((k) => k.cls)
       if (a >= trailing) cls.push('trailing-space')
-      if (opts.spaces && t === ' ') cls.push('space')
-      else if (opts.spaces && t === '\t') cls.push('tab')
+      const kind = opts.spaces && t.length === 1 ? spaceKind(t).kind : 'text'
+      if (kind === 'space') cls.push('space')
+      else if (kind === 'other') cls.push('space-other')
       else if (t.length === 1 && SPECIAL.test(t)) {
         cls.push('special')
         const code = t.charCodeAt(0)

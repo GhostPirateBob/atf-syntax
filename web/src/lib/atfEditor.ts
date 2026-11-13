@@ -1,5 +1,5 @@
 import { Compartment, EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state'
-import { Decoration, EditorView, ViewPlugin, runScopeHandlers, highlightSpecialChars, highlightTrailingWhitespace, highlightWhitespace, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
+import { Decoration, EditorView, MatchDecorator, ViewPlugin, runScopeHandlers, highlightSpecialChars, highlightTrailingWhitespace, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { history, historyKeymap, isolateHistory, redo, undo } from '@codemirror/commands'
 import { setDiagnostics, type Action, type Diagnostic } from '@codemirror/lint'
 import type { Finding } from '@/core'
@@ -7,6 +7,7 @@ import { docPos, docRange, toFormat, type FormatView } from './document'
 import { EDITOR_LABEL, EDITOR_PLACEHOLDER, findingRange, highlightMarks } from './highlight'
 import { atfKeymap } from './keymap'
 import { NUL_RULE, nulOffsets } from './nulChar'
+import { SPACE_CHARS } from './whitespace'
 import { originField, originHistory, replaceSpec, type Origin } from './docHistory'
 
 function buildHighlights(state: EditorState): DecorationSet {
@@ -23,6 +24,26 @@ const highlighter = ViewPlugin.fromClass(
     }
     update(update: ViewUpdate) {
       if (update.docChanged) this.decorations = buildHighlights(update.state)
+    }
+  },
+  { decorations: (v) => v.decorations },
+)
+
+/**
+ * Show spaces: every space in a span of its own (`cm-space`, a dashed red outline that takes no
+ * room), other space characters (tab, NBSP, …) in amber (`cm-space-other`), as in the preview.
+ */
+const spaceDeco = Decoration.mark({ class: 'cm-space' })
+const otherSpaceDeco = Decoration.mark({ class: 'cm-space-other' })
+const spaceMatcher = new MatchDecorator({ regexp: SPACE_CHARS, decoration: (m) => (m[0] === ' ' ? spaceDeco : otherSpaceDeco) })
+const spaceHighlighter = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
+    constructor(view: EditorView) {
+      this.decorations = spaceMatcher.createDeco(view)
+    }
+    update(update: ViewUpdate) {
+      this.decorations = spaceMatcher.updateDeco(update, this.decorations)
     }
   },
   { decorations: (v) => v.decorations },
@@ -55,6 +76,8 @@ const theme = EditorView.theme(
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': { backgroundColor: 'var(--selection) !important' },
     '.cm-placeholder': { color: 'var(--muted)', fontStyle: 'italic' },
     '.cm-gutters': { backgroundColor: 'transparent', border: 'none' },
+    '.cm-space': { outline: '1px dashed #dc322f', outlineOffset: '-1px' },
+    '.cm-space-other': { outline: '1px dashed var(--warning)', outlineOffset: '-1px' },
     '.cm-tooltip': { backgroundColor: 'var(--panel)', border: '1px solid var(--border)', color: 'var(--text)' },
     '.cm-diagnostic': { fontFamily: 'var(--sans)', padding: '4px 8px' },
     // Squiggles and tooltip markers in the theme's severity colours (exact: they're marks, not
@@ -141,7 +164,7 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
   const formatKey = { key: 'Shift-Alt-f', preventDefault: true, run: () => (options.onFormat?.(), true) }
   // Show spaces switches live: the compartment's content is swapped, the editor stays.
   const spaces = new Compartment()
-  const spaceMarks = (on: boolean): Extension => (on ? [highlightWhitespace(), highlightTrailingWhitespace()] : [])
+  const spaceMarks = (on: boolean): Extension => (on ? [spaceHighlighter, highlightTrailingWhitespace()] : [])
   const extensions: Extension[] = [
     history(),
     originHistory(options.origin ?? null),

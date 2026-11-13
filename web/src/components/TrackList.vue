@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type ComponentPublicInstance } from 'vue'
-import { ClipboardPaste, FileMusic, Folder, Info, ListMusic, RotateCcw } from '@lucide/vue'
+import { ClipboardPaste, FileMusic, FolderSearch, Info, ListMusic, ListRestart } from '@lucide/vue'
 import IconButton from './IconButton.vue'
 import ShownText from './ShownText.vue'
 import { EDITABLE_TAGS, type Track } from '@/lib/tracks'
@@ -231,11 +231,11 @@ function importPasted() {
       <span v-if="reading" class="count reading" role="status">Reading {{ reading.done }} / {{ reading.total }}…</span>
       <span class="spacer" />
       <span class="actions">
-        <IconButton :icon="FileMusic" label="Open files…" title="Open files: a playlist, audio files, or both" @click="fileInput?.click()" />
-        <IconButton :icon="Folder" label="Open folder…" title="Open folder: read the tags of every audio file in a folder" @click="folderInput?.click()" />
-        <IconButton :icon="ClipboardPaste" label="Paste playlist" :aria-expanded="pasting" @click="pasting = !pasting" />
-        <IconButton :icon="ListMusic" label="Save .m3u8" :title="exportTitle" :disabled="source !== 'playlist'" @click="emit('export')" />
-        <IconButton v-if="source !== 'sample'" :icon="RotateCcw" label="Back to samples" @click="emit('samples')" />
+        <IconButton :icon="FileMusic" label="Open files…" show-icon :icon-size="14" title="Open files: a playlist, audio files, or both" @click="fileInput?.click()" />
+        <IconButton :icon="FolderSearch" label="Open folder…" show-icon :icon-size="14" title="Open folder: read the tags of every audio file in a folder" @click="folderInput?.click()" />
+        <IconButton :icon="ClipboardPaste" label="Paste playlist" show-icon :icon-size="14" :aria-expanded="pasting" @click="pasting = !pasting" />
+        <IconButton :icon="ListMusic" label="Save .m3u8" show-icon :icon-size="14" :title="exportTitle" :disabled="source !== 'playlist'" @click="emit('export')" />
+        <IconButton v-if="source !== 'sample'" :icon="ListRestart" label="Back to samples" show-icon :icon-size="14" @click="emit('samples')" />
       </span>
       <input ref="fileInput" type="file" :accept="ACCEPT" multiple hidden @change="onPick" />
       <input ref="folderInput" type="file" webkitdirectory hidden @change="onPick" />

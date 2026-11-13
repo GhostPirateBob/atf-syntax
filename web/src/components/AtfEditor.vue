@@ -357,17 +357,14 @@ defineExpose({
 .squiggle-hint {
   text-decoration-color: var(--dim);
 }
-/* Show spaces: CodeMirror's highlightWhitespace and highlightTrailingWhitespace marks. */
+/* Show spaces: the editor's .cm-space and .cm-space-other marks, and CodeMirror's trailing-space one. */
 .space {
-  background: radial-gradient(circle at 50% 55%, #aaa 20%, transparent 0) no-repeat;
-  background-size: 0.4em;
-  background-position: calc(min(50%, 0px)) center;
+  outline: 1px dashed #dc322f;
+  outline-offset: -1px;
 }
-.tab {
-  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="20"><path stroke="%23888" stroke-width="1" fill="none" d="M1 10H196L190 5M190 15L196 10M197 4L197 16"/></svg>');
-  background-size: auto 100%;
-  background-position: right 90%;
-  background-repeat: no-repeat;
+.space-other {
+  outline: 1px dashed var(--warning);
+  outline-offset: -1px;
 }
 .trailing-space {
   background-color: #ff332255;
