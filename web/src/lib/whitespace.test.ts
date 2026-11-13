@@ -34,10 +34,10 @@ describe('Show spaces', () => {
     expect(SPACE_CLASS.other).toContain('ws-other')
     expect(SPACE_CLASS.text).toBe('')
   })
-  it('is off by default, and older saved settings get it off', () => {
-    expect(DEFAULT_VIEW.spaces).toBe(false)
-    expect(parseView('{"numbers":true}').spaces).toBe(false)
-    expect(parseView('{"spaces":true}').spaces).toBe(true)
-    expect(parseView('{"spaces":"yes"}').spaces).toBe(false)
+  it('is on by default, older saved settings without it get it on, and a saved choice is kept', () => {
+    expect(DEFAULT_VIEW.spaces).toBe(true)
+    expect(parseView('{"numbers":true}').spaces).toBe(true)
+    expect(parseView('{"spaces":false}').spaces).toBe(false)
+    expect(parseView('{"spaces":"yes"}').spaces).toBe(true)
   })
 })

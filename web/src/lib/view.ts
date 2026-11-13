@@ -29,7 +29,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   width: 0,
   numbers: false,
   duration: true,
-  spaces: false,
+  spaces: true,
   dialect: 'wacup',
 }
 
