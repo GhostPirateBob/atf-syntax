@@ -84,12 +84,12 @@ function importPasted() {
 
     <ol class="rows" :style="{ '--row-font': fontCss, '--row-size': `${fontSize}px`, '--row-weight': weight }">
       <li v-for="(t, i) in tracks" :key="t.id" :class="{ selected: i === selected, over: overflow[i] }">
-        <div class="row" @click="emit('select', i)">
-          <span class="out" :class="rows[i]?.state">
+        <div class="row">
+          <button class="out stretched" :class="rows[i]?.state" :aria-pressed="i === selected" :title="rows[i]?.text" @click="emit('select', i)">
             <template v-if="rows[i]?.state === 'freeze'">⚠ would freeze WACUP</template>
             <template v-else-if="rows[i]?.state === 'timeout'">⚠ didn't finish</template>
             <template v-else>{{ rows[i]?.text || ' ' }}</template>
-          </span>
+          </button>
           <button class="edit" :aria-label="`Edit tags of ${rows[i]?.label}`" @click.stop="editing = editing === i ? null : i">tags</button>
         </div>
         <div class="meta">
@@ -158,9 +158,28 @@ h2 {
   padding: 0;
 }
 li {
+  position: relative;
   border-top: 1px solid var(--border);
   padding: 4px 6px;
   border-left: 3px solid transparent;
+  cursor: pointer;
+}
+li:hover {
+  background: rgba(7, 54, 66, 0.25);
+}
+/* Stretched link: the select button's ::after covers the whole row, so a click anywhere selects
+   the track, while keyboard and screen-reader users still get one real button per row. */
+.stretched::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+/* Controls that must stay clickable sit above the stretched area. */
+.edit,
+.editor {
+  position: relative;
+  z-index: 2;
 }
 li.selected {
   border-left-color: var(--gold);
@@ -173,17 +192,32 @@ li.over {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  cursor: pointer;
 }
 .out {
   flex: 1;
+  min-width: 0;
+  display: block;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  cursor: pointer;
   font-family: var(--row-font);
   font-size: var(--row-size);
   font-weight: var(--row-weight);
   color: var(--bright);
   white-space: pre;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.out:hover,
+.out:focus-visible {
+  color: var(--bright);
+}
+.out:focus-visible::after {
+  outline: 2px solid var(--teal);
+  outline-offset: -2px;
 }
 .out.freeze,
 .out.timeout {
