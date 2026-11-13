@@ -7,6 +7,8 @@ Language support for **WACUP / Winamp Advanced Title Formatting** (ATF, a.k.a. *
 [%artist% ▸ ]$if2(%title%,$filepart(%filename%))
 ```
 
+**Try formats live in the [ATF playground](https://ghostpiratebob.me/atf-syntax/)**: type a format and see it render for sample tracks or your own playlist, with the same checking as this extension. Every function, field, rule and setting is on the [extension docs page](https://ghostpiratebob.me/atf-syntax/extension/).
+
 ![A WACUP playlist with titles like Foals ▸ MN/B ▹ My Number, built by an ATF format](https://github.com/GhostPirateBob/atf-syntax/raw/HEAD/images/screenshot2.png)
 
 *The Abbreviated format from [the sample file](#atf-files), running in WACUP's playlist.*
@@ -26,14 +28,14 @@ code --install-extension gpb.atf-syntax
 ## Features
 
 - **Highlighting**: fields, functions (control flow, variables and the rest are coloured separately), `'literals'`, the `%% $$ ''` escapes, `[conditional]` sections and integer arguments. Bare `(` `)` `]` are marked invalid.
-- **WACUP-accurate errors**: the same error codes as WACUP, plus the culprit, e.g. *no balanced ')' for $puts( — unclosed '[' at column 61*. [All error codes](https://github.com/GhostPirateBob/atf-syntax/wiki/Error-Codes).
-- **20 lint rules**: formats that freeze WACUP or crash Winamp 5, unknown and removed functions, names too long for WACUP 1.99.57, argument counts, empty numeric arguments, always-true/always-false `$if` conditions, `$get` before `$puts`, unknown fields, `[…]` with no field. Each rule's severity is configurable. [All rules](https://github.com/GhostPirateBob/atf-syntax/wiki/Lint-Rules).
-- **Hovers and completion**: signatures and docs after `$`, the field list after `%`. They cover the documented functions and the undocumented WACUP extras (`$strbetween`, `$padout`, `$is_stream`, `$leftbracket()`…).
+- **WACUP-accurate errors**: the same error codes as WACUP, plus the culprit, e.g. *no balanced ')' for $puts( — unclosed '[' at column 61*. WACUP shows a syntax error in place of the scope it's in: the whole title at the top level, otherwise just that function argument or `[…]` section. [All error codes](https://github.com/GhostPirateBob/atf-syntax/wiki/Error-Codes).
+- **20 lint rules**: formats that freeze WACUP or crash Winamp 5, unknown and removed functions, names too long for WACUP 1.99.57, argument counts, empty numeric arguments, always-true/always-false `$if` conditions (`$if($strstr(%title%,live),…)` only tests that `%title%` isn't empty), `$get` before `$puts`, unknown fields, `[…]` with no field. Each rule's severity is configurable. [All rules](https://github.com/GhostPirateBob/atf-syntax/wiki/Lint-Rules).
+- **Hovers and completion**: signatures and docs after `$`, the field list after `%`. They cover the documented functions and the undocumented WACUP extras (`$strbetween`, `$padout`, `$is_stream`, `$leftbracket()`…), and say where Winamp 5 differs or crashes.
 - **Lossless formatting**: wraps long formats onto several lines without changing their output. [How it works](https://github.com/GhostPirateBob/atf-syntax/wiki/Formatting).
-- **Copy Format as Single Line**: puts the format at the cursor on the clipboard as one line, ready to paste into WACUP's preferences box.
-- **Two dialects**: WACUP 1.99.x (default) and classic Winamp 5.
+- **Copy Format as Single Line**: puts the format at the cursor on the clipboard as one line, ready to paste into WACUP's preferences box. It warns if the format freezes WACUP, or under the `winamp` dialect, if it crashes or freezes Winamp 5.
+- **Two dialects**: WACUP 1.99.x (default) and classic Winamp 5. [How they differ](https://github.com/GhostPirateBob/atf-syntax/wiki/Winamp-5-vs-WACUP).
 
-**Some formats freeze WACUP**, like an empty search in `$replace` or a negative count in `$tab`. The linter marks these as errors, and [the wiki explains why](https://github.com/GhostPirateBob/atf-syntax/wiki/Formats-That-Freeze-WACUP).
+**Some formats freeze WACUP**, like an empty search in `$replace` or a negative count in `$tab`, and **some crash Winamp 5**, like an empty `$trim()`. The linter marks these as errors, and [the wiki explains why](https://github.com/GhostPirateBob/atf-syntax/wiki/Formats-That-Freeze-WACUP).
 
 ## `.atf` files
 
@@ -94,9 +96,9 @@ To use the language for files with other names:
 
 ## Known limitations
 
-- The linter checks structure, not output. It doesn't evaluate formats, so it can't catch logic errors like a wrong `$left` length.
+- The linter checks structure, not output. It doesn't evaluate formats, so it can't catch logic errors like a wrong `$left` length. To see what a format outputs, try it in the [playground](https://ghostpiratebob.me/atf-syntax/).
 - The `%length%` unit depends on where the format is used (`m:ss` in the WACUP playlist, milliseconds in Winamp 5 and WACUP's taskbar text).
-- Hovers and argument rules were checked by running formats through the evaluator in WACUP 1.99.43.23234, except `$rating` and `$bitdepth`, which need a running WACUP, so theirs come from reading its code. Notes that cite newer builds (such as `$replace`'s case-insensitive argument, b25266) come from the changelog.
+- Hovers and argument rules were checked by running formats through the real engines: WACUP 1.99.43.23234 and 1.99.57.25464, and Winamp 5.666 and 5.9.2. The exceptions are `$rating` and `$bitdepth`, which need a running WACUP, so theirs come from reading its code. The build where a change first appeared (such as 1.99.55.25130 for `$cut` with a negative n) comes from WACUP's changelog and its developer.
 
 ## More
 

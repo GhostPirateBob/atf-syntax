@@ -6,11 +6,13 @@ The grammar uses standard TextMate scopes, so every theme colours it. To fine-tu
 | `$if` `$if2` `$iflonger` `$decode` `$select`… | `keyword.control.conditional.atf` |
 | `$puts` `$put` `$get` / variable name | `storage.type.variable.atf` / `variable.other.readwrite.atf` |
 | other functions | `entity.name.function.atf` |
-| `%field%` / its `%` | `variable.other.field.atf` / `punctuation.definition.variable.atf` |
+| `%field%` / its `%` | `variable.other.field.atf` / `punctuation.definition.variable.begin.atf`, `….end.atf` |
 | `'literal'` | `string.quoted.single.atf` |
 | `%%` `$$` `''` | `constant.character.escape.atf` |
-| `[` `]` | `keyword.other.conditional.atf` |
+| `[` `]` | `keyword.other.conditional.begin.atf` / `keyword.other.conditional.end.atf` |
 | integer argument | `constant.numeric.integer.atf` |
+| bare `(` `)` `]` | `invalid.illegal.bare-bracket.atf` (`invalid.illegal.bare-paren.atf` for `(` `)` inside a call or `[…]`) |
+| `#` comment line in a `.atf` file | `comment.line.number-sign.atf` |
 
 For example, a gold `$` sigil:
 

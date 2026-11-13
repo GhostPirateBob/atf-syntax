@@ -5,3 +5,5 @@ In ATF every space is output, so there's no indenting or re-spacing. **Format Do
 - in a block with a syntax error, which is left exactly as written.
 
 The tests check that joining the formatted lines gives back the original string, for the sample file and thousands of random formats, and that formatting twice changes nothing. `"atf.format.lineWidth": 0` joins every block onto one line.
+
+The [playground](https://ghostpiratebob.me/atf-syntax/)'s format button uses the same formatter, wrapping to the editor's width (at least 40 characters).
