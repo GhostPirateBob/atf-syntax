@@ -8,7 +8,8 @@ import { EvalRunner, type RunOutcome } from '@/lib/runner'
 import type { EvalResult } from '@core/evaluate'
 import { previewWindow } from '@/lib/playlistWindow'
 import { whenIdle, yieldToMain } from '@/lib/timing'
-import { decodeShare, encodeShare } from '@/lib/share'
+import type { ShareState } from '@/lib/share'
+import { loadShare } from '@/lib/shareLink'
 import { RECIPES, showsDuration, type Recipe } from '@/lib/recipes'
 import type { Origin } from '@/lib/docHistory'
 import { SAMPLE_TRACKS, fieldsFor, lengthOf, newId, trackLabel, tracksFromFiles, tracksFromPlaylist, type Track } from '@/lib/tracks'
@@ -50,8 +51,11 @@ const MAX_PLAYLIST = 5000
 
 const cloneSamples = (): Track[] => SAMPLE_TRACKS.map((t) => ({ ...t, id: newId(), tags: { ...t.tags } }))
 
+/** The share link the page opened on, decoded by main.ts before the first render. */
+const props = defineProps<{ shared?: ShareState }>()
+
 // ---- state -------------------------------------------------------------------------------
-const shared = decodeShare(location.hash)
+const shared = props.shared
 /** A search result picked on the docs page: `#recipe=…`, `#saved=…` or `#ref=fn-…` (never a share link). */
 const startAction = shared ? undefined : parseAction(location.hash)
 const store = browserStorage()
@@ -323,15 +327,24 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutsidePoint
 let hashTimer: ReturnType<typeof setTimeout> | undefined
 /** Set by Reset: while the format and track are still what it left, the address stays the clean page URL. */
 let cleanUrl: { doc: string; selected: number; source: string } | undefined
-function writeHash() {
+/** Bumped by each address write, so one still waiting for lz-string can tell it was overtaken. */
+let hashSeq = 0
+const isDefaultUrl = () => {
   const clean = !!cleanUrl && doc.value === cleanUrl.doc && selected.value === cleanUrl.selected && source.value === cleanUrl.source
-  const isDefault = clean || (doc.value === DEFAULT_DOC && (source.value !== 'sample' || selected.value === DEFAULT_SAMPLE))
-  const url = isDefault ? location.pathname + location.search : encodeShare({ doc: doc.value, sample: source.value === 'sample' ? selected.value : undefined })
-  history.replaceState(null, '', url)
+  return clean || (doc.value === DEFAULT_DOC && (source.value !== 'sample' || selected.value === DEFAULT_SAMPLE))
+}
+/** The address bar follows the format: the clean page URL for the default, else a share link (lz-string loads for the first). */
+async function writeHash() {
+  const seq = ++hashSeq
+  if (isDefaultUrl()) return history.replaceState(null, '', location.pathname + location.search)
+  const { encodeShare } = await loadShare()
+  if (seq !== hashSeq) return
+  history.replaceState(null, '', isDefaultUrl() ? location.pathname + location.search : encodeShare({ doc: doc.value, sample: source.value === 'sample' ? selected.value : undefined }))
 }
 watch([doc, selected, source], () => {
   clearTimeout(hashTimer)
-  hashTimer = setTimeout(writeHash, 300)
+  // A failed lz-string fetch just leaves the address as it was until the next change.
+  hashTimer = setTimeout(() => writeHash().catch(() => {}), 300)
 })
 
 // ---- the sidebar as a drawer on narrow screens --------------------------------------------------
@@ -521,8 +534,14 @@ async function copyFormat() {
 
 async function shareLink() {
   clearTimeout(hashTimer)
-  writeHash()
-  if (location.hash === '') history.replaceState(null, '', encodeShare({ doc: doc.value }))
+  let codec: Awaited<ReturnType<typeof loadShare>>
+  try {
+    codec = await loadShare()
+  } catch {
+    return say("Couldn't make the link: check your connection and try again.")
+  }
+  await writeHash()
+  if (location.hash === '') history.replaceState(null, '', codec.encodeShare({ doc: doc.value }))
   try {
     await navigator.clipboard.writeText(location.href)
     say('Link copied. It holds the format only, never your playlist.')
@@ -558,6 +577,7 @@ function resetEditor() {
   // The address bar goes back to the clean page URL, and stays so until the format or track changes.
   cleanUrl = { doc: base.text, selected: selected.value, source: source.value }
   clearTimeout(hashTimer)
+  hashSeq++
   history.replaceState(null, '', location.pathname + location.search)
   say(`Reset to ${base.label}`, { label: 'Undo', run: () => doc.value === base.text && editor.value?.undo() })
 }

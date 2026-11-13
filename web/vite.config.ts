@@ -26,6 +26,10 @@ export default defineConfig({
     sourcemap: true,
     // Two pages: the playground and the extension's documentation.
     rolldownOptions: {
+      // @lezer/common is only there because @codemirror/commands imports one name from it for
+      // commands the editor doesn't use; it has no side effects but doesn't say so, so without this
+      // its whole module would stay in the editor chunk.
+      treeshake: { moduleSideEffects: [{ test: /[\\/]node_modules[\\/]@lezer[\\/]common[\\/]/, sideEffects: false }] },
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         extension: fileURLToPath(new URL('./extension/index.html', import.meta.url)),

@@ -1,43 +1,17 @@
 import { Compartment, EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state'
-import { Decoration, EditorView, ViewPlugin, highlightSpecialChars, highlightTrailingWhitespace, highlightWhitespace, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap, isolateHistory, redo, undo } from '@codemirror/commands'
+import { Decoration, EditorView, ViewPlugin, runScopeHandlers, highlightSpecialChars, highlightTrailingWhitespace, highlightWhitespace, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
+import { history, historyKeymap, isolateHistory, redo, undo } from '@codemirror/commands'
 import { setDiagnostics, type Action, type Diagnostic } from '@codemirror/lint'
 import type { Finding } from '@/core'
 import { docPos, docRange, toFormat, type FormatView } from './document'
-import { tokenize } from './tokens'
+import { EDITOR_LABEL, EDITOR_PLACEHOLDER, findingRange, highlightMarks } from './highlight'
+import { atfKeymap } from './keymap'
 import { NUL_RULE, nulOffsets } from './nulChar'
 import { originField, originHistory, replaceSpec, type Origin } from './docHistory'
 
-/** Split a format range into document ranges that skip comment lines. */
-function docSegments(view: FormatView, start: number, end: number): { from: number; to: number }[] {
-  const out: { from: number; to: number }[] = []
-  let i = start
-  while (i < end) {
-    let j = i + 1
-    while (j < end && view.map[j] === (view.map[j - 1] ?? 0) + 1) j++
-    const from = view.map[i] ?? 0
-    out.push({ from, to: (view.map[j - 1] ?? from) + 1 })
-    i = j
-  }
-  return out
-}
-
 function buildHighlights(state: EditorState): DecorationSet {
-  const doc = state.doc.toString()
-  const view = toFormat(doc)
-  const marks: { from: number; to: number; cls: string }[] = []
-  for (const token of tokenize(view.format)) {
-    if (token.kind === 'text') continue
-    for (const seg of docSegments(view, token.start, token.end)) marks.push({ ...seg, cls: `tok-${token.kind}` })
-  }
-  let pos = 0
-  for (const line of doc.split('\n')) {
-    if (line.startsWith('#')) marks.push({ from: pos, to: pos + line.length, cls: 'tok-comment' })
-    pos += line.length + 1
-  }
-  marks.sort((a, b) => a.from - b.from || a.to - b.to)
   const builder = new RangeSetBuilder<Decoration>()
-  for (const m of marks) if (m.to > m.from) builder.add(m.from, m.to, Decoration.mark({ class: m.cls }))
+  for (const m of highlightMarks(state.doc.toString())) builder.add(m.from, m.to, Decoration.mark({ class: m.cls }))
   return builder.finish()
 }
 
@@ -129,6 +103,14 @@ export interface AtfEditor {
   charsPerLine(): number
   /** Show spaces (Settings): marks each space and tab, and spaces at the end of a line. */
   setShowSpaces(on: boolean): void
+  // Input buffered by the static copy before the editor loaded (components/AtfEditor.vue), replayed
+  // as the editor would have handled it.
+  /** Selects document positions (clamped to the document). */
+  setSelection(anchor: number, head: number): void
+  /** Types or pastes text over the selection. */
+  typeText(text: string, paste?: boolean): void
+  /** Runs a key through the editor's key bindings (arrows, Backspace, Enter, Ctrl+Z…). */
+  pressKey(init: KeyboardEventInit): boolean
   destroy(): void
 }
 
@@ -163,16 +145,16 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
   const extensions: Extension[] = [
     history(),
     originHistory(options.origin ?? null),
-    keymap.of([formatKey, ...defaultKeymap, ...historyKeymap]),
+    keymap.of([formatKey, ...atfKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
     // Control characters show as a red dot (a NUL is a warning too: see lib/nulChar.ts).
     highlightSpecialChars(),
     spaces.of(spaceMarks(!!options.spaces)),
-    placeholder('Type a title format, e.g. [%artist% - ]%title%'),
+    placeholder(EDITOR_PLACEHOLDER),
     highlighter,
     focusField,
     theme,
-    EditorView.contentAttributes.of({ 'aria-label': 'ATF title format', spellcheck: 'false', autocorrect: 'off', autocapitalize: 'off' }),
+    EditorView.contentAttributes.of({ 'aria-label': EDITOR_LABEL, spellcheck: 'false', autocorrect: 'off', autocapitalize: 'off' }),
     EditorView.updateListener.of((u) => {
       if (u.docChanged) onChange(u.state.doc.toString())
       const origin = u.state.field(originField)
@@ -183,8 +165,8 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
   const formatView = () => toFormat(view.state.doc.toString())
   /** The horizontal padding of a line, in px (read on first use by charsPerLine). */
   let linePadding: number | undefined
-  /** How many findings the editor shows. */
-  let shownFindings = -1
+  /** How many findings the editor shows (none yet: a first, empty set needs no dispatch). */
+  let shownFindings = 0
 
   return {
     view,
@@ -215,12 +197,13 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
       shownFindings = findings.length
       const fv = formatView()
       const len = view.state.doc.length
-      const diagnostics: Diagnostic[] = findings.map((f) => {
-        const r = docRange(fv, f.start, Math.max(f.end, f.start + 1))
-        const from = Math.min(r.from, len)
-        const to = Math.min(Math.max(r.to, from + 1), len)
-        return { from, to, severity: f.severity, message: f.message, source: f.rule, actions: (f.rule as string) === NUL_RULE ? [removeNuls] : undefined }
-      })
+      const diagnostics: Diagnostic[] = findings.map((f) => ({
+        ...findingRange(fv, len, f),
+        severity: f.severity,
+        message: f.message,
+        source: f.rule,
+        actions: (f.rule as string) === NUL_RULE ? [removeNuls] : undefined,
+      }))
       view.dispatch(setDiagnostics(view.state, diagnostics))
     },
     rewrap(next) {
@@ -255,6 +238,14 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
     setShowSpaces(on) {
       view.dispatch({ effects: spaces.reconfigure(spaceMarks(on)) })
     },
+    setSelection(anchor, head) {
+      const len = view.state.doc.length
+      view.dispatch({ selection: { anchor: Math.min(anchor, len), head: Math.min(head, len) } })
+    },
+    typeText(text, paste) {
+      view.dispatch({ ...view.state.replaceSelection(text), scrollIntoView: true, userEvent: paste ? 'input.paste' : 'input.type' })
+    },
+    pressKey: (init) => runScopeHandlers(view, new KeyboardEvent('keydown', init), 'editor'),
     destroy() {
       view.destroy()
     },
