@@ -1,4 +1,4 @@
-// Google Fonts + Google Tag Manager / gtag.js, only for visitors outside the GDPR area (EU-27 +
+// Google Fonts + the Google tag (gtag.js), only for visitors outside the GDPR area (EU-27 +
 // Iceland, Liechtenstein, Norway), looked up from our own endpoint. If the lookup fails or is slow,
 // they load anyway. Analytics never loads on localhost. Shared by every page; loaded as a classic
 // script so it runs before the app.
@@ -17,18 +17,9 @@
     l.href = FONTS
     document.head.appendChild(l)
   }
+  // Google tag (gtag.js), the owner's snippet: GA4 only, no Tag Manager.
   function loadAnalytics() {
     if (local) return
-    ;(function (w, d, s, l, i) {
-      w[l] = w[l] || []
-      w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' })
-      var f = d.getElementsByTagName(s)[0],
-        j = d.createElement(s),
-        dl = l != 'dataLayer' ? '&l=' + l : ''
-      j.async = true
-      j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl
-      f.parentNode.insertBefore(j, f)
-    })(window, document, 'script', 'dataLayer', 'GTM-WGWQGR6T')
     var g = document.createElement('script')
     g.async = true
     g.src = 'https://www.googletagmanager.com/gtag/js?id=G-TWHQ9H3BBQ'
@@ -38,7 +29,7 @@
       window.dataLayer.push(arguments)
     }
     window.gtag('js', new Date())
-    window.gtag('config', 'G-TWHQ9H3BBQ', { cookie_flags: 'max-age=7200;secure;samesite=none' })
+    window.gtag('config', 'G-TWHQ9H3BBQ')
   }
   function decide(country) {
     if (GDPR.indexOf(country) >= 0) return
