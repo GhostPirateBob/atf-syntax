@@ -1,5 +1,15 @@
+/* Motion rule, for every page and component:
+   - Transitions animate only transform and opacity, so they stay on the compositor. Colour and
+     layout changes are instant, FLIP (move with a transform, then ease it back), or overlay fades
+     (a ::before/::after tint whose opacity fades). Never `transition: all`.
+   - State changes (drawer, sidebar, settings, popovers) use CSS transitions, so they reverse
+     smoothly mid-way; keyframes only for one-shot effects. Entrances on insertion use
+     @starting-style. Nothing animates on first load, and nothing runs longer than about 300 ms.
+   - Less motion (prefers-reduced-motion) reduces rather than removes: --motion is 0, which every
+     translate3d()/scale() multiplies by, so slides become short opacity fades. */
 /* Colours from the Solarized Dark Cursive REMIX theme (gpb-solarized-dark). */
 :root {
+  --motion: 1;
   --bg: #010f17;
   --sidebar: #06121c;
   --panel: #021821;
@@ -176,25 +186,6 @@ body {
 
 a {
   color: var(--blue);
-  transition: color 0.12s;
-}
-
-/* Switching theme fades the main surfaces (not every element, which would jank). theme-ready is
-   set after the first paint, so nothing fades in on load. */
-html.theme-ready body,
-html.theme-ready .top,
-html.theme-ready .docs-top,
-html.theme-ready .sidebar,
-html.theme-ready .tracks,
-html.theme-ready .box,
-html.theme-ready .pl,
-html.theme-ready .settings,
-html.theme-ready .toc {
-  transition:
-    background-color 0.2s,
-    color 0.2s,
-    border-color 0.2s,
-    box-shadow 0.15s;
 }
 
 button,
@@ -212,10 +203,6 @@ button {
   border-radius: 4px;
   padding: 4px 10px;
   color: var(--text);
-  transition:
-    background-color 0.12s,
-    color 0.12s,
-    border-color 0.12s;
 }
 
 button:hover,
@@ -328,7 +315,7 @@ code {
   position: fixed;
   bottom: 18px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate3d(-50%, 0, 0);
   background: var(--raised);
   color: var(--bright);
   border: 1px solid var(--teal);
@@ -340,18 +327,20 @@ code {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-.toast-enter-active {
+  contain: layout paint;
+  /* Rises in as it's inserted (@starting-style); leaves with a fade (toast-leave-*). */
   transition:
     opacity 0.2s ease-out,
     transform 0.2s ease-out;
 }
+@starting-style {
+  .toast {
+    opacity: 0;
+    transform: translate3d(-50%, calc(10px * var(--motion)), 0);
+  }
+}
 .toast-leave-active {
   transition: opacity 0.18s ease-in;
-}
-.toast-enter-from {
-  opacity: 0;
-  transform: translate(-50%, 10px);
 }
 .toast-leave-to {
   opacity: 0;
@@ -378,13 +367,16 @@ code {
   font-feature-settings: 'kern' 0, 'liga' 0, 'clig' 0, 'calt' 0;
 }
 
-/* Less motion: every transition and animation is instant. !important so no component rule wins. */
+/* Less motion: no movement, but short fades stay (see the motion rule at the top). Every
+   translate3d()/scale() in a transition multiplies its distance by --motion; the FLIP and the
+   theme cross-fade check the media query in script. */
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion: 0;
+  }
   *,
   *::before,
   *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 }

@@ -30,7 +30,20 @@ const GENERAL: [string, string][] = [
   ['ReplayGain_Peak', 'replaygain_track_peak'],
 ]
 
-const str = (v: unknown) => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '')
+/**
+ * A field value as a trimmed string. ID3v2.4 separates multiple values with NUL; they're joined
+ * with ` / `, as MediaInfo itself shows them (empty parts, e.g. from a trailing NUL, are dropped).
+ */
+const str = (v: unknown) =>
+  typeof v === 'string'
+    ? v
+        .split(/\0+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .join(' / ')
+    : typeof v === 'number'
+      ? String(v)
+      : ''
 
 /** ATF tags for one file's mediainfo output. `filename` is the path to show (mediainfo's own is dropped). */
 export function tagsFromMediaInfo(info: MediaInfoJson, filename: string): Record<string, string> {

@@ -8,6 +8,8 @@ export interface Track {
   tags: Record<string, string>
   /** For playlist imports: the `#EXTINF` title WACUP last wrote (a cache, possibly stale or hand-edited). */
   cachedTitle?: string
+  /** For playlist imports: the path line as written, kept apart from the editable `filename` tag. */
+  path?: string
   source: 'sample' | 'playlist' | 'files' | 'custom'
 }
 
@@ -93,7 +95,7 @@ export const SAMPLE_TRACKS: Track[] = [
 export function tracksFromPlaylist(entries: PlaylistEntry[], fileTags: (Record<string, string> | undefined)[] = []): Track[] {
   return entries.map((e, i) => {
     const tags: Record<string, string> = e.lengthSeconds !== undefined ? { length_seconds: String(e.lengthSeconds) } : {}
-    return { id: newId(), source: 'playlist', cachedTitle: e.cachedTitle, tags: { ...tags, ...fileTags[i], filename: e.filename } }
+    return { id: newId(), source: 'playlist', cachedTitle: e.cachedTitle, path: e.filename, tags: { ...tags, ...fileTags[i], filename: e.filename } }
   })
 }
 

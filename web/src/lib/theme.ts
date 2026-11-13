@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 
 export type Theme = 'light' | 'dark'
 
@@ -22,10 +22,19 @@ system.addEventListener('change', (e) => {
   if (!picked) theme.value = e.matches ? 'light' : 'dark'
 })
 
+/**
+ * Switches theme. Where the View Transitions API exists (and motion isn't reduced), the browser
+ * cross-fades snapshots of the old and new page on the compositor; elsewhere it's instant.
+ */
 export function setTheme(t: Theme): void {
   picked = t
-  theme.value = t
-  document.documentElement.dataset.theme = t
+  const apply = () => {
+    theme.value = t
+    document.documentElement.dataset.theme = t
+    return nextTick()
+  }
+  if (document.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) document.startViewTransition(apply)
+  else void apply()
   try {
     localStorage.setItem(KEY, t)
   } catch {

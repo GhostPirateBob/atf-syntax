@@ -1,10 +1,11 @@
 import { EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state'
-import { Decoration, EditorView, ViewPlugin, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
+import { Decoration, EditorView, ViewPlugin, highlightSpecialChars, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirror/commands'
-import { setDiagnostics, type Diagnostic } from '@codemirror/lint'
+import { setDiagnostics, type Action, type Diagnostic } from '@codemirror/lint'
 import type { Finding } from '@/core'
 import { docPos, docRange, toFormat, type FormatView } from './document'
 import { tokenize } from './tokens'
+import { NUL_RULE, nulOffsets } from './nulChar'
 
 /** Split a format range into document ranges that skip comment lines. */
 function docSegments(view: FormatView, start: number, end: number): { from: number; to: number }[] {
@@ -85,6 +86,15 @@ const theme = EditorView.theme(
   { dark: true },
 )
 
+/** The NUL warning's quick fix: deletes every NUL in the document, as one undoable change. */
+const removeNuls: Action = {
+  name: 'Remove NUL characters',
+  apply(view) {
+    const changes = nulOffsets(view.state.doc.toString()).map((i) => ({ from: i, to: i + 1 }))
+    if (changes.length) view.dispatch({ changes, userEvent: 'delete' })
+  },
+}
+
 export interface AtfEditor {
   view: EditorView
   setDoc(doc: string): void
@@ -127,6 +137,8 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
     history(),
     keymap.of([formatKey, ...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
+    // Control characters show as a red dot (a NUL is a warning too: see lib/nulChar.ts).
+    highlightSpecialChars(),
     placeholder('Type a title format, e.g. [%artist% - ]%title%'),
     highlighter,
     focusField,
@@ -166,7 +178,7 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
         const r = docRange(fv, f.start, Math.max(f.end, f.start + 1))
         const from = Math.min(r.from, len)
         const to = Math.min(Math.max(r.to, from + 1), len)
-        return { from, to, severity: f.severity, message: f.message, source: f.rule }
+        return { from, to, severity: f.severity, message: f.message, source: f.rule, actions: (f.rule as string) === NUL_RULE ? [removeNuls] : undefined }
       })
       view.dispatch(setDiagnostics(view.state, diagnostics))
     },

@@ -59,7 +59,7 @@ export const RECIPES: Recipe[] = [
     format: '[%artist% - ]$iflonger(%title%,30,$left(%title%,29)…,%title%)',
   },
   {
-    title: "Bob's song ticker",
+    title: 'Custom songticker',
     group: 'Custom recipes',
     note: 'The WACUP default with the length on the end, so the ticker shows how long the song is.',
     format: '[%artist% - ]$if2(%title%,$filepart(%filename%)) %length%',

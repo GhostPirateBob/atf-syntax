@@ -8,7 +8,8 @@ import { EvalRunner, type RunOutcome } from '@/lib/runner'
 import { decodeShare, encodeShare } from '@/lib/share'
 import { RECIPES, nextActiveRecipe, showsDuration, type FormatSource, type Recipe } from '@/lib/recipes'
 import { SAMPLE_TRACKS, durationOf, fieldsFor, newId, trackLabel, tracksFromFiles, tracksFromPlaylist, type Track } from '@/lib/tracks'
-import type { PlaylistEntry } from '@/lib/m3u'
+import { nulFindings } from '@/lib/nulChar'
+import { exportTitle, toM3u8, type ExportRow, type PlaylistEntry } from '@/lib/m3u'
 import { matchPlaylistFiles } from '@/lib/audio'
 import type { Picked, PickedFile } from '@/lib/pick'
 import { parseView, type ViewSettings } from '@/lib/view'
@@ -62,6 +63,8 @@ const sidebarOpen = ref(window.innerWidth >= 1100)
 const isDrawer = useMedia('(max-width: 760px)')
 const drawerOpen = computed(() => isDrawer.value && sidebarOpen.value)
 const menuButton = ref<InstanceType<typeof IconButton>>()
+/** Off for the first frames, so a sidebar opened while the page loads (a #ref= link) doesn't slide in on wide screens. */
+const motion = ref(false)
 const scrolled = ref(false)
 const narrow = useMedia(NARROW)
 const TAGLINE = 'Advanced Title Formatting for WACUP & Winamp, live'
@@ -95,7 +98,10 @@ watch(
 // ---- format, parse, lint ------------------------------------------------------------------
 const format = computed(() => toFormat(doc.value).format)
 const parsed = computed(() => parse(format.value))
-const findings = computed<Finding[]>(() => (format.value ? lint(format.value, { dialect: view.value.dialect, result: parsed.value }) : []))
+// Plus a warning at a NUL, which the extension's linter doesn't know about (see lib/nulChar.ts).
+const findings = computed<Finding[]>(() =>
+  format.value ? [...nulFindings(format.value), ...lint(format.value, { dialect: view.value.dialect, result: parsed.value })].sort((a, b) => a.start - b.start) : [],
+)
 
 // ---- evaluation in a worker -------------------------------------------------------------------
 const runner = new EvalRunner(1000)
@@ -200,10 +206,17 @@ watch([doc, selected, source], () => {
 
 // ---- the sidebar as a drawer on narrow screens --------------------------------------------------
 const sidebarEl = () => sidebar.value?.$el as HTMLElement | undefined
+/** Closes the sidebar (drawer or column); focus goes to the menu button that reopens it. */
 function closeSidebar() {
-  const inside = !!sidebarEl()?.contains(document.activeElement)
   sidebarOpen.value = false
-  if (isDrawer.value || inside) void nextTick(() => (menuButton.value?.$el as HTMLElement | undefined)?.focus())
+  void nextTick(() => (menuButton.value?.$el as HTMLElement | undefined)?.focus())
+}
+/** Opens it from the menu button, with focus on its first tab. */
+async function openSidebar() {
+  sidebarOpen.value = true
+  await nextTick()
+  const el = sidebarEl()
+  if (el && !el.contains(document.activeElement)) el.querySelector<HTMLElement>('header button')?.focus()
 }
 /** A recipe or snippet picked in the drawer closes it, so the result is in view. */
 function closeDrawer() {
@@ -238,8 +251,46 @@ watch(drawerOpen, async (open) => {
   const el = sidebarEl()
   if (el && !el.contains(document.activeElement)) el.querySelector<HTMLElement>('header button')?.focus()
 })
+// ---- the sidebar as a column on wide screens ----------------------------------------------------
+// Only the fixed sidebar moves (its transform); the main column is never transformed. The page's
+// 340 px left padding switches with no transition: on at once when the sidebar opens (it slides
+// into the space), off once it has slid away (so the content doesn't jump under a sidebar that is
+// still on screen). 300 ms is the fallback if transitionend never comes.
+/** Wide screens: whether the page leaves room for the sidebar. */
+const spaced = ref(sidebarOpen.value)
+let cancelUnspace: (() => void) | undefined
+watch(sidebarOpen, (open) => {
+  cancelUnspace?.()
+  if (open) {
+    spaced.value = true
+    return
+  }
+  const el = sidebarEl()
+  if (!el || isDrawer.value || !motion.value) {
+    spaced.value = false
+    return
+  }
+  // The slide (transform), or with less motion the fade (opacity).
+  const onEnd = (e: TransitionEvent) => {
+    if (e.target === el && (e.propertyName === 'transform' || e.propertyName === 'opacity')) finish()
+  }
+  const timer = setTimeout(() => finish(), 300)
+  const stop = () => {
+    clearTimeout(timer)
+    el.removeEventListener('transitionend', onEnd)
+    cancelUnspace = undefined
+  }
+  const finish = () => {
+    stop()
+    spaced.value = false
+  }
+  el.addEventListener('transitionend', onEnd)
+  cancelUnspace = stop
+})
+
 const onScroll = () => (scrolled.value = window.scrollY > 4)
 onMounted(() => {
+  requestAnimationFrame(() => requestAnimationFrame(() => (motion.value = true)))
   document.addEventListener('keydown', onDrawerKey)
   window.addEventListener('scroll', onScroll, { passive: true })
   onScroll()
@@ -277,10 +328,10 @@ onMounted(() => {
 
 // ---- actions -------------------------------------------------------------------------------
 let toastTimer: ReturnType<typeof setTimeout> | undefined
-function say(message: string, action?: { label: string; run: () => void }) {
+function say(message: string, action?: { label: string; run: () => void }, ms = action ? 7000 : 3200) {
   toast.value = { text: message, action }
   clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => (toast.value = undefined), action ? 7000 : 3200)
+  toastTimer = setTimeout(() => (toast.value = undefined), ms)
 }
 function runToastAction() {
   const run = toast.value?.action?.run
@@ -526,6 +577,42 @@ function saveAtf() {
   URL.revokeObjectURL(a.href)
 }
 
+/**
+ * The playlist as `winamp.m3u8`, with the rendered titles in its `#EXTINF` lines, so it can stand
+ * in for WACUP's own until WACUP re-reads each track's tags. Untagged tracks get a confirm first.
+ */
+function saveM3u8(confirmed = false) {
+  if (source.value !== 'playlist') return
+  const untagged = tracks.value.length - tagged.value
+  if (untagged > 0 && !confirmed) {
+    const one = untagged === 1
+    return say(`${plural(untagged, 'track')} ${one ? 'has' : 'have'} no tags, so ${one ? 'its title is a file name' : 'their titles are file names'}. Drop ${one ? 'its audio file' : 'their audio files'} first for real titles.`, {
+      label: 'Save anyway',
+      run: () => saveM3u8(true),
+    })
+  }
+  const list: ExportRow[] = tracks.value.map((t, i) => {
+    const r = rows.value[i]
+    return { filename: t.path ?? t.tags.filename ?? '', lengthSeconds: t.tags.length_seconds, text: r?.text ?? '', state: r?.state ?? 'pending', cachedTitle: t.cachedTitle }
+  })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([toM3u8(list)], { type: 'audio/x-mpegurl' }))
+  a.download = 'winamp.m3u8'
+  a.click()
+  URL.revokeObjectURL(a.href)
+  const reasons = list.map((r) => exportTitle(r).reason)
+  const blocked = reasons.filter((r) => r === 'blocked').length
+  const empty = reasons.filter((r) => r === 'empty').length
+  const keep = (n: number) => (n === 1 ? 'it keeps its' : 'they keep their')
+  const unsure = rows.value.some((r) => r.unsure && (r.state === 'ok' || r.state === 'error'))
+  const notes = [
+    blocked ? `${plural(blocked, 'track')} had no title to write (it would freeze WACUP, is too heavy, or is still rendering), so ${keep(blocked)} playlist title or file name.` : '',
+    empty ? `${plural(empty, 'track')} rendered as an empty title, so ${keep(empty)} playlist title or file name.` : '',
+    unsure ? "Some titles contain ? where the playground couldn't confirm WACUP's output." : '',
+  ].filter(Boolean)
+  say(['Saved winamp.m3u8. Close WACUP before you swap it in.', ...notes].join(' '), undefined, notes.length ? 9000 : 4500)
+}
+
 function pickRange(range: { start: number; end: number }) {
   editor.value?.select(range.start, range.end)
 }
@@ -535,25 +622,21 @@ function hoverRange(range: { start: number; end: number } | null) {
 </script>
 
 <template>
-  <div class="app" :class="{ 'with-sidebar': sidebarOpen }">
-    <Transition name="drawer">
-      <SideBar
-        v-if="sidebarOpen"
-        ref="sidebar"
-        class="side"
-        :role="isDrawer ? 'dialog' : undefined"
-        :aria-modal="isDrawer ? 'true' : undefined"
-        aria-label="Recipes and reference"
-        @insert="editor?.insert($event), closeDrawer()"
-        @load="loadRecipe($event), closeDrawer()"
-        @load-saved="loadSaved($event), closeDrawer()"
-        @delete="removeSaved"
-        @close="closeSidebar"
-      />
-    </Transition>
-    <Transition name="fade">
-      <div v-if="drawerOpen" class="drawer-backdrop" aria-hidden="true" @click="closeSidebar" />
-    </Transition>
+  <div class="app" :class="{ 'with-sidebar': spaced, still: !motion }">
+    <SideBar
+      ref="sidebar"
+      class="side"
+      :class="{ open: sidebarOpen }"
+      :role="isDrawer ? 'dialog' : undefined"
+      :aria-modal="isDrawer ? 'true' : undefined"
+      aria-label="Recipes and reference"
+      @insert="editor?.insert($event), closeDrawer()"
+      @load="loadRecipe($event), closeDrawer()"
+      @load-saved="loadSaved($event), closeDrawer()"
+      @delete="removeSaved"
+      @close="closeSidebar"
+    />
+    <div v-if="isDrawer" class="drawer-backdrop" :class="{ on: drawerOpen }" aria-hidden="true" @click="closeSidebar" />
 
     <div class="main">
       <header class="top" :class="{ scrolled }">
@@ -565,7 +648,7 @@ function hoverRange(range: { start: number; end: number } | null) {
             label="Recipes & reference"
             collapse="always"
             :aria-expanded="sidebarOpen"
-            @click="sidebarOpen ? closeSidebar() : (sidebarOpen = true)"
+            @click="sidebarOpen ? closeSidebar() : openSidebar()"
           />
           <h1 class="brand-h">
             <a class="brand" href="./" :aria-label="`atf playground: ${TAGLINE}`" :title="narrow ? TAGLINE : undefined">
@@ -669,6 +752,7 @@ function hoverRange(range: { start: number; end: number } | null) {
           @set-tag="setTag"
           @open="openPicked"
           @samples="useSamples"
+          @export="saveM3u8()"
         />
       </section>
 
@@ -694,18 +778,48 @@ function hoverRange(range: { start: number; end: number } | null) {
   grid-template-columns: 1fr;
   min-height: 100vh;
 }
-.app.with-sidebar {
-  grid-template-columns: minmax(280px, 340px) 1fr;
-}
 .side {
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 340px;
+  z-index: 16;
+  contain: layout paint;
+  will-change: transform;
+  /* Closed: off to the left (with less motion: faded out), then hidden so it can't take focus. */
+  transform: translate3d(calc(-100% * var(--motion)), 0, 0);
+  opacity: var(--motion);
+  visibility: hidden;
+  /* 250 ms easeOutQuad both ways; hidden once it has slid away. */
+  transition:
+    transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    opacity 0.12s ease-out,
+    visibility 0s linear 0.25s;
+}
+.side.open {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+  visibility: visible;
+  transition:
+    transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    opacity 0.12s ease-out,
+    visibility 0s;
+}
+/* Nothing slides while the page loads (a #ref= link can open the sidebar then). */
+.app.still .side,
+.app.still .drawer-backdrop {
+  transition: none;
 }
 .main {
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+/* Wide screens: the sidebar sits in a 340 px gap the page leaves, switched with no transition (see
+   `spaced`); only the sidebar itself moves. */
+@media (min-width: 761px) {
+  .app.with-sidebar {
+    padding-left: 340px;
+  }
 }
 /* One row, stuck to the top: title, search in the middle, file actions. */
 .top {
@@ -791,6 +905,18 @@ function hoverRange(range: { start: number; end: number } | null) {
   inset: 0;
   z-index: 19;
   background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    visibility 0s linear 0.25s;
+}
+.drawer-backdrop.on {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    visibility 0s;
 }
 .hero {
   max-width: 960px;
@@ -823,11 +949,35 @@ function hoverRange(range: { start: number; end: number } | null) {
 .random,
 .format {
   position: absolute;
+  isolation: isolate;
   background: var(--tab-bg);
   border-color: var(--teal);
   color: var(--tab-fg);
   text-align: center;
   align-items: center;
+}
+/* The hover tint is an overlay under the label that fades in (opacity only): 15 % teal over the
+   tab, the same colour as mixing it in. */
+.gear::before,
+.random::before,
+.format::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--teal) 15%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.gear:hover::before,
+.gear:focus-visible::before,
+.random:hover::before,
+.random:focus-visible::before,
+.format:hover::before,
+.format:focus-visible::before {
+  opacity: 1;
 }
 .gear:hover,
 .gear:focus-visible,
@@ -835,7 +985,6 @@ function hoverRange(range: { start: number; end: number } | null) {
 .random:focus-visible,
 .format:hover,
 .format:focus-visible {
-  background: color-mix(in srgb, var(--tab-bg) 85%, var(--teal));
   color: var(--tab-fg);
 }
 /* Each tab leaves out the border on the side it shares with the box, so it looks attached. */
@@ -851,7 +1000,7 @@ function hoverRange(range: { start: number; end: number } | null) {
   border-radius: 4px 4px 0 0;
 }
 .gear svg {
-  transition: transform 0.2s;
+  transition: transform calc(0.2s * var(--motion));
 }
 .gear[aria-expanded='true'] svg {
   transform: rotate(45deg);
@@ -916,6 +1065,11 @@ function hoverRange(range: { start: number; end: number } | null) {
   right: 12px;
   top: calc(100% - 22px);
   z-index: 30;
+  /* Opens out of the save button, above its right end. */
+  transform-origin: top right;
+  transition:
+    opacity 0.14s ease-out,
+    transform 0.14s ease-out;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -928,6 +1082,12 @@ function hoverRange(range: { start: number; end: number } | null) {
   box-shadow: 0 8px 24px var(--shadow);
   text-align: left;
   font-size: 0.88rem;
+}
+@starting-style {
+  .save-pop {
+    opacity: 0;
+    transform: translate3d(0, calc(-6px * var(--motion)), 0) scale(calc(1 - 0.03 * var(--motion)));
+  }
 }
 .save-pop input {
   flex: 1 1 140px;
@@ -976,7 +1136,6 @@ footer > span {
 footer a {
   color: var(--muted);
   text-decoration: none;
-  transition: color 0.12s;
 }
 footer a:hover,
 footer a:focus-visible {
@@ -989,36 +1148,11 @@ footer a:focus-visible {
   border-radius: 2px;
 }
 @media (max-width: 760px) {
-  .app.with-sidebar {
-    grid-template-columns: 1fr;
-  }
-  /* The drawer: slides in from the left over a dimmed page. */
+  /* The drawer: slides in from the left over a dimmed page (the same slide as the wide sidebar). */
   .side {
-    position: fixed;
-    inset: 0 auto 0 0;
     width: min(340px, 88vw);
     z-index: 20;
     box-shadow: 4px 0 24px var(--shadow);
-  }
-  .drawer-enter-active {
-    transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .drawer-leave-active {
-    transition: transform 0.2s ease-in;
-  }
-  .drawer-enter-from,
-  .drawer-leave-to {
-    transform: translateX(-100%);
-  }
-  .fade-enter-active {
-    transition: opacity 0.26s ease-out;
-  }
-  .fade-leave-active {
-    transition: opacity 0.2s ease-in;
-  }
-  .fade-enter-from,
-  .fade-leave-to {
-    opacity: 0;
   }
   .top {
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1028,9 +1162,10 @@ footer a:focus-visible {
     justify-self: end;
   }
 }
-/* The settings strip under the gear: a short fade and drop. */
+/* The settings strip under the gear: a short fade and drop, from the gear (top right). */
 .strip-enter-active,
 .strip-leave-active {
+  transform-origin: top right;
   transition:
     opacity 0.18s ease-out,
     transform 0.18s ease-out;
@@ -1038,7 +1173,7 @@ footer a:focus-visible {
 .strip-enter-from,
 .strip-leave-to {
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translate3d(0, calc(-8px * var(--motion)), 0);
 }
 @media (max-width: 640px) {
   .top {

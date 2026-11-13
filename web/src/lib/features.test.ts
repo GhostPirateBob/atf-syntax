@@ -180,7 +180,7 @@ describe('search: where results go', () => {
     expect(routeFor(doc('wiki', 'Formatting#x', { page: 'Formatting', anchor: 'install-the-extension' }), 'playground').type).toBe('external')
   })
   it('round-trips the action hash, which never clashes with share links', () => {
-    for (const a of [{ kind: 'recipe', title: "Bob's song ticker" }, { kind: 'saved', id: 's1' }, { kind: 'ref', target: 'field-album artist' }] as const) {
+    for (const a of [{ kind: 'recipe', title: "Custom songticker" }, { kind: 'saved', id: 's1' }, { kind: 'ref', target: 'field-album artist' }] as const) {
       const hash = encodeAction(a)
       expect(parseAction(hash)).toEqual(a)
       expect(decodeShare(hash)).toBeUndefined()
@@ -309,7 +309,7 @@ describe('view settings: duration column', () => {
 })
 
 describe('recipes', () => {
-  const TICKERS = new Set(["WACUP's default song ticker", "Bob's song ticker"])
+  const TICKERS = new Set(["WACUP's default song ticker", "Custom songticker"])
   it('leave %length% to the duration column, except the song tickers', () => {
     for (const r of RECIPES) if (!TICKERS.has(r.title)) expect(r.format, r.title).not.toContain('%length%')
     for (const t of TICKERS) expect(RECIPES.some((r) => r.title === t), t).toBe(true)
@@ -321,10 +321,10 @@ describe('recipes', () => {
 })
 
 describe('duration column and song ticker recipes', () => {
-  const ticker = RECIPES.find((r) => r.title === "Bob's song ticker")!
+  const ticker = RECIPES.find((r) => r.title === "Custom songticker")!
   const playlist = RECIPES.find((r) => r.title === 'WACUP default')!
   it('marks exactly the two ticker recipes', () => {
-    expect(RECIPES.filter((r) => r.ticker).map((r) => r.title).sort()).toEqual(["Bob's song ticker", "WACUP's default song ticker"])
+    expect(RECIPES.filter((r) => r.ticker).map((r) => r.title).sort()).toEqual(["Custom songticker", "WACUP's default song ticker"])
   })
   it('hides the column for a ticker recipe, shows it again for a playlist recipe, and keeps it while editing', () => {
     let active: Recipe | undefined

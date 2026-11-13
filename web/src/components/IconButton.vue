@@ -84,6 +84,12 @@ withDefaults(defineProps<{ icon: Component; label: string; title?: string; colla
     padding: 0;
   }
 }
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--text);
+}
 .icon-btn:focus-visible {
   outline: 2px solid var(--teal);
   outline-offset: 1px;

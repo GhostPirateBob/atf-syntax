@@ -368,7 +368,7 @@ kbd {
   position: absolute;
   top: calc(100% + 6px);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate3d(-50%, 0, 0);
   width: min(600px, calc(100vw - 32px));
   max-height: min(70vh, 560px);
   overflow-y: auto;
@@ -379,18 +379,17 @@ kbd {
   z-index: 40;
   text-align: left;
   padding: 4px 0 6px;
+  /* Grows out of the search box above it (top centre) as it's inserted. */
   transform-origin: top center;
-  animation: omni-pop 0.14s ease-out;
+  contain: layout paint;
+  transition:
+    opacity 0.14s ease-out,
+    transform 0.14s ease-out;
 }
-@keyframes omni-pop {
-  from {
+@starting-style {
+  .omni-pop {
     opacity: 0;
-    transform: translateX(-50%) scale(0.98);
-  }
-}
-@keyframes omni-fade {
-  from {
-    opacity: 0;
+    transform: translate3d(-50%, 0, 0) scale(calc(1 - 0.02 * var(--motion)));
   }
 }
 .omni-msg {
@@ -499,7 +498,12 @@ kbd {
     padding: 8px 12px;
     background: var(--sidebar);
     z-index: 61;
-    animation: omni-fade 0.14s ease-out;
+    transition: opacity 0.14s ease-out;
+  }
+  @starting-style {
+    .omni.open .omni-field {
+      opacity: 0;
+    }
   }
   .omni.open .omni-lens {
     left: 21px;
@@ -522,7 +526,7 @@ kbd {
     border: none;
     box-shadow: none;
     background: transparent;
-    animation: none;
+    transition: none;
   }
   .omni.open .omni-backdrop {
     display: block;
@@ -530,7 +534,12 @@ kbd {
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
     z-index: 60;
-    animation: omni-fade 0.14s ease-out;
+    transition: opacity 0.14s ease-out;
+  }
+  @starting-style {
+    .omni.open .omni-backdrop {
+      opacity: 0;
+    }
   }
 }
 </style>

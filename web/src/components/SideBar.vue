@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, shallowRef } from 'vue'
 import { Pencil, Trash } from '@lucide/vue'
 import { FIELDS, FUNCTIONS } from '@/core'
 import { inlineMarkdown } from '@/lib/markdown'
 import { RECIPES, type Recipe } from '@/lib/recipes'
-import { renameSaved, savedFormats, updateSaved, type SavedFormat } from '@/lib/saved'
+import { browserStorage, renameSaved, savedFormats, updateSaved, type SavedFormat } from '@/lib/saved'
+import { expandSection, isExpanded, readCollapsed, sectionFor, toggleSection, writeCollapsed } from '@/lib/collapsed'
 import { toFormat } from '@/lib/document'
 import { reducedMotion } from '@/lib/media'
 import HighlightedFormat from './HighlightedFormat.vue'
+import SidebarSection from './SidebarSection.vue'
 
 const emit = defineEmits<{ insert: [text: string]; load: [recipe: Recipe]; loadSaved: [saved: SavedFormat]; delete: [saved: SavedFormat]; close: [] }>()
 
@@ -28,6 +30,27 @@ const fields = computed(() => FIELDS.filter((f) => !q.value || f.name.includes(q
 const functions = computed(() =>
   FUNCTIONS.filter((f) => !q.value || f.name.includes(q.value.replace(/^\$/, '')) || f.doc.toLowerCase().includes(q.value)),
 )
+// ---- collapsible sections --------------------------------------------------------------------
+// Keys: recipes:saved, recipes:<group>, reference:syntax|fields|functions. All expanded by default.
+const store = browserStorage()
+const collapsed = shallowRef<ReadonlySet<string>>(readCollapsed(store))
+/** The section just expanded, for ~300 ms, so its items animate in (not on load or tab switches). */
+const entering = ref<string | null>(null)
+let enterTimer: ReturnType<typeof setTimeout> | undefined
+/** While the Reference filter has text, its sections all show, so every match is visible. */
+const filtering = (key: string) => key.startsWith('reference:') && q.value !== ''
+const expanded = (key: string) => isExpanded(collapsed.value, key, filtering(key))
+const sectionId = (key: string) => `sb-${key.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+function toggle(key: string) {
+  if (filtering(key)) return
+  const opening = !expanded(key)
+  collapsed.value = toggleSection(collapsed.value, key)
+  writeCollapsed(store, collapsed.value)
+  clearTimeout(enterTimer)
+  entering.value = opening ? key : null
+  if (opening) enterTimer = setTimeout(() => (entering.value = null), 300)
+}
+
 // ---- saved formats --------------------------------------------------------------------------
 const renaming = ref<string | null>(null)
 const renameText = ref('')
@@ -59,6 +82,12 @@ const root = ref<HTMLElement>()
 async function reveal(which: 'recipes' | 'reference', id: string): Promise<boolean> {
   tab.value = which
   query.value = ''
+  // A target in a collapsed section: expand it (and remember that) before scrolling to it.
+  const key = sectionFor(id, RECIPES)
+  if (key && !expanded(key)) {
+    collapsed.value = expandSection(collapsed.value, key)
+    writeCollapsed(store, collapsed.value)
+  }
   await nextTick()
   const el = root.value?.querySelector<HTMLElement>(`[data-search-id="${CSS.escape(id)}"]`)
   if (!el) return false
@@ -89,8 +118,16 @@ const groups = computed(() => {
     </header>
 
     <div v-if="tab === 'recipes'" class="scroll">
-      <section v-if="savedFormats.length" class="saved" aria-labelledby="saved-heading">
-        <h3 id="saved-heading">Saved</h3>
+      <SidebarSection
+        v-if="savedFormats.length"
+        :id="sectionId('recipes:saved')"
+        class="saved"
+        title="Saved"
+        :count="savedFormats.length"
+        :expanded="expanded('recipes:saved')"
+        :entering="entering === 'recipes:saved'"
+        @toggle="toggle('recipes:saved')"
+      >
         <p class="saved-note muted">Saved in this browser only.</p>
         <div v-for="s in savedFormats" :key="s.id" class="saved-item" :data-search-id="`saved:${s.id}`">
           <form v-if="renaming === s.id" class="rename" @submit.prevent="finishRename(s)" @keydown.esc.stop.prevent="cancelRename(s)">
@@ -109,42 +146,68 @@ const groups = computed(() => {
             </span>
           </template>
         </div>
-      </section>
-      <section v-for="[group, recipes] in groups" :key="group">
-        <h3>{{ group }}</h3>
+      </SidebarSection>
+      <SidebarSection
+        v-for="[group, recipes] in groups"
+        :id="sectionId(`recipes:${group}`)"
+        :key="group"
+        :title="group"
+        :count="recipes.length"
+        :expanded="expanded(`recipes:${group}`)"
+        :entering="entering === `recipes:${group}`"
+        @toggle="toggle(`recipes:${group}`)"
+      >
         <button v-for="r in recipes" :key="r.title" class="recipe" :data-search-id="`recipe:${r.title}`" @click="emit('load', r)">
           <strong>{{ r.title }}</strong>
           <span class="note">{{ r.note }}</span>
           <HighlightedFormat :format="r.format" class="preview" />
         </button>
-      </section>
+      </SidebarSection>
     </div>
 
     <div v-else class="scroll">
       <input v-model="query" type="search" placeholder="Search fields and functions…" class="search" />
-      <section v-if="!q">
-        <h3>Syntax</h3>
+      <SidebarSection
+        v-if="!q"
+        :id="sectionId('reference:syntax')"
+        title="Syntax"
+        :expanded="expanded('reference:syntax')"
+        :entering="entering === 'reference:syntax'"
+        @toggle="toggle('reference:syntax')"
+      >
         <dl>
           <template v-for="s in SYNTAX" :key="s.code">
             <dt><HighlightedFormat :format="s.code" /></dt>
             <dd v-html="inlineMarkdown(s.doc)" />
           </template>
         </dl>
-      </section>
-      <section>
-        <h3>Fields <span class="muted">({{ fields.length }})</span></h3>
+      </SidebarSection>
+      <SidebarSection
+        :id="sectionId('reference:fields')"
+        title="Fields"
+        :count="fields.length"
+        :expanded="expanded('reference:fields')"
+        :entering="entering === 'reference:fields'"
+        @toggle="toggle('reference:fields')"
+      >
         <button v-for="f in fields" :key="f.name" class="item" :data-search-id="`field-${f.name}`" :title="`Insert %${f.name}%`" @click="emit('insert', `%${f.name}%`)">
           <span class="name tok-field">%{{ f.name }}%</span>
           <span class="doc" v-html="inlineMarkdown(f.doc)" />
         </button>
-      </section>
-      <section>
-        <h3>Functions <span class="muted">({{ functions.length }})</span></h3>
+      </SidebarSection>
+      <SidebarSection
+        :id="sectionId('reference:functions')"
+        title="Functions"
+        :count="functions.length"
+        :expanded="expanded('reference:functions')"
+        :entering="entering === 'reference:functions'"
+        @toggle="toggle('reference:functions')"
+      >
         <button v-for="f in functions" :key="f.name" class="item" :data-search-id="`fn-${f.name}`" :title="`Insert $${f.name}(`" @click="emit('insert', `$${f.name}(`)">
           <span class="name"><span class="tok-fn">${{ f.name }}</span><span class="sig">{{ f.sig }}</span></span>
           <span class="doc" v-html="inlineMarkdown(f.doc)" />
         </button>
-      </section>
+      </SidebarSection>
     </div>
   </aside>
 </template>
@@ -180,17 +243,6 @@ header button.active {
   padding: 10px 12px 24px;
   flex: 1;
 }
-/* The list starts right at its first heading. */
-.scroll > section:first-child > h3 {
-  margin-top: 4px;
-}
-h3 {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--dim);
-  margin: 16px 0 6px;
-}
 .recipe,
 .item {
   display: flex;
@@ -210,10 +262,30 @@ h3 {
 .saved-item + .saved-item {
   border-top: 1px solid var(--border);
 }
+/* The hover tint is an overlay under the text that fades in (opacity only). */
+.recipe,
+.item {
+  position: relative;
+  isolation: isolate;
+}
+.recipe::before,
+.item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(var(--tint-rgb), 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.recipe:hover::before,
+.item:hover::before {
+  opacity: 1;
+}
 .recipe:hover,
 .item:hover {
   border-top-color: var(--border);
-  background: rgba(var(--tint-rgb), 0.35);
 }
 .recipe strong {
   color: var(--bright);
@@ -229,6 +301,7 @@ h3 {
 }
 .search {
   width: 100%;
+  margin-bottom: 10px;
 }
 dl {
   margin: 0;
@@ -254,7 +327,8 @@ dd {
 }
 .saved-note {
   font-size: 0.78rem;
-  margin: -4px 0 6px;
+  margin: 0 0 4px;
+  padding: 0 8px;
 }
 .saved-item {
   position: relative;
@@ -300,27 +374,25 @@ header button:focus-visible {
   outline: 2px solid var(--teal);
   outline-offset: -2px;
 }
-/* A brief outline and tint on the entry the search jumped to, fading out over about a second. */
+/* A brief outline and tint on the entry the search jumped to: an overlay whose opacity fades out
+   over about a second (a one-shot pulse, so a keyframe animation). The class comes off at 1.6 s. */
 .flash {
+  position: relative;
+}
+.flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px var(--gold);
+  background: rgba(190, 146, 8, 0.18);
+  opacity: 0;
+  pointer-events: none;
   animation: flash 1.1s ease-out;
 }
 @keyframes flash {
-  0% {
-    outline: 2px solid var(--gold);
-    outline-offset: -2px;
-    background: rgba(190, 146, 8, 0.18);
-  }
-  100% {
-    outline: 2px solid transparent;
-    outline-offset: -2px;
-    background: transparent;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .flash {
-    animation: none;
-    outline: 2px solid var(--gold);
-    outline-offset: -2px;
+  from {
+    opacity: 1;
   }
 }
 </style>

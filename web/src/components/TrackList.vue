@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, type ComponentPublicInstance } from 'vue'
-import { ClipboardPaste, FileMusic, Folder, Info, RotateCcw } from '@lucide/vue'
+import { ClipboardPaste, FileMusic, Folder, Info, ListMusic, RotateCcw } from '@lucide/vue'
 import IconButton from './IconButton.vue'
 import { EDITABLE_TAGS, type Track } from '@/lib/tracks'
 import { parseM3u } from '@/lib/m3u'
@@ -37,6 +37,7 @@ const emit = defineEmits<{
   setTag: [index: number, key: string, value: string]
   open: [picked: Picked]
   samples: []
+  export: []
 }>()
 
 const editing = ref<number | null>(null)
@@ -46,6 +47,13 @@ const dragging = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const folderInput = ref<HTMLInputElement>()
 const ACCEPT = [...PLAYLIST_EXTENSIONS, ...AUDIO_EXTENSIONS].map((e) => `.${e}`).join(',')
+
+/** The Save .m3u8 tooltip: why it's off, or the one thing to know before using the file. */
+const exportTitle = computed(() =>
+  props.source === 'playlist'
+    ? "Save as winamp.m3u8 with these titles. Close WACUP before replacing its winamp.m3u8 (in WACUP's Settings folder): it rewrites the file on exit. WACUP shows these titles until it re-reads a track's tags, e.g. when it plays."
+    : 'Load a playlist first: files you pick only give the page their names, not full paths.',
+)
 
 const sourceLabel = computed(() => {
   if (props.source === 'files') return 'from your files'
@@ -101,6 +109,7 @@ function importPasted() {
         <IconButton :icon="FileMusic" label="Open files…" title="Open files: a playlist, audio files, or both" @click="fileInput?.click()" />
         <IconButton :icon="Folder" label="Open folder…" title="Open folder: read the tags of every audio file in a folder" @click="folderInput?.click()" />
         <IconButton :icon="ClipboardPaste" label="Paste playlist" :aria-expanded="pasting" @click="pasting = !pasting" />
+        <IconButton :icon="ListMusic" label="Save .m3u8" :title="exportTitle" :disabled="source !== 'playlist'" @click="emit('export')" />
         <IconButton v-if="source !== 'sample'" :icon="RotateCcw" label="Back to samples" @click="emit('samples')" />
       </span>
       <input ref="fileInput" type="file" :accept="ACCEPT" multiple hidden @change="onPick" />

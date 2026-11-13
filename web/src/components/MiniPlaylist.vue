@@ -72,7 +72,8 @@ const shown = computed(() => {
 const thumb = computed(() => {
   if (n.value <= 3) return undefined
   const h = Math.max(3 / n.value, 0.12)
-  return { height: `${h * 100}%`, top: `${(props.selected / (n.value - 1)) * (1 - h) * 100}%` }
+  // Moved with a transform (a percentage of its own height), so the step animates on the compositor.
+  return { height: `${h * 100}%`, transform: `translate3d(0, ${((props.selected / (n.value - 1)) * (1 - h) * 100) / h}%, 0)` }
 })
 
 // A step to the next or previous track slides the rows by one, like scrolling a playlist.
@@ -86,7 +87,7 @@ watch(
     if (!dir) return
     const height = currentRow.value?.offsetHeight ?? 0
     for (const row of rowsEl.value.children) {
-      ;(row as HTMLElement).animate([{ transform: `translateY(${dir * height}px)` }, { transform: 'none' }], { duration: 150, easing: 'ease-out' })
+      ;(row as HTMLElement).animate([{ transform: `translate3d(0, ${dir * height}px, 0)` }, { transform: 'translate3d(0, 0, 0)' }], { duration: 150, easing: 'ease-out' })
     }
   },
 )
@@ -250,8 +251,9 @@ function onWheel(e: WheelEvent) {
   position: absolute;
   left: 0;
   right: 0;
+  top: 0;
   border-radius: 2px;
   background: rgba(88, 110, 117, 0.55);
-  transition: top 0.12s;
+  transition: transform calc(0.12s * var(--motion));
 }
 </style>
