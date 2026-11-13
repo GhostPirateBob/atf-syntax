@@ -1,10 +1,6 @@
 # Changelog
 
-## Unreleased
-
-- Playground: page analytics use only the plain Google tag (gtag.js), no Tag Manager.
-- Playground: the page no longer scrolls sideways, and keeps the scrollbar's space so content doesn't shift.
-- The sample-track generator (web/scripts) reads the music folder from `ATF_SAMPLE_MUSIC`.
+Changes to the extension. The web playground has its own changelog: [web/CHANGELOG.md](web/CHANGELOG.md).
 
 ## 0.5.0 — 2026-11-13
 
