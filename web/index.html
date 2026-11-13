@@ -26,6 +26,9 @@
     <link rel="icon" type="image/png" href="./favicon.png" />
     <!-- Browsers that take SVG icons prefer this one: the dark- or light-theme .atf icon to match the browser. -->
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <!-- Installable as an app (public/manifest.webmanifest); iOS takes its home-screen icon from here. -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <!-- The saved light/dark choice, applied before first paint so the page never flashes the other
          theme (inline: one request fewer before first paint). No saved choice: style.css follows the
          system preference. The key is the one in src/lib/theme.ts. -->

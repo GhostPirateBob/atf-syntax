@@ -2,6 +2,7 @@ import { createApp, vaporInteropPlugin } from 'vue'
 import App from './App.vue'
 import { loadEditor } from './lib/editorLoader'
 import { isShareHash, loadShare } from './lib/shareLink'
+import { registerServiceWorker } from './lib/serviceWorker'
 import type { ShareState } from './lib/share'
 import './fonts.css'
 import './style.css'
@@ -22,3 +23,4 @@ function mount(shared?: ShareState) {
 // A share link (#f=…) is read before the first render; only then does lz-string load at startup.
 if (isShareHash(location.hash)) loadShare().then((s) => mount(s.decodeShare(location.hash)), () => mount())
 else mount()
+registerServiceWorker('./sw.js')
