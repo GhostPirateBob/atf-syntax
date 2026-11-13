@@ -673,7 +673,7 @@ function hoverRange(range: { start: number; end: number } | null) {
       </section>
 
       <footer>
-        <span>The checking here is the same as the <a href="https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax" target="_blank" rel="noopener">ATF extension for VS Code</a>.</span> <span><a href="./extension/">Extension docs</a></span> <span><a href="https://github.com/GhostPirateBob/atf-syntax" target="_blank" rel="noopener">Source on GitHub</a></span> <span><a href="./third-party-notices.txt">Third-party notices</a></span> <span>Not affiliated with or endorsed by WACUP or Winamp.</span>
+        <span>The checking here is the same as the <a href="https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax" target="_blank" rel="noopener">ATF extension for VS Code</a>.</span> <span><a href="./extension/">Extension docs</a></span> <span><a href="https://github.com/GhostPirateBob/atf-syntax/wiki" target="_blank" rel="noopener">Wiki</a></span> <span><a href="https://github.com/GhostPirateBob/atf-syntax" target="_blank" rel="noopener">Source on GitHub</a></span> <span><a href="./third-party-notices.txt">Third-party notices</a></span> <span>Not affiliated with or endorsed by WACUP or Winamp.</span>
       </footer>
     </div>
 

@@ -237,7 +237,7 @@ const WIKI = `${REPO}/wiki`
       </section>
 
       <footer>
-        <span>Generated from the extension's own tables, v{{ version }}.</span> <span><a href="../third-party-notices.txt">Third-party notices</a></span> <span>Not affiliated with or endorsed by WACUP or Winamp.</span>
+        <span>Generated from the extension's own tables, v{{ version }}.</span> <span><a href="https://github.com/GhostPirateBob/atf-syntax/wiki" target="_blank" rel="noopener">Wiki</a></span> <span><a href="../third-party-notices.txt">Third-party notices</a></span> <span>Not affiliated with or endorsed by WACUP or Winamp.</span>
       </footer>
     </main>
   </div>
