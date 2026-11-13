@@ -168,6 +168,12 @@
 
 html {
   scroll-padding-top: calc(var(--header-h) + 12px);
+  /* Reserve the scrollbar's space so content doesn't shift sideways when a page starts scrolling
+     or the drawer locks scrolling. */
+  scrollbar-gutter: stable;
+  /* Safety net: never scroll sideways. On the root this applies to the viewport, so the sticky
+     header keeps working. (Layout bugs are still caught by the overflow probes in testing.) */
+  overflow-x: clip;
 }
 /* While the sidebar drawer is open on a phone. */
 html.scroll-locked {
