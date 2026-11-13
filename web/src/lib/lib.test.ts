@@ -70,6 +70,9 @@ describe('share links', () => {
   it('round-trip the format and sample', () => {
     const doc = "[%artist% - ]$if2(%title%,$filepart(%filename%)) ⇢ ▸ '100%'"
     expect(decodeShare(encodeShare({ doc, sample: 2 }))).toEqual({ doc, sample: 2 })
+    // The first sample isn't the default one, so index 0 must survive the round trip too.
+    expect(decodeShare(encodeShare({ doc, sample: 0 }))).toEqual({ doc, sample: 0 })
+    expect(decodeShare(encodeShare({ doc }))).toEqual({ doc, sample: undefined })
   })
   it('carry only the format and sample index, never playlist data', () => {
     const tracks = tracksFromPlaylist(parseM3u('#EXTINF:10,Secret\nC:\\Users\\Joe\\private.mp3'))

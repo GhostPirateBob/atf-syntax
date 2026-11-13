@@ -12,7 +12,7 @@ export interface ShareState {
 export function encodeShare(state: ShareState): string {
   const params = new URLSearchParams()
   params.set('f', compressToEncodedURIComponent(state.doc))
-  if (state.sample !== undefined && state.sample > 0) params.set('s', String(state.sample))
+  if (state.sample !== undefined && state.sample >= 0) params.set('s', String(state.sample))
   return '#' + params.toString()
 }
 
@@ -22,6 +22,7 @@ export function decodeShare(hash: string): ShareState | undefined {
   if (!f) return undefined
   const doc = decompressFromEncodedURIComponent(f)
   if (doc === null || doc === '') return undefined
-  const s = Number(params.get('s'))
-  return { doc, sample: Number.isInteger(s) && s > 0 ? s : undefined }
+  const raw = params.get('s')
+  const s = raw === null || raw === '' ? NaN : Number(raw)
+  return { doc, sample: Number.isInteger(s) && s >= 0 ? s : undefined }
 }

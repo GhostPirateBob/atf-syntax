@@ -36,7 +36,9 @@ let fileTags: { path: string; tags: Record<string, string> }[] = []
 const tagged = ref(0)
 const reading = ref<{ done: number; total: number } | null>(null)
 let readSeq = 0
-const selected = ref(Math.min(shared?.sample ?? 0, tracks.value.length - 1))
+/** The sample a fresh visit opens on (by title, so reordering the samples doesn't change it). */
+const DEFAULT_SAMPLE = Math.max(0, SAMPLE_TRACKS.findIndex((t) => t.tags.title === 'Oceans'))
+const selected = ref(Math.min(shared?.sample ?? DEFAULT_SAMPLE, tracks.value.length - 1))
 const sidebarOpen = ref(window.innerWidth >= 1100)
 const view = ref<ViewSettings>(loadView())
 const editor = ref<InstanceType<typeof AtfEditor>>()
@@ -105,13 +107,17 @@ const rows = computed<Row[]>(() =>
     if (!r) return { ...base, text: '', state: 'pending' }
     if (r.freeze) return { ...base, text: '', state: 'freeze', unsure: r.unsure.length > 0 }
     if (r.tooHeavy) return { ...base, text: '', state: 'heavy' }
-    if (r.error) return { ...base, text: r.text, state: 'error' }
-    return { ...base, text: applyDisplay(r.text, view.value), state: 'ok', unsure: r.unsure.length > 0 }
+    if (r.error) return { ...base, text: oneLine(r.text), state: 'error' }
+    return { ...base, text: oneLine(applyDisplay(r.text, view.value)), state: 'ok', unsure: r.unsure.length > 0 }
   }),
 )
 
+/** Titles are shown on one line, as in a playlist: line breaks (e.g. from $crlf()) are removed. */
+const oneLine = (s: string) => s.replace(/[\r\n]+/g, '')
+
 const current = computed(() => (outcome.value?.kind === 'ok' ? outcome.value.results[selected.value] : undefined))
 const nextIndex = computed(() => (tracks.value.length > 1 ? (selected.value + 1) % tracks.value.length : -1))
+const prevIndex = computed(() => (tracks.value.length > 1 ? (selected.value - 1 + tracks.value.length) % tracks.value.length : -1))
 const unsureFns = computed(() => {
   if (outcome.value?.kind !== 'ok') return []
   return [...new Set(outcome.value.results.flatMap((r) => r.unsure))].sort()
@@ -121,7 +127,7 @@ const heroFont = computed(() => ({ fontFamily: fontStack(view.value.font), fontW
 // ---- share link (format + sample only, never playlist data) --------------------------------------------
 let hashTimer: ReturnType<typeof setTimeout> | undefined
 function writeHash() {
-  const isDefault = doc.value === DEFAULT_DOC && (source.value !== 'sample' || selected.value === 0)
+  const isDefault = doc.value === DEFAULT_DOC && (source.value !== 'sample' || selected.value === DEFAULT_SAMPLE)
   const url = isDefault ? location.pathname + location.search : encodeShare({ doc: doc.value, sample: source.value === 'sample' ? selected.value : undefined })
   history.replaceState(null, '', url)
 }
@@ -273,7 +279,7 @@ function useSamples() {
   tagged.value = 0
   tracks.value = cloneSamples()
   source.value = 'sample'
-  selected.value = 0
+  selected.value = DEFAULT_SAMPLE
 }
 function setTag(index: number, key: string, value: string) {
   const t = tracks.value[index]
@@ -365,12 +371,11 @@ function hoverRange(range: { start: number; end: number } | null) {
             <p class="sub error-note">There's a syntax error, so WACUP shows an error message in place of the broken part (the whole title, if it's at the top level). Details below.</p>
           </template>
           <template v-else>
-            <p class="quote">{{ rows[selected]?.text ?? '' }}</p>
-            <p v-if="nextIndex >= 0" class="sub">
-              <a href="#" @click.prevent="selected = nextIndex">next</a>
-              <span class="muted"> track </span>
-              <span class="next">{{ rows[nextIndex]?.text }}</span>
-            </p>
+            <div class="wheel">
+              <button v-if="prevIndex >= 0" class="wheel-item prev" :title="`Previous track: ${rows[prevIndex]?.label}`" @click="selected = prevIndex">{{ rows[prevIndex]?.text || ' ' }}</button>
+              <p class="quote">{{ rows[selected]?.text ?? '' }}</p>
+              <button v-if="nextIndex >= 0" class="wheel-item next" :title="`Next track: ${rows[nextIndex]?.label}`" @click="selected = nextIndex">{{ rows[nextIndex]?.text || ' ' }}</button>
+            </div>
           </template>
         </section>
 
@@ -485,8 +490,9 @@ function hoverRange(range: { start: number; end: number } | null) {
   font-size: clamp(1.3rem, 3.2vw, 2.1rem);
   color: var(--bright);
   margin: 0;
+  /* pre-wrap keeps runs of spaces as WACUP draws them; overflow-wrap only breaks a word too long for the line. */
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .quote.warn {
   color: var(--warning);
@@ -502,9 +508,41 @@ function hoverRange(range: { start: number; end: number } | null) {
 .sub a {
   color: var(--text);
 }
-.next {
+/* Previous and next tracks above and below, like a picker wheel with only a slight tilt. */
+.wheel {
+  /* A long viewing distance: the rows tilt back without the keystone skew a short one gives wide text. */
+  perspective: 2000px;
+}
+.wheel-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font: inherit;
+  font-size: clamp(1rem, 2.3vw, 1.45rem);
+  color: var(--dim);
+  opacity: 0.75;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: color 0.15s, opacity 0.15s;
+}
+.wheel-item:hover,
+.wheel-item:focus-visible {
   color: var(--text);
-  white-space: pre-wrap;
+  opacity: 1;
+}
+.wheel-item.prev {
+  transform: rotateX(20deg);
+  transform-origin: center bottom;
+  margin-bottom: 4px;
+}
+.wheel-item.next {
+  transform: rotateX(-20deg);
+  transform-origin: center top;
+  margin-top: 4px;
 }
 .box-wrap {
   position: relative;
@@ -549,8 +587,8 @@ function hoverRange(range: { start: number; end: number } | null) {
 .unsure-note {
   max-width: 820px;
   margin: 10px auto 0;
-  font-size: 0.88rem;
-  color: var(--warning);
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 .unsure-note code {
   margin: 0 3px;
