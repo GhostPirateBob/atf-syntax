@@ -1,0 +1,216 @@
+[
+ {
+  "filename": "D:\\Music\\Alfie Templeman\\Happiness in Liquid Form\\02 Alfie Templeman - Things I Thought Were Mine.mp3",
+  "media": {
+   "track": [
+    {
+     "@type": "General",
+     "AudioCount": "1",
+     "ImageCount": "1",
+     "FileExtension": "mp3",
+     "Format": "MPEG Audio",
+     "FileSize": "7857840",
+     "Duration": "193.202",
+     "OverallBitRate_Mode": "CBR",
+     "OverallBitRate": "320000",
+     "StreamSize": "126960",
+     "Title": "Things I Thought Were Mine",
+     "Album": "Happiness in Liquid Form",
+     "Album_Performer": "Alfie Templeman",
+     "Album_Performer_Sort": "Templeman, Alfie",
+     "Part_Position": "1",
+     "Part_Position_Total": "1",
+     "Track": "Things I Thought Were Mine",
+     "Track_Position": "0172",
+     "Performer": "Alfie Templeman",
+     "Performer_Sort": "Templeman, Alfie",
+     "Publisher": "Chess Club Records",
+     "Original_Released_Date": "2020-07-17",
+     "Recorded_Date": "2020-07-17",
+     "Encoded_Library": "Lavc61.8.",
+     "ISRC": "GBKPL2005448",
+     "Cover": "Yes",
+     "Cover_Description": "iTunes",
+     "Cover_Type": "Cover",
+     "Cover_Mime": "image/jpeg"
+    },
+    {
+     "@type": "Audio",
+     "Format": "MPEG Audio",
+     "Format_Version": "1",
+     "Format_Profile": "Layer 3",
+     "Format_Settings_Mode": "Joint stereo",
+     "Duration": "193.202",
+     "Source_Duration": "193.272",
+     "BitRate_Mode": "CBR",
+     "BitRate": "320000",
+     "Channels": "2",
+     "SamplesPerFrame": "1152",
+     "SamplingRate": "48000",
+     "SamplingCount": "9273680",
+     "FrameRate": "41.667",
+     "FrameCount": "8052",
+     "Compression_Mode": "Lossy",
+     "StreamSize": "7729920",
+     "Encoded_Library": "Lavc61.8."
+    }
+   ]
+  }
+ },
+ {
+  "filename": "D:\\Music\\JAY-Z\\Magna Carta... Holy Grail\\05 JAY-Z feat. Frank Ocean - Oceans.mp3",
+  "media": {
+   "track": [
+    {
+     "@type": "General",
+     "AudioCount": "1",
+     "ImageCount": "1",
+     "FileExtension": "mp3",
+     "Format": "MPEG Audio",
+     "FileSize": "9607306",
+     "Duration": "238.056",
+     "OverallBitRate_Mode": "CBR",
+     "OverallBitRate": "320000",
+     "StreamSize": "85066",
+     "Title": "Oceans",
+     "Album": "Magna Carta... Holy Grail",
+     "Album_Performer": "JAY-Z",
+     "Album_Performer_Sort": "Jay-Z",
+     "Part_Position": "1",
+     "Part_Position_Total": "1",
+     "Track": "Oceans",
+     "Track_Position": "0683",
+     "Performer": "JAY-Z feat. Frank Ocean",
+     "Performer_Sort": "Jay-Z feat. Ocean, Frank",
+     "Publisher": "Roc Nation",
+     "Original_Released_Date": "2013-07-08",
+     "Recorded_Date": "2013-07-08",
+     "ISRC": "QMJMT1300029",
+     "Cover": "Yes",
+     "Cover_Type": "Cover",
+     "Cover_Mime": "image/jpeg"
+    },
+    {
+     "@type": "Audio",
+     "Format": "MPEG Audio",
+     "Format_Version": "1",
+     "Format_Profile": "Layer 3",
+     "Duration": "238.056",
+     "BitRate_Mode": "CBR",
+     "BitRate": "320000",
+     "Channels": "2",
+     "SamplesPerFrame": "1152",
+     "SamplingRate": "48000",
+     "SamplingCount": "11426688",
+     "FrameRate": "41.667",
+     "FrameCount": "9919",
+     "Compression_Mode": "Lossy",
+     "StreamSize": "9522368"
+    }
+   ]
+  }
+ },
+ {
+  "filename": "D:\\Music\\The Notorious B.I.G_\\Ready to Die\\10 Juicy.mp3",
+  "media": {
+   "track": [
+    {
+     "@type": "General",
+     "AudioCount": "1",
+     "ImageCount": "1",
+     "FileExtension": "mp3",
+     "Format": "MPEG Audio",
+     "FileSize": "8216067",
+     "Duration": "302.667",
+     "OverallBitRate_Mode": "VBR",
+     "OverallBitRate": "216157",
+     "StreamSize": "36611",
+     "Title": "Juicy",
+     "Album": "Ready to Die",
+     "Album_Performer": "The Notorious B.I.G.",
+     "Album_Performer_Sort": "Notorious B.I.G., The",
+     "Part_Position": "1",
+     "Part_Position_Total": "1",
+     "Track": "Juicy",
+     "Track_Position": "1457",
+     "Performer": "The Notorious B.I.G.",
+     "Performer_Sort": "Notorious B.I.G., The",
+     "Publisher": "Bad Boy Records",
+     "Original_Released_Date": "1994-09-13",
+     "Recorded_Date": "1994-09-13",
+     "Encoded_Library": "LAME3.90.",
+     "ISRC": "USBB40000359",
+     "Cover": "Yes",
+     "Cover_Type": "Cover",
+     "Cover_Mime": "image/jpeg"
+    },
+    {
+     "@type": "Audio",
+     "Format": "MPEG Audio",
+     "Format_Version": "1",
+     "Format_Profile": "Layer 3",
+     "Format_Settings_Mode": "Joint stereo",
+     "Format_Settings_ModeExtension": "MS Stereo",
+     "Duration": "302.667",
+     "Source_Duration": "302.733",
+     "BitRate_Mode": "VBR",
+     "BitRate": "216157",
+     "BitRate_Minimum": "128000",
+     "Channels": "2",
+     "SamplesPerFrame": "1152",
+     "SamplingRate": "44100",
+     "SamplingCount": "13347600",
+     "FrameRate": "38.281",
+     "FrameCount": "11588",
+     "Compression_Mode": "Lossy",
+     "StreamSize": "8179039",
+     "Encoded_Library": "LAME3.90.",
+     "Encoded_Library_Settings": "-m j -V 2 -q 2 --lowpass 19 --vbr-old -b 128"
+    }
+   ]
+  }
+ },
+ {
+  "filename": "D:\\Music\\ZZ_LOOSE\\Kaptein Frosk (music video in description)-291000340.mp3",
+  "media": {
+   "track": [
+    {
+     "@type": "General",
+     "AudioCount": "1",
+     "FileExtension": "mp3",
+     "Format": "MPEG Audio",
+     "FileSize": "4074065",
+     "Duration": "101.590",
+     "OverallBitRate_Mode": "CBR",
+     "OverallBitRate": "320000",
+     "StreamSize": "8368",
+     "Title": "Kaptein Frosk (music video in description)-291000340",
+     "Track": "Kaptein Frosk (music video in description)-291000340",
+     "Encoded_Library": "Lavc61.8.",
+     "Comment": "b"
+    },
+    {
+     "@type": "Audio",
+     "Format": "MPEG Audio",
+     "Format_Version": "1",
+     "Format_Profile": "Layer 3",
+     "Format_Settings_Mode": "Joint stereo",
+     "Format_Settings_ModeExtension": "MS Stereo",
+     "Duration": "101.590",
+     "Source_Duration": "101.642",
+     "BitRate_Mode": "CBR",
+     "BitRate": "320000",
+     "Channels": "2",
+     "SamplesPerFrame": "1152",
+     "SamplingRate": "44100",
+     "SamplingCount": "4480128",
+     "FrameRate": "38.281",
+     "FrameCount": "3890",
+     "Compression_Mode": "Lossy",
+     "StreamSize": "4064653",
+     "Encoded_Library": "Lavc61.8."
+    }
+   ]
+  }
+ }
+]

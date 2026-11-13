@@ -1,3 +1,5 @@
+import SAMPLE_MEDIAINFO from './sample-mediainfo.json'
+import { tagsFromMediaInfo, type MediaInfoJson } from './mediainfo'
 import { formatLength, type PlaylistEntry } from './m3u'
 
 /** A track the format is rendered for. `tags` holds what a tag editor would show; fields are derived from it. */
@@ -10,7 +12,10 @@ export interface Track {
 }
 
 /** The tag rows shown in the track editor, in a tag-editor-like order. */
-export const EDITABLE_TAGS = ['artist', 'title', 'album', 'albumartist', 'tracknumber', 'disc', 'year', 'genre', 'filename', 'length_seconds', 'rating'] as const
+export const EDITABLE_TAGS = [
+  'artist', 'title', 'album', 'albumartist', 'tracknumber', 'disc', 'year', 'genre', 'composer', 'publisher', 'comment',
+  'isrc', 'bitrate', 'samplerate', 'vbr', 'encoder', 'filename', 'length_seconds', 'rating',
+] as const
 
 /**
  * Field values the evaluator sees, keyed by lower-case field name. Adds the fields WACUP derives:
@@ -50,39 +55,23 @@ const sample = (tags: Record<string, string>): Track => ({ id: newId(), tags, so
 
 /**
  * Built-in tracks: tidy tags, patchy tags, and none at all, so recipes can show their fallbacks.
- * The tags are what mediainfo reads from real files, quirks included (track numbers like `0172`
- * from a downloader, full release dates, a title still carrying its download ID, no artist).
- * Dogs has no file behind it; it's the hand-made "complete tags" case.
+ * Four are real files' tags as mediainfo reads them (sample-mediainfo.json), quirks included:
+ * downloader track numbers like `0172`, full release dates, a title still carrying its download
+ * ID, a track with no artist. Dogs is the hand-made "complete tags" case; the last has no tags.
  */
+const [alfie, oceans, juicy, frosk] = (SAMPLE_MEDIAINFO as { filename: string; media: MediaInfoJson['media'] }[]).map((e) =>
+  sample(tagsFromMediaInfo({ media: e.media }, e.filename)),
+)
 export const SAMPLE_TRACKS: Track[] = [
-  sample({
-    artist: 'Alfie Templeman', title: 'Things I Thought Were Mine', album: 'Happiness in Liquid Form', albumartist: 'Alfie Templeman',
-    tracknumber: '0172', disc: '1', year: '2020-07-17', length_seconds: '193',
-    bitrate: '320', samplerate: '48000', vbr: '0', encoder: 'Lavc61.8.',
-    filename: 'D:\\Music\\Alfie Templeman\\Happiness in Liquid Form\\02 Alfie Templeman - Things I Thought Were Mine.mp3',
-  }),
-  sample({
-    artist: 'JAY-Z feat. Frank Ocean', title: 'Oceans', album: 'Magna Carta... Holy Grail', albumartist: 'JAY-Z',
-    tracknumber: '0683', disc: '1', year: '2013-07-08', length_seconds: '238',
-    bitrate: '320', samplerate: '48000', vbr: '0',
-    filename: 'D:\\Music\\JAY-Z\\Magna Carta... Holy Grail\\05 JAY-Z feat. Frank Ocean - Oceans.mp3',
-  }),
+  alfie,
+  oceans,
   sample({
     artist: 'Pink Floyd', title: 'Dogs', album: 'Animals', albumartist: 'Pink Floyd',
     tracknumber: '2', year: '1977', genre: 'Progressive Rock', length_seconds: '1024',
     filename: 'D:\\Music\\Pink Floyd\\Animals\\02 Pink Floyd - Dogs.flac',
   }),
-  sample({
-    artist: 'The Notorious B.I.G.', title: 'Juicy', album: 'Ready to Die', albumartist: 'The Notorious B.I.G.',
-    tracknumber: '1457', disc: '1', year: '1994-09-13', length_seconds: '303',
-    bitrate: '216', samplerate: '44100', vbr: '1', encoder: 'LAME3.90.',
-    filename: 'D:\\Music\\The Notorious B.I.G_\\Ready to Die\\10 Juicy.mp3',
-  }),
-  sample({
-    title: 'Kaptein Frosk (music video in description)-291000340', comment: 'b', length_seconds: '102',
-    bitrate: '320', samplerate: '44100', vbr: '0', encoder: 'Lavc61.8.',
-    filename: 'D:\\Music\\ZZ_LOOSE\\Kaptein Frosk (music video in description)-291000340.mp3',
-  }),
+  juicy,
+  frosk,
   sample({
     filename: 'C:\\Users\\Joe\\Downloads\\artist_-_song_title_(official_audio).mp3', length_seconds: '214',
   }),

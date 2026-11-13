@@ -20,6 +20,7 @@ const emit = defineEmits<{
   setTag: [index: number, key: string, value: string]
   import: [entries: PlaylistEntry[]]
   samples: []
+  numbers: [on: boolean]
 }>()
 
 const editing = ref<number | null>(null)
@@ -70,6 +71,9 @@ function importPasted() {
       <h2>Tracks</h2>
       <span class="muted count">{{ tracks.length }} {{ source === 'playlist' ? 'from your playlist' : 'samples' }}</span>
       <span class="spacer" />
+      <label class="toggle" title="WACUP's &quot;1. &quot; playlist numbers in front of each row">
+        <input type="checkbox" :checked="view.numbers" @change="emit('numbers', ($event.target as HTMLInputElement).checked)" /> Playlist numbers
+      </label>
       <button @click="fileInput?.click()">Open playlist…</button>
       <button @click="pasting = !pasting">Paste playlist</button>
       <button v-if="source === 'playlist'" @click="emit('samples')">Back to samples</button>
@@ -178,6 +182,14 @@ li:hover {
   position: absolute;
   inset: 0;
   z-index: 1;
+}
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
 }
 .num {
   color: var(--muted);

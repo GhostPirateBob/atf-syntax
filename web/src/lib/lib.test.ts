@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { docRange, toFormat } from './document'
 import { tokenize } from './tokens'
+import { tagsFromMediaInfo } from './mediainfo'
+import { SAMPLE_TRACKS } from './tracks'
 import { applyDisplay, DEFAULT_DISPLAY } from './display'
 import { formatLength, parseM3u } from './m3u'
 import { decodeShare, encodeShare } from './share'
@@ -86,5 +88,29 @@ describe('fieldsFor', () => {
     const f = fieldsFor({ id: 'x', source: 'custom', tags: { tracknumber: '2', length_seconds: '193', filename: 'D:\\Music\\A\\B\\02 x.mp3', album: '' } })
     expect(f).toMatchObject({ track: '2', length: '3:13', folder: 'B', fullfolder: 'D:\\Music\\A\\B\\' })
     expect('album' in f).toBe(false)
+  })
+})
+
+describe('mediainfo', () => {
+  it('maps mediainfo JSON to ATF tags', () => {
+    const tags = tagsFromMediaInfo(
+      {
+        media: {
+          track: [
+            { '@type': 'General', Title: 'Juicy', Performer: 'The Notorious B.I.G.', Track_Position: '1457', Recorded_Date: '1994-09-13', Duration: '302.667', OverallBitRate: '216157' },
+            { '@type': 'Audio', BitRate: '216157', BitRate_Mode: 'VBR', SamplingRate: '44100' },
+          ],
+        },
+      },
+      'D:\\Music\\Juicy.mp3',
+    )
+    expect(tags).toEqual({
+      filename: 'D:\\Music\\Juicy.mp3', title: 'Juicy', artist: 'The Notorious B.I.G.', tracknumber: '1457', year: '1994-09-13',
+      length_seconds: '303', bitrate: '216', samplerate: '44100', vbr: '1',
+    })
+  })
+  it('builds the real-file samples from the shipped JSON', () => {
+    expect(SAMPLE_TRACKS[0].tags).toMatchObject({ artist: 'Alfie Templeman', tracknumber: '0172', publisher: 'Chess Club Records', bitrate: '320' })
+    expect(SAMPLE_TRACKS[4].tags.artist).toBeUndefined()
   })
 })

@@ -298,6 +298,7 @@ function hoverRange(range: { start: number; end: number } | null) {
           @set-tag="setTag"
           @import="importPlaylist"
           @samples="useSamples"
+          @numbers="view.numbers = $event"
         />
         <DisplaySettings v-model="view" />
       </section>
