@@ -38,7 +38,7 @@ export const RECIPES: Recipe[] = [
     title: 'Long albums to initials',
     group: 'Good tags',
     note: 'Each part is shortened by its own length, never the whole line\'s, so a column looks the same on every row.',
-    format: '[$abbr(%artist%,20) ▸ ][$abbr(%album%,18) ▹ ]%title%',
+    format: '[$abbr(%artist%,22) ▸ ][$abbr(%album%,25) ▹ ]%title%',
   },
   {
     title: 'Cut long titles',
