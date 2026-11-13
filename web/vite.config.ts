@@ -2,7 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig, runnerImport, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { VAPOR_COMPONENTS } from './vapor.config'
+import { VAPOR_COMPONENTS } from './vapor.config.ts'
 
 const alias = {
   '@': fileURLToPath(new URL('./src', import.meta.url)),
