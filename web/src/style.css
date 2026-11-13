@@ -10,7 +10,10 @@
 /* Colours from the Solarized Dark Cursive REMIX theme (gpb-solarized-dark). */
 :root {
   --motion: 1;
-  --bg: #010f17;
+  /* Small rounded corners: sidebar cards and the like. */
+  --radius-sm: 6px;
+  /* rgb(0 8 12): a shade darker than the theme's #010f17, for a little more contrast on all text. */
+  --bg: #00080c;
   --sidebar: #06121c;
   --panel: #021821;
   --raised: #073642;
@@ -35,26 +38,67 @@
   --orange: #cb4b16;
   --violet: #6c71c4;
 
-  --error: #eb2f06;
-  --warning: #feca57;
-  --info: #0abde3;
+  /* Severity marks (the ✘ ▲ ◆ icons, squiggles, notice borders), the same in both themes: error
+     Solarized red #dc322f (4.37:1 on --bg); info Solarized blue #268bd2 (5.49:1, 4.94 on --panel);
+     warning the midpoint of Solarized yellow and orange, 25 % darker. On dark that needs 77 %
+     (≈ #945208: 3.34:1 on --bg, 3.00 on --panel), as 75 % gives only 2.89 on --panel.
+     Words: error and warning get the least white mixed in that reaches 4.5:1 on every surface
+     severity words sit on, the lightest being the playlist's current row (--raised, #073642): error
+     67 % ≈ #e87674 (4.50:1 there, 6.99:1 on --bg), warning 64 % ≈ #bb9061 (4.50, 6.99). Info words
+     and the "✘ Winamp 5: n errors" verdict use the light theme's darker mixes here too, a deliberate
+     choice below WCAG AA on dark: info ≈ #1c689e (3.39:1 on --bg), verdict ≈ #a52623 (2.79:1). */
+  --error: #dc322f;
+  --warning: color-mix(in srgb, color-mix(in srgb, #b58900 50%, #cb4b16) 77%, black);
+  --info: #268bd2;
+  --error-text: color-mix(in srgb, #dc322f 67%, white);
+  --warning-text: color-mix(in srgb, var(--warning) 64%, white);
+  --info-text: color-mix(in srgb, #268bd2 75%, black);
+  --verdict-bad-text: color-mix(in srgb, #dc322f 75%, black);
 
   /* Surfaces that used to be hard-coded. --tint-rgb is mixed in at various strengths for hover and
      selected rows; --on-accent is text on --teal. */
   --tint-rgb: 7, 54, 66;
   --code-bg: rgba(7, 54, 66, 0.6);
   --input-bg: #051820;
-  --playlist-bg: #000c12;
+  /* Darker than --bg (HSL lightness 0 % vs 2.35 %), so the preview playlist reads as sunk into the
+     page; its border carries the edge (black against --bg is only 1.04:1). */
+  --playlist-bg: #000000;
+  /* The sticky header and the sidebar (column or drawer): Solarized base03 (#002b36) with its HSL
+     lightness lowered to 5.5 % (from 10.6 %), 3.1 points above --bg (2.35 %; 1.10:1) and 2.8 below
+     the lists (8.2 %). --text 6.89:1, --bright 15.04:1, --muted-raised 6.46:1 on it. */
+  --chrome-bg: #00171c;
+  /* The sidebar's lists: Solarized base02 (#073642) 6 points darker in HSL lightness (14.3 % →
+     8.3 %), a step up from the chrome (1.11:1). --bright 13.94:1, --text 6.39:1 on it. --muted
+     (3.17:1) and --dim (3.84:1) are too faint here and on the chrome (3.53, 4.26), so there both
+     become --muted-raised (5.99:1 here, 6.66:1 on the chrome). The usual --border is too close to
+     the list, so its rules use --sb-rule (2.15:1), and its hover tint is base01. The section
+     headings' tint is base02 6 points darker too, at 12 %. */
+  --sb-list-bg: #041f26;
+  --muted-raised: #8c9c9d;
+  --sb-rule: #1d5866;
+  --sb-tint-rgb: 88, 110, 117;
+  --sb-head-tint-rgb: 4, 31, 38;
+  /* Each sidebar card's items rest on this, under the hover tint and the search flash: #001e24 lifted
+     to HSL lightness 11 % (from 7.1 %), 2.7 points above the list (1.19:1), so the card and its
+     rounded corners read as raised. --bright 11.71:1, --text 5.37:1, --muted-raised 5.03:1 on it;
+     hovered (≈ #1f454d, 1.38:1) --text is 3.89:1. */
+  --recipe-bg: #002f38;
+  /* Scrollbars (and the preview playlist's drawn one): a base02 thumb on a base03 track, rounded.
+     That pair is only 1.2:1, so the thumb lights up to base01 under the pointer. */
+  --scroll-track: #002b36;
+  --scroll-thumb: #073642;
+  --scroll-thumb-hover: #586e75;
   --comment: #637b83;
   --on-accent: #eee8d5;
   --shadow: rgba(0, 0, 0, 0.55);
   /* The gear and random-recipe tabs on the editor box. */
   --tab-bg: #093639;
   --tab-fg: #eee8d5;
-  /* "✓ WACUP / Winamp will accept this": the icon in Material green, the text 25 % lighter
-     (9.15:1 on --bg). */
+  /* "✓ WACUP / Winamp will accept this": the icon in Material green; the text darker in both
+     themes, each the darkest mix (in 5 % steps) passing WCAG AA 4.5:1. Here 20 % black, ≈ #3d8c40,
+     4.83:1 on --bg (25 % gives 4.29:1). */
   --accept-icon: #4caf50;
-  --accept-text: color-mix(in srgb, #4caf50 75%, white);
+  --accept-text: color-mix(in srgb, #4caf50 80%, black);
 
   --mono: 'Iosevka Charon Mono', ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Monaco, Consolas,
     'Liberation Mono', 'DejaVu Sans Mono', 'Courier New', Courier, monospace;
@@ -102,20 +146,50 @@
   --orange: #b64314;
   --violet: #5d62aa;
 
-  --error: #c52d2a;
-  --warning: #846400;
-  --info: #1e6da5;
+  /* Severity marks: error #dc322f 4.02:1 and info #268bd2 3.20:1 on #efefef (3.79 and 3.02 on
+     --raised); warning the yellow/orange midpoint 25 % darker, ≈ #904f08, 5.47:1 (5.16).
+     Words, at least 4.5:1 on --raised (#e6e9ea), the darkest surface they sit on: error 90 % with
+     black ≈ #c62d2a (4.79:1 on #efefef); warning as its mark; info 75 % with black ≈ #1c689e
+     (5.18:1, 4.88 on --raised); the "✘ Winamp 5: n errors" verdict 75 % with black ≈ #a52623
+     (6.29:1). */
+  --error: #dc322f;
+  --warning: color-mix(in srgb, color-mix(in srgb, #b58900 50%, #cb4b16) 75%, black);
+  --info: #268bd2;
+  --error-text: color-mix(in srgb, #dc322f 90%, black);
+  --warning-text: var(--warning);
+  --info-text: color-mix(in srgb, #268bd2 75%, black);
+  --verdict-bad-text: color-mix(in srgb, #dc322f 75%, black);
 
   --tint-rgb: 184, 194, 198;
   --code-bg: rgba(147, 161, 161, 0.18);
   --input-bg: #f7f7f7;
   --playlist-bg: #ffffff;
+  /* The sidebar's lists and the chrome, each 6 points lower in HSL lightness than before:
+     lists #e8eaea → #d8dbdb, chrome (header and sidebar) #ffffff → #f0f0f0 (since nudged), section-heading
+     tint 184 194 198 → 167 179 184. On the lists --text is 4.86:1 and --muted-raised 4.70:1
+     (5.75 on the chrome; the old #616a6a gave only 3.99); rules 1.55:1. */
+  --sb-list-bg: #d8dbdb;
+  --muted-raised: #575f5f;
+  --sb-rule: #aab2b3;
+  --sb-tint-rgb: 167, 179, 184;
+  --sb-head-tint-rgb: 167, 179, 184;
+  /* Sidebar cards rest a step lighter than the list (1.20:1): --bright 7.45:1, --text 5.82:1,
+     --muted-raised 5.62:1, rules 1.85:1; hover ≈ #d4d9db (1.22:1, --text 4.76:1). */
+  --recipe-bg: #eceeee;
+  /* Scrollbars: a mid-grey thumb on a pale track, darker under the pointer. */
+  --scroll-track: #e3e6e7;
+  --scroll-thumb: #c5cbcd;
+  --scroll-thumb-hover: #9aa3a6;
+  /* Header and sidebar: HSL lightness 90.6 %, 3.1 points below the page (93.7 %; 1.08:1).
+     --text 5.48:1, --muted-raised 5.29:1 on it. */
+  --chrome-bg: #e7e7e7;
   --comment: #616a6a;
   --on-accent: #fdf6e3;
   --shadow: rgba(60, 70, 75, 0.18);
   --tab-bg: #d5e5e3;
   --tab-fg: #174f4c;
-  /* 30 % darker, not 25 %: 25 % reaches only 4.06:1 on #efefef; 30 % gives 4.55:1. */
+  /* The acceptance text darker in both themes, each the darkest mix (in 5 % steps) passing WCAG AA
+     4.5:1. Here 30 % black, ≈ #357a38, 4.57:1 on #efefef (25 % gives 4.07:1). */
   --accept-icon: #4caf50;
   --accept-text: color-mix(in srgb, #4caf50 70%, black);
 
@@ -151,20 +225,50 @@
     --orange: #b64314;
     --violet: #5d62aa;
 
-    --error: #c52d2a;
-    --warning: #846400;
-    --info: #1e6da5;
+    /* Severity marks: error #dc322f 4.02:1 and info #268bd2 3.20:1 on #efefef (3.79 and 3.02 on
+       --raised); warning the yellow/orange midpoint 25 % darker, ≈ #904f08, 5.47:1 (5.16).
+       Words, at least 4.5:1 on --raised (#e6e9ea), the darkest surface they sit on: error 90 % with
+       black ≈ #c62d2a (4.79:1 on #efefef); warning as its mark; info 75 % with black ≈ #1c689e
+       (5.18:1, 4.88 on --raised); the "✘ Winamp 5: n errors" verdict 75 % with black ≈ #a52623
+       (6.29:1). */
+    --error: #dc322f;
+    --warning: color-mix(in srgb, color-mix(in srgb, #b58900 50%, #cb4b16) 75%, black);
+    --info: #268bd2;
+    --error-text: color-mix(in srgb, #dc322f 90%, black);
+    --warning-text: var(--warning);
+    --info-text: color-mix(in srgb, #268bd2 75%, black);
+    --verdict-bad-text: color-mix(in srgb, #dc322f 75%, black);
 
     --tint-rgb: 184, 194, 198;
     --code-bg: rgba(147, 161, 161, 0.18);
     --input-bg: #f7f7f7;
     --playlist-bg: #ffffff;
+    /* The sidebar's lists and the chrome, each 6 points lower in HSL lightness than before:
+       lists #e8eaea → #d8dbdb, chrome (header and sidebar) #ffffff → #f0f0f0 (since nudged), section-heading
+       tint 184 194 198 → 167 179 184. On the lists --text is 4.86:1 and --muted-raised 4.70:1
+       (5.75 on the chrome; the old #616a6a gave only 3.99); rules 1.55:1. */
+    --sb-list-bg: #d8dbdb;
+    --muted-raised: #575f5f;
+    --sb-rule: #aab2b3;
+    --sb-tint-rgb: 167, 179, 184;
+    --sb-head-tint-rgb: 167, 179, 184;
+    /* Sidebar cards rest a step lighter than the list (1.20:1): --bright 7.45:1, --text 5.82:1,
+       --muted-raised 5.62:1, rules 1.85:1; hover ≈ #d4d9db (1.22:1, --text 4.76:1). */
+    --recipe-bg: #eceeee;
+    /* Scrollbars: a mid-grey thumb on a pale track, darker under the pointer. */
+    --scroll-track: #e3e6e7;
+    --scroll-thumb: #c5cbcd;
+    --scroll-thumb-hover: #9aa3a6;
+    /* Header and sidebar: HSL lightness 90.6 %, 3.1 points below the page (93.7 %; 1.08:1).
+       --text 5.48:1, --muted-raised 5.29:1 on it. */
+    --chrome-bg: #e7e7e7;
     --comment: #616a6a;
     --on-accent: #fdf6e3;
     --shadow: rgba(60, 70, 75, 0.18);
     --tab-bg: #d5e5e3;
     --tab-fg: #174f4c;
-    /* 30 % darker, not 25 %: 25 % reaches only 4.06:1 on #efefef; 30 % gives 4.55:1. */
+    /* The acceptance text darker in both themes, each the darkest mix (in 5 % steps) passing WCAG AA
+       4.5:1. Here 30 % black, ≈ #357a38, 4.57:1 on #efefef (25 % gives 4.07:1). */
     --accept-icon: #4caf50;
     --accept-text: color-mix(in srgb, #4caf50 70%, black);
 
@@ -188,6 +292,37 @@ html {
 /* While the sidebar drawer is open on a phone. */
 html.scroll-locked {
   overflow: hidden;
+}
+
+/* Themed scrollbars everywhere (the page, the sidebar and drawer, the search results, settings): a
+   rounded thumb floating in a rounded track. Chromium and Safari take ::-webkit-scrollbar; Firefox
+   takes scrollbar-color, set only where ::-webkit-scrollbar isn't supported, since Chromium ignores
+   ::-webkit-scrollbar once scrollbar-color is set. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border: 2px solid var(--scroll-track);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background: var(--scroll-thumb-hover);
+}
+::-webkit-scrollbar-corner {
+  background: var(--scroll-track);
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+    scrollbar-width: thin;
+  }
 }
 
 html,
@@ -297,7 +432,7 @@ code {
   color: var(--dim);
 }
 .tok-broken {
-  color: var(--error);
+  color: var(--error-text);
   text-decoration: underline wavy var(--error);
 }
 .tok-comment {
@@ -314,13 +449,32 @@ code {
   border-radius: 2px;
 }
 
+/* Severity words in the -text colours; a .mark (an icon: ✘ ▲ ◆) in the exact colour. Exo has none
+   of these glyphs, so the marks name symbol fonts that do, one face for all three, so they share a
+   size and baseline (and stay text, never emoji). */
+.mark {
+  font-family: 'Segoe UI Symbol', 'Apple Symbols', 'Noto Sans Symbols 2', 'Noto Sans Symbols', 'DejaVu Sans', sans-serif;
+  font-variant-emoji: text;
+}
 .sev-error {
-  color: var(--error);
+  color: var(--error-text);
 }
 .sev-warning {
-  color: var(--warning);
+  color: var(--warning-text);
 }
 .sev-info {
+  color: var(--info-text);
+}
+.sev-error.mark,
+.sev-error > .mark {
+  color: var(--error);
+}
+.sev-warning.mark,
+.sev-warning > .mark {
+  color: var(--warning);
+}
+.sev-info.mark,
+.sev-info > .mark {
   color: var(--info);
 }
 .sev-hint {
@@ -372,6 +526,26 @@ code {
 .toast-action:focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: 1px;
+}
+
+/* Show spaces (Settings): each space in a rendered title gets a dotted box exactly its width. An
+   outline takes no room, so widths, "..." cuts and the duration column don't move. Other space
+   characters (tab, NBSP, …) are dotted in the warning colour, with their name as the tooltip;
+   zero-width ones show as a thin dotted bar. */
+.ws {
+  outline: 1px dotted var(--error);
+  outline-offset: -1px;
+}
+.ws.ws-other {
+  outline-color: var(--warning);
+}
+.ws.ws-zero {
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  vertical-align: text-bottom;
+  outline: 1px dotted var(--warning);
+  outline-offset: 0;
 }
 
 /* Playlist rows draw like WACUP's GDI DrawText: no kerning, ligatures or letter spacing. Set

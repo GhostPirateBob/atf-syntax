@@ -1,5 +1,5 @@
-import { EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state'
-import { Decoration, EditorView, ViewPlugin, highlightSpecialChars, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
+import { Compartment, EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state'
+import { Decoration, EditorView, ViewPlugin, highlightSpecialChars, highlightTrailingWhitespace, highlightWhitespace, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, isolateHistory, redo, undo } from '@codemirror/commands'
 import { setDiagnostics, type Action, type Diagnostic } from '@codemirror/lint'
 import type { Finding } from '@/core'
@@ -83,6 +83,17 @@ const theme = EditorView.theme(
     '.cm-gutters': { backgroundColor: 'transparent', border: 'none' },
     '.cm-tooltip': { backgroundColor: 'var(--panel)', border: '1px solid var(--border)', color: 'var(--text)' },
     '.cm-diagnostic': { fontFamily: 'var(--sans)', padding: '4px 8px' },
+    // Squiggles and tooltip markers in the theme's severity colours (exact: they're marks, not
+    // words), as wavy underlines so the colour can be a CSS variable.
+    '.cm-lintRange': { backgroundImage: 'none', textDecorationLine: 'underline', textDecorationStyle: 'wavy', textDecorationSkipInk: 'none', textUnderlineOffset: '3px' },
+    '.cm-lintRange-error': { textDecorationColor: 'var(--error)' },
+    '.cm-lintRange-warning': { textDecorationColor: 'var(--warning)' },
+    '.cm-lintRange-info': { textDecorationColor: 'var(--info)' },
+    '.cm-lintRange-hint': { textDecorationColor: 'var(--dim)' },
+    '.cm-diagnostic-error': { borderLeftColor: 'var(--error)' },
+    '.cm-diagnostic-warning': { borderLeftColor: 'var(--warning)' },
+    '.cm-diagnostic-info': { borderLeftColor: 'var(--info)' },
+    '.cm-diagnostic-hint': { borderLeftColor: 'var(--dim)' },
   },
   { dark: true },
 )
@@ -116,6 +127,8 @@ export interface AtfEditor {
   rewrap(next: string): void
   /** How many characters fit on one line of the editor. */
   charsPerLine(): number
+  /** Show spaces (Settings): marks each space and tab, and spaces at the end of a line. */
+  setShowSpaces(on: boolean): void
   destroy(): void
 }
 
@@ -138,10 +151,15 @@ export interface EditorOptions {
   origin?: Origin | null
   /** Called when the origin changes: a replacement, or an undo or redo of one. */
   onOrigin?: (origin: Origin | null) => void
+  /** Show spaces at the start (see setShowSpaces). */
+  spaces?: boolean
 }
 
 export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc: string) => void, options: EditorOptions = {}): AtfEditor {
   const formatKey = { key: 'Shift-Alt-f', preventDefault: true, run: () => (options.onFormat?.(), true) }
+  // Show spaces switches live: the compartment's content is swapped, the editor stays.
+  const spaces = new Compartment()
+  const spaceMarks = (on: boolean): Extension => (on ? [highlightWhitespace(), highlightTrailingWhitespace()] : [])
   const extensions: Extension[] = [
     history(),
     originHistory(options.origin ?? null),
@@ -149,6 +167,7 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
     EditorView.lineWrapping,
     // Control characters show as a red dot (a NUL is a warning too: see lib/nulChar.ts).
     highlightSpecialChars(),
+    spaces.of(spaceMarks(!!options.spaces)),
     placeholder('Type a title format, e.g. [%artist% - ]%title%'),
     highlighter,
     focusField,
@@ -221,6 +240,9 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
       const style = line ? getComputedStyle(line) : undefined
       const padding = style ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) : 36
       return Math.floor((view.contentDOM.clientWidth - padding) / view.defaultCharacterWidth)
+    },
+    setShowSpaces(on) {
+      view.dispatch({ effects: spaces.reconfigure(spaceMarks(on)) })
     },
     destroy() {
       view.destroy()

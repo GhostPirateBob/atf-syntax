@@ -6,7 +6,8 @@ import { clampFontSize } from '@/lib/view'
 import { titleFont } from '@/lib/fontStacks'
 import { fitRow, fontsLoaded, useWidth } from '@/lib/rowFit'
 import { NARROW, reducedMotion, useMedia } from '@/lib/media'
-import { PREVIEW_ROWS, previewWindow } from '@/lib/playlistWindow'
+import { PREVIEW_ROWS, ROW_STATE_TEXT, previewWindow } from '@/lib/playlistWindow'
+import ShownText from './ShownText.vue'
 
 /**
  * The hero: a five-row WACUP playlist (two tracks before the selected one, it, two after; fewer
@@ -50,11 +51,6 @@ const rowTitle = (offset: number, index: number) => {
   return `${where}: ${row.label}`
 }
 
-const STATE_TEXT: Partial<Record<Row['state'], string>> = {
-  freeze: '⚠ This would freeze WACUP',
-  heavy: 'Too heavy to preview',
-  timeout: "⚠ Didn't finish",
-}
 const prefix = (index: number) => (props.view.numbers && index >= 0 ? `${index + 1}. ` : '')
 
 const currentRow = ref<HTMLElement>()
@@ -64,7 +60,7 @@ const shown = computed(() => {
   return slots.value.map(({ index }) => {
     const row = props.rows[index]
     if (!row) return { title: '', duration: '' }
-    const special = STATE_TEXT[row.state]
+    const special = ROW_STATE_TEXT[row.state]
     if (special) return { title: special, duration: row.duration }
     return { title: fitRow(row.text, { duration: row.duration, prefix: prefix(index), width: width.value, font: cssFont.value, gap: size.value * 0.4 }), duration: row.duration }
   })
@@ -150,7 +146,7 @@ function onWheel(e: WheelEvent) {
         :title="rowTitle(s.offset, s.index)"
         @click="s.offset !== 0 && emit('select', s.index)"
       >
-        <span class="t"><span v-if="prefix(s.index)" class="num">{{ prefix(s.index) }}</span>{{ shown[k]?.title }}</span>
+        <span class="t"><span v-if="prefix(s.index)" class="num">{{ prefix(s.index) }}</span><ShownText :text="shown[k]?.title ?? ''" :spaces="view.spaces" /></span>
         <span v-if="shown[k]?.duration" class="dur">{{ shown[k]?.duration }}</span>
       </div>
     </div>
@@ -212,10 +208,10 @@ function onWheel(e: WheelEvent) {
 .pl-row.freeze .t,
 .pl-row.heavy .t,
 .pl-row.timeout .t {
-  color: var(--warning);
+  color: var(--warning-text);
 }
 .pl-row.error .t {
-  color: var(--error);
+  color: var(--error-text);
 }
 .pl-row:not(.current).freeze .t,
 .pl-row:not(.current).heavy .t,
@@ -233,7 +229,7 @@ function onWheel(e: WheelEvent) {
   white-space: normal;
 }
 .pl-message.warn {
-  color: var(--warning);
+  color: var(--warning-text);
 }
 .pl-message.muted {
   color: var(--muted);
@@ -244,16 +240,17 @@ function onWheel(e: WheelEvent) {
   bottom: 3px;
   right: 2px;
   width: 4px;
-  border-radius: 2px;
-  background: rgba(88, 110, 117, 0.15);
+  border-radius: 999px;
+  /* A drawn scrollbar (the rows are a window, not a scrolling box), in the real ones' colours. */
+  background: var(--scroll-track);
 }
 .pl-scroll span {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  border-radius: 2px;
-  background: rgba(88, 110, 117, 0.55);
+  border-radius: 999px;
+  background: var(--scroll-thumb);
   transition: transform calc(0.12s * var(--motion));
 }
 </style>

@@ -255,8 +255,11 @@ const WIKI = `${REPO}/wiki`
   gap: 10px;
   min-height: var(--header-h);
   padding: 6px 16px;
-  background: var(--sidebar);
+  background: var(--chrome-bg);
   border-bottom: 1px solid var(--border);
+  /* Secondary text readable on the raised chrome (see --muted-raised in style.css). */
+  --muted: var(--muted-raised);
+  --dim: var(--muted-raised);
 }
 .docs-top.scrolled {
   box-shadow: 0 2px 14px var(--shadow);
@@ -445,13 +448,13 @@ table.rules {
   scroll-margin-top: 12px;
 }
 .sev.error {
-  color: var(--error);
+  color: var(--error-text);
 }
 .sev.warning {
-  color: var(--warning);
+  color: var(--warning-text);
 }
 .sev.info {
-  color: var(--info);
+  color: var(--info-text);
 }
 .sev.hint {
   color: var(--muted);

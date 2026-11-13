@@ -4,14 +4,23 @@
  */
 export interface Recipe {
   title: string
-  group: 'WACUP defaults' | 'Custom recipes' | 'Patchy tags' | 'Only filenames' | 'Showcase'
+  group: RecipeGroup
   note: string
   format: string
   /**
-   * A song ticker format: it ends in %length% itself (the ticker has no duration column), so the
-   * preview leaves out its duration column while this recipe is loaded.
+   * A song ticker format: while it's loaded the preview becomes a song ticker (one scrolling line,
+   * see components/SongTicker.vue). It ends in %length% itself, as the ticker has no duration column.
    */
   ticker?: true
+}
+
+/** The Recipes tab's groups, in the order it shows them. */
+export const RECIPE_GROUPS = ['WACUP defaults', 'Custom recipes', 'Song tickers', 'Patchy tags', 'Only filenames', 'Showcase'] as const
+export type RecipeGroup = (typeof RECIPE_GROUPS)[number]
+
+/** The recipes by group, in RECIPE_GROUPS order (each group's recipes in list order); empty groups left out. */
+export function recipeGroups<R extends { group: RecipeGroup }>(recipes: readonly R[]): [RecipeGroup, R[]][] {
+  return RECIPE_GROUPS.map((g) => [g, recipes.filter((r) => r.group === g)] as [RecipeGroup, R[]]).filter(([, list]) => list.length > 0)
 }
 
 export const RECIPES: Recipe[] = [
@@ -24,15 +33,8 @@ export const RECIPES: Recipe[] = [
   {
     title: 'Taskbar thumbnail',
     group: 'WACUP defaults',
-    note: "gen_win10shell's three-line default, without the three spaces before the rating. $crlf() only adds a line when the next line has something in it.",
-    format: "$if2(%title%,$filepart(%filename%))$if(%artist%,$crlf(),)%artist%[$if(%rating%,$rating(%filename%),)]$if(%album%,$crlf(),)%album%[$if(%year%,' ('%year%')',)]",
-  },
-  {
-    title: "WACUP's default song ticker",
-    group: 'WACUP defaults',
-    note: 'Playlist number, artist (the album for SPC game music), title and length. %playlist_position% is a Taskbar Text field, so this belongs there, not in playlist titles.',
-    format: "%playlist_position%. [$ifstrequal2($fileext(%filename%),SPC,%album%,%artist%) - ]$if2(%title%,$filepart(%filename%)) '('%length%')'",
-    ticker: true,
+    note: "gen_win10shell's taskbar thumbnail format on one line. The original puts title, artist and album on separate lines with $crlf(), which a one-line playlist row draws as two spaces each, and has three spaces before the rating; both are left out here.",
+    format: "$if2(%title%,$filepart(%filename%))$if(%artist%, ,)%artist%[$if(%rating%,$rating(%filename%),)]$if(%album%, ,)%album%[$if(%year%,' ('%year%')',)]",
   },
   {
     title: 'Album artist first',
@@ -59,8 +61,15 @@ export const RECIPES: Recipe[] = [
     format: '[%artist% - ]$iflonger(%title%,30,$left(%title%,29)…,%title%)',
   },
   {
+    title: "WACUP's default song ticker",
+    group: 'Song tickers',
+    note: 'Playlist number, artist (the album for SPC game music), title and length. %playlist_position% is a Taskbar Text field, so this belongs there, not in playlist titles.',
+    format: "%playlist_position%. [$ifstrequal2($fileext(%filename%),SPC,%album%,%artist%) - ]$if2(%title%,$filepart(%filename%)) '('%length%')'",
+    ticker: true,
+  },
+  {
     title: 'Custom songticker',
-    group: 'Custom recipes',
+    group: 'Song tickers',
     note: 'The WACUP default with the length on the end, so the ticker shows how long the song is.',
     format: '[%artist% - ]$if2(%title%,$filepart(%filename%)) %length%',
     ticker: true,

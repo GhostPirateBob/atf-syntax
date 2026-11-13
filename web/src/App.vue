@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { Copy, Menu, Download, FolderOpen, Link, RotateCcw, Save, Settings, TextWrap } from '@lucide/vue'
+import { Copy, Menu, Download, FolderOpen, Link, RotateCcw, Save, Settings, Shuffle, TextWrap } from '@lucide/vue'
 import { FIELD_MAP, FUNCTION_MAP, lint, parse, splitBlocks, type Finding } from '@/core'
 import { toFormat } from '@/lib/document'
 import { applyDisplay, oneLine } from '@/lib/display'
@@ -8,8 +8,9 @@ import { EvalRunner, type RunOutcome } from '@/lib/runner'
 import { decodeShare, encodeShare } from '@/lib/share'
 import { RECIPES, showsDuration, type Recipe } from '@/lib/recipes'
 import type { Origin } from '@/lib/docHistory'
-import { SAMPLE_TRACKS, durationOf, fieldsFor, newId, trackLabel, tracksFromFiles, tracksFromPlaylist, type Track } from '@/lib/tracks'
+import { SAMPLE_TRACKS, fieldsFor, lengthOf, newId, trackLabel, tracksFromFiles, tracksFromPlaylist, type Track } from '@/lib/tracks'
 import { nulFindings } from '@/lib/nulChar'
+import { clearTracks, readTracks, writeTracks } from '@/lib/savedTracks'
 import { exportTitle, toM3u8, type ExportRow, type PlaylistEntry } from '@/lib/m3u'
 import { matchPlaylistFiles } from '@/lib/audio'
 import type { Picked, PickedFile } from '@/lib/pick'
@@ -25,6 +26,7 @@ import PartsTable from './components/PartsTable.vue'
 import DiagnosticsList from './components/DiagnosticsList.vue'
 import TrackList, { type Row } from './components/TrackList.vue'
 import MiniPlaylist from './components/MiniPlaylist.vue'
+import SongTicker from './components/SongTicker.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 import SideBar from './components/SideBar.vue'
@@ -56,17 +58,26 @@ const origin = shallowRef<Origin | null>(shared ? { label: 'the shared format', 
 /** The recipe the format came from, until something else is loaded (edits keep it). */
 const activeRecipe = computed(() => RECIPES.find((r) => r.title === origin.value?.recipe))
 const durationShown = computed(() => showsDuration(view.value.duration, activeRecipe.value))
-const tracks = ref<Track[]>(cloneSamples())
-const source = ref<'sample' | 'playlist' | 'files'>('sample')
-// What the user brought, kept so a playlist and audio files can arrive one after the other.
-let playlistEntries: PlaylistEntry[] = []
-let fileTags: { path: string; tags: Record<string, string> }[] = []
-const tagged = ref(0)
+/** A song ticker recipe is the origin: the preview is a scrolling one-line ticker (undo and redo follow it). */
+const tickerMode = computed(() => !!activeRecipe.value?.ticker)
+/** The last playlist or files loaded, remembered in this browser; not when a share link picks a sample. */
+const remembered = shared?.sample !== undefined ? null : readTracks(store)
+const tracks = ref<Track[]>(remembered?.tracks ?? cloneSamples())
+const source = ref<'sample' | 'playlist' | 'files'>(remembered?.source ?? 'sample')
+// What the user brought, kept so a playlist and audio files can arrive one after the other. A
+// remembered playlist is rebuilt into both, so files dropped later merge with it as before.
+let playlistEntries: PlaylistEntry[] =
+  remembered?.source === 'playlist'
+    ? remembered.tracks.map((t) => ({ filename: t.path ?? t.tags.filename ?? '', lengthSeconds: t.tags.length_seconds ? Number(t.tags.length_seconds) : undefined, cachedTitle: t.cachedTitle }))
+    : []
+let fileTags: { path: string; tags: Record<string, string> }[] =
+  remembered?.source === 'files' ? remembered.tracks.map((t) => ({ path: t.tags.filename ?? '', tags: t.tags })) : []
+const tagged = ref(remembered?.tagged ?? 0)
 const reading = ref<{ done: number; total: number } | null>(null)
 let readSeq = 0
 /** The sample a fresh visit opens on (by title, so reordering the samples doesn't change it). */
 const DEFAULT_SAMPLE = Math.max(0, SAMPLE_TRACKS.findIndex((t) => t.tags.title === 'Oceans'))
-const selected = ref(Math.min(shared?.sample ?? DEFAULT_SAMPLE, tracks.value.length - 1))
+const selected = ref(remembered ? remembered.selected : Math.min(shared?.sample ?? DEFAULT_SAMPLE, tracks.value.length - 1))
 const sidebarOpen = ref(window.innerWidth >= 1100)
 /** Narrow screens: the sidebar is a drawer over the page, with a backdrop, focus kept inside. */
 const isDrawer = useMedia('(max-width: 760px)')
@@ -144,7 +155,7 @@ onBeforeUnmount(() => runner.dispose())
 
 const rows = computed<Row[]>(() =>
   tracks.value.map((t, i) => {
-    const base = { label: trackLabel(t), duration: durationShown.value ? durationOf(t) : '', cached: t.cachedTitle, unsure: false }
+    const base = { label: trackLabel(t), duration: durationShown.value ? lengthOf(t) : '', cached: t.cachedTitle, unsure: false }
     const o = outcome.value
     if (!format.value) return { ...base, text: '', state: 'ok' }
     if (!o) return { ...base, text: '', state: 'pending' }
@@ -321,6 +332,27 @@ onBeforeUnmount(() => {
   document.documentElement.classList.remove('scroll-locked')
 })
 
+// ---- the last playlist, remembered (paths and tags only; see lib/savedTracks.ts) ------------------
+let tracksTimer: ReturnType<typeof setTimeout> | undefined
+/** The track list a "too big to keep whole" note was already shown for. */
+let warnedFor: Track[] | undefined
+watch(
+  [tracks, source, selected, tagged],
+  () => {
+    clearTimeout(tracksTimer)
+    tracksTimer = setTimeout(() => {
+      if (source.value === 'sample') return clearTracks(store)
+      const list = tracks.value
+      const kept = writeTracks(store, { source: source.value, tracks: list, selected: selected.value, tagged: tagged.value })
+      if (kept < list.length && warnedFor !== list) {
+        warnedFor = list
+        if (kept > 0) say(`Only the first ${plural(kept, 'track')} of ${list.length} will be remembered: the rest is too much for this browser's storage.`)
+      }
+    }, 400)
+  },
+  { deep: true },
+)
+
 // ---- autosave (the format only) ------------------------------------------------------------------
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 function autosaveNow() {
@@ -341,7 +373,11 @@ onMounted(() => {
     history.replaceState(null, '', location.pathname + location.search)
     void onSearchAction(startAction)
   }
-  if (start.restored && startAction?.kind !== 'recipe' && startAction?.kind !== 'saved') {
+  const formatRestored = start.restored && startAction?.kind !== 'recipe' && startAction?.kind !== 'saved'
+  if (remembered) {
+    const n = remembered.tracks.length
+    say(`Restored your last playlist (${plural(n, 'track')})${formatRestored ? ' and format' : ''}.`, { label: 'Use samples', run: useSamples })
+  } else if (formatRestored) {
     say('Restored your last format.', { label: 'Start fresh', run: () => replaceDoc(DEFAULT_DOC, DEFAULT_ORIGIN) })
   }
 })
@@ -588,6 +624,7 @@ async function openPicked({ entries, audio }: Picked) {
   say(`Read tags from ${plural(files.length, 'file')}${capNote(audio.length)}.${failed}`)
 }
 function useSamples() {
+  clearTracks(store)
   readSeq++
   reading.value = null
   playlistEntries = []
@@ -740,9 +777,9 @@ function hoverRange(range: { start: number; end: number } | null) {
             <Settings :size="20" aria-hidden="true" />
           </button>
           <div class="box">
-            <AtfEditor ref="editor" v-model:doc="doc" v-model:origin="origin" :findings="findings" class="box-editor" @format="formatEditor" />
+            <AtfEditor ref="editor" v-model:doc="doc" v-model:origin="origin" :findings="findings" :spaces="view.spaces" class="box-editor" @format="formatEditor" />
             <div class="box-actions">
-              <IconButton :icon="Copy" label="Copy" class="copy primary" title="Copy the format as one line, ready for WACUP" @click="copyFormat" />
+              <IconButton :icon="Copy" label="Copy" :icon-size="14" show-icon class="copy primary" title="Copy the format as one line, ready for WACUP" @click="copyFormat" />
               <IconButton
                 ref="saveButton"
                 :icon="Save"
@@ -762,7 +799,7 @@ function hoverRange(range: { start: number; end: number } | null) {
             <button type="button" @click="closeSave">Cancel</button>
             <p class="muted">Kept in this browser only. Find it under Recipes.</p>
           </form>
-          <button class="random" @click="randomRecipe">random recipe</button>
+          <button class="random" @click="randomRecipe"><Shuffle :size="14" aria-hidden="true" class="tab-lead" />random recipe</button>
           <div class="split" role="group" aria-label="Format or reset">
             <button class="format" aria-label="Format (wrap at top-level boundaries)" title="Format: wrap at top-level boundaries (Shift+Alt+F)" @click="formatEditor">
               <TextWrap :size="16" aria-hidden="true" class="tab-icon" />
@@ -786,7 +823,8 @@ function hoverRange(range: { start: number; end: number } | null) {
         </Transition>
 
         <section class="hero">
-          <MiniPlaylist :rows="rows" :selected="selected" :view="view" :message="heroMessage" @select="selected = $event" />
+          <SongTicker v-if="tickerMode" :row="rows[selected]" :selected="selected" :count="rows.length" :view="view" :message="heroMessage" @select="selected = $event" />
+          <MiniPlaylist v-else :rows="rows" :selected="selected" :view="view" :message="heroMessage" @select="selected = $event" />
           <p v-if="format && outcome?.kind === 'timeout'" class="sub">It didn't finish within a second, so the playground stopped it. In WACUP you'd have to end the task.</p>
           <p v-else-if="format && outcome?.kind === 'failed'" class="sub">{{ outcome.message }}</p>
           <p v-else-if="current?.freeze" class="sub">
@@ -794,7 +832,7 @@ function hoverRange(range: { start: number; end: number } | null) {
           </p>
           <p v-else-if="current?.tooHeavy" class="sub">This format builds more text than the playground will work through (tens of millions of characters along the way). WACUP may still handle it.</p>
           <p v-else-if="current?.error" class="sub error-note">There's a syntax error, so WACUP shows an error message in place of the broken part (the whole title, if it's at the top level). Details below.</p>
-          <p v-if="activeRecipe?.ticker && view.duration" class="dialect-note">Song ticker format: no duration column, since it ends in <code>%length%</code>.</p>
+          <p v-if="tickerMode" class="dialect-note">Song ticker preview: the selected track, scrolling like WACUP's ticker (hover to pause). Pick another track below. Your skin's ticker font can go in Settings.</p>
           <p v-if="view.dialect === 'winamp'" class="dialect-note">Preview shows WACUP 1.99.57. Winamp 5 differs: for example <code>$if</code> tests whether a field resolved.</p>
         </section>
 
@@ -900,7 +938,10 @@ function hoverRange(range: { start: number; end: number } | null) {
   min-height: var(--header-h);
   padding: 6px 14px;
   border-bottom: 1px solid var(--border);
-  background: var(--sidebar);
+  background: var(--chrome-bg);
+  /* Secondary text readable on the raised chrome (see --muted-raised in style.css). */
+  --muted: var(--muted-raised);
+  --dim: var(--muted-raised);
 }
 .top.scrolled {
   box-shadow: 0 2px 14px var(--shadow);
@@ -994,7 +1035,7 @@ function hoverRange(range: { start: number; end: number } | null) {
   color: var(--muted);
 }
 .error-note {
-  color: var(--error);
+  color: var(--error-text);
 }
 .sub {
   margin: 10px 0 0;
@@ -1008,7 +1049,8 @@ function hoverRange(range: { start: number; end: number } | null) {
   max-width: 960px;
   /* The tabs hang in the padding; the margins keep them clear of the header and what follows. */
   margin: 52px auto 36px;
-  padding: 30px 0 24px;
+  /* As tall as the tabs that hang in it: the 36 px gear above, the 24 px tabs below (32 px on phones). */
+  padding: 36px 0 24px;
 }
 /* Tabs on the box: the gear above its top-right corner, random recipe and format | reset below it. */
 .gear,
@@ -1063,8 +1105,8 @@ function hoverRange(range: { start: number; end: number } | null) {
 .gear {
   right: 18px;
   top: 0;
-  height: 30px;
-  width: 38px;
+  height: 36px;
+  width: 36px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -1088,7 +1130,11 @@ function hoverRange(range: { start: number; end: number } | null) {
 .format,
 .reset {
   bottom: 0;
+  display: inline-flex;
+  gap: 0.35em;
   height: 24px;
+  /* No extra leading, so the icon and the words centre tightly. */
+  line-height: 1;
   padding: 0 10px;
   font-family: var(--mono);
   font-size: 0.82rem;
@@ -1109,8 +1155,6 @@ function hoverRange(range: { start: number; end: number } | null) {
 .format,
 .reset {
   position: relative;
-  display: inline-flex;
-  gap: 5px;
 }
 .format {
   border-bottom-right-radius: 0;
@@ -1129,8 +1173,12 @@ function hoverRange(range: { start: number; end: number } | null) {
   text-decoration: none;
   color: color-mix(in srgb, var(--tab-fg) 55%, var(--tab-bg));
 }
-.tab-icon {
-  display: none;
+/* Icons before the tab labels, at the labels' cap height; on phones format | reset are icons only. */
+.tab-icon,
+.tab-lead {
+  flex: none;
+  width: 14px;
+  height: 14px;
 }
 .box {
   display: flex;
@@ -1158,6 +1206,7 @@ function hoverRange(range: { start: number; end: number } | null) {
 }
 .copy {
   font-weight: 600;
+  gap: 0.35em;
 }
 .save-pop {
   position: absolute;
@@ -1295,6 +1344,13 @@ footer a:focus-visible {
   }
   .box-wrap {
     margin: 36px auto 28px;
+    padding-bottom: 32px;
+  }
+  /* Touch targets: the tabs below the box are 32 px tall on phones. */
+  .random,
+  .format,
+  .reset {
+    height: 32px;
   }
   /* Copy and save stack, so the editor keeps its width. */
   .box {
@@ -1304,7 +1360,12 @@ footer a:focus-visible {
     flex-direction: column;
   }
   .tab-icon {
-    display: block;
+    width: 16px;
+    height: 16px;
+  }
+  /* random recipe keeps its words on phones, without the icon. */
+  .tab-lead {
+    display: none;
   }
   .tab-text {
     position: absolute;

@@ -5,8 +5,9 @@ import type { Component } from 'vue'
  * A button with an icon and a text label. Below `collapse` (narrow: 640 px, header: 1280 px) only
  * the icon shows; the label stays as the accessible name and the tooltip.
  */
-withDefaults(defineProps<{ icon: Component; label: string; title?: string; collapse?: 'narrow' | 'header' | 'always'; showIcon?: boolean }>(), {
+withDefaults(defineProps<{ icon: Component; label: string; title?: string; collapse?: 'narrow' | 'header' | 'always'; showIcon?: boolean; iconSize?: number }>(), {
   title: undefined,
+  iconSize: 16,
   collapse: 'narrow',
   showIcon: false,
 })
@@ -14,7 +15,7 @@ withDefaults(defineProps<{ icon: Component; label: string; title?: string; colla
 
 <template>
   <button class="icon-btn" :class="[`collapse-${collapse}`, { 'show-icon': showIcon }]" :aria-label="label" :title="title ?? label">
-    <component :is="icon" :size="16" aria-hidden="true" class="ico" />
+    <component :is="icon" :size="iconSize" aria-hidden="true" class="ico" />
     <span class="lbl">{{ label }}</span>
   </button>
 </template>

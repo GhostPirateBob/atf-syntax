@@ -5,7 +5,7 @@ import type { Origin } from '@/lib/docHistory'
 import type { Finding } from '@/core'
 
 /** `origin` is read once, at mount; after that the editor owns it (it follows undo and redo). */
-const props = defineProps<{ doc: string; findings: Finding[]; origin?: Origin | null }>()
+const props = defineProps<{ doc: string; findings: Finding[]; origin?: Origin | null; spaces?: boolean }>()
 const emit = defineEmits<{ 'update:doc': [doc: string]; 'update:origin': [origin: Origin | null]; format: [] }>()
 
 const host = ref<HTMLDivElement>()
@@ -16,6 +16,7 @@ onMounted(() => {
     onFormat: () => emit('format'),
     origin: props.origin,
     onOrigin: (origin) => emit('update:origin', origin),
+    spaces: props.spaces,
   })
   editor.setFindings(props.findings)
 })
@@ -28,6 +29,10 @@ watch(
 watch(
   () => props.findings,
   (findings) => editor?.setFindings(findings),
+)
+watch(
+  () => !!props.spaces,
+  (on) => editor?.setShowSpaces(on),
 )
 
 defineExpose({

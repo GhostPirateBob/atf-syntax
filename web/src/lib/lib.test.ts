@@ -8,7 +8,7 @@ import { formatLength, parseM3u } from './m3u'
 import { decodeShare, encodeShare } from './share'
 import { fieldsFor, tracksFromFiles, tracksFromPlaylist } from './tracks'
 import { isAudioName, isPlaylistName, matchPlaylistFiles } from './audio'
-import { durationOf, type Track } from './tracks'
+import { lengthOf, type Track } from './tracks'
 import { RECIPES } from './recipes'
 import { fitText } from './fit'
 import { DEFAULT_VIEW, parseView } from './view'
@@ -110,7 +110,14 @@ describe('fieldsFor', () => {
   })
   it('shows durations like a playlist, blank when unknown', () => {
     const t = (length_seconds?: string): Track => ({ id: 'x', source: 'custom', tags: length_seconds === undefined ? {} : { length_seconds } })
-    expect([t('260'), t('3725'), t(), t('junk')].map((x) => durationOf(x))).toEqual(['4:20', '1:02:05', '', ''])
+    expect([t('260'), t('3725'), t(), t('junk')].map((x) => lengthOf(x))).toEqual(['4:20', '1:02:05', '', ''])
+  })
+  it("fills the duration column with exactly what a format's %length% gives", () => {
+    const custom = (tags: Record<string, string>): Track => ({ id: 'x', source: 'custom', tags })
+    const tracks = [...SAMPLE_TRACKS, custom({ length_seconds: '59.6' }), custom({ length_seconds: '-3' }), custom({ length: '7:77' }), custom({ title: 'no length' })]
+    for (const t of tracks) expect(lengthOf(t), JSON.stringify(t.tags)).toBe(evaluate('%length%', fieldsFor(t)).text)
+    expect(lengthOf(custom({ length: '7:77', length_seconds: '1' }))).toBe('7:77')
+    expect(lengthOf(custom({}))).toBe('')
   })
 })
 

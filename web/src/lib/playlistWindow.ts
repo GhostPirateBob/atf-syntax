@@ -1,3 +1,10 @@
+/** What the preview shows in place of a track's title when it has none to show (by row state). */
+export const ROW_STATE_TEXT: Partial<Record<string, string>> = {
+  freeze: '⚠ This would freeze WACUP',
+  heavy: 'Too heavy to preview',
+  timeout: "⚠ Didn't finish",
+}
+
 /** How many rows the hero playlist shows: two before the current track, it, and two after. */
 export const PREVIEW_ROWS = 5
 

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, type ComponentPublicInstance } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
 import { ClipboardPaste, FileMusic, Folder, Info, ListMusic, RotateCcw } from '@lucide/vue'
 import IconButton from './IconButton.vue'
+import ShownText from './ShownText.vue'
 import { EDITABLE_TAGS, type Track } from '@/lib/tracks'
 import { parseM3u } from '@/lib/m3u'
 import { AUDIO_EXTENSIONS, PLAYLIST_EXTENSIONS } from '@/lib/audio'
@@ -9,6 +10,7 @@ import { filesFromDrop, filesFromInput, sortPicked, type Picked } from '@/lib/pi
 import { titleFont } from '@/lib/fontStacks'
 import { clampFontSize, type ViewSettings } from '@/lib/view'
 import { fitRow, fontsLoaded, useWidth } from '@/lib/rowFit'
+import { reducedMotion } from '@/lib/media'
 
 export interface Row {
   label: string
@@ -80,6 +82,40 @@ const fitted = computed(() => {
   return props.rows.map((r, i) => fitRow(r.text, { duration: r.duration, prefix: numberPrefix(i), width: lineWidth.value, font: css, gap: fontSize.value * 0.4 }))
 })
 
+// ---- the list: five rows high, scrolling inside -------------------------------------------------
+/** Rows shown before the list scrolls. */
+const VISIBLE_ROWS = 5
+const rowsEl = ref<HTMLOListElement>()
+/** One row's height (its title line, the meta line and the rule), measured from a row whose tag editor is shut. */
+const rowHeight = ref(0)
+function measureRow() {
+  const items = [...(rowsEl.value?.children ?? [])] as HTMLElement[]
+  const plain = items.find((li) => !li.querySelector('.editor'))
+  if (plain) rowHeight.value = plain.offsetHeight
+}
+const rowObserver = new ResizeObserver(measureRow)
+onMounted(() => {
+  if (rowsEl.value) rowObserver.observe(rowsEl.value)
+  measureRow()
+  void keepSelectedInView()
+})
+onBeforeUnmount(() => rowObserver.disconnect())
+watch(() => [props.tracks.length, fontSize.value, font.value.family, props.view.numbers], () => nextTick(measureRow))
+const listStyle = computed(() => (rowHeight.value ? { maxHeight: `${VISIBLE_ROWS * rowHeight.value}px` } : {}))
+/** Scrolls the list (only the list, never the page) so the selected row shows, e.g. after Up/Down on the preview. */
+async function keepSelectedInView() {
+  await nextTick()
+  const ol = rowsEl.value
+  const li = ol?.children[props.selected] as HTMLElement | undefined
+  if (!ol || !li) return
+  const top = li.offsetTop
+  const bottom = top + li.offsetHeight
+  const behavior: ScrollBehavior = reducedMotion() ? 'auto' : 'smooth'
+  if (top < ol.scrollTop) ol.scrollTo({ top, behavior })
+  else if (bottom > ol.scrollTop + ol.clientHeight) ol.scrollTo({ top: bottom - ol.clientHeight, behavior })
+}
+watch(() => props.selected, keepSelectedInView)
+
 async function onDrop(e: DragEvent) {
   dragging.value = false
   if (!e.dataTransfer) return
@@ -138,7 +174,7 @@ function importPasted() {
       </div>
     </div>
 
-    <ol class="rows" :style="{ '--row-font': font.family, '--row-size': `${fontSize}px`, '--row-weight': font.weight, '--pl-width': view.width ? `${view.width}px` : '100%' }">
+    <ol ref="rowsEl" class="rows" :style="{ ...listStyle, '--row-font': font.family, '--row-size': `${fontSize}px`, '--row-weight': font.weight, '--pl-width': view.width ? `${view.width}px` : '100%' }">
       <li v-for="(t, i) in tracks" :key="t.id" :class="{ selected: i === selected }">
         <div class="row">
           <button class="out stretched playlist-text" :class="rows[i]?.state" :aria-pressed="i === selected" :title="rows[i]?.text" @click="emit('select', i)">
@@ -148,7 +184,7 @@ function importPasted() {
                 <template v-if="rows[i]?.state === 'freeze'">⚠ would freeze WACUP</template>
                 <template v-else-if="rows[i]?.state === 'timeout'">⚠ didn't finish</template>
                 <template v-else-if="rows[i]?.state === 'heavy'">⚠ too heavy to preview</template>
-                <template v-else>{{ fitted[i] || ' ' }}</template>
+                <ShownText v-else-if="fitted[i]" :text="fitted[i]!" :spaces="view.spaces" /><template v-else>{{ ' ' }}</template>
               </span>
               <span v-if="rows[i]?.duration" class="dur">{{ rows[i]?.duration }}</span>
             </span>
@@ -171,6 +207,7 @@ function importPasted() {
     <p class="drop-hint muted">
       Drop an <code>.m3u8</code> here to see your own tracks, with the audio files or their folder to read the tags. Your files stay on your computer.
       Without a playlist, your browser only gives the page file names, not full paths, so <code>%filename%</code> and <code>%folder%</code> start at the folder you picked.
+      Your last playlist (paths and tags only) is remembered in this browser.
     </p>
   </section>
 </template>
@@ -259,10 +296,14 @@ h2 {
   align-items: center;
   font-size: 0.85rem;
 }
+/* At most five rows high (the max-height is measured in script), scrolling inside. */
 .rows {
+  position: relative;
   list-style: none;
   margin: 10px 0 0;
   padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 li {
   position: relative;
@@ -343,11 +384,11 @@ li.selected {
 .out.freeze,
 .out.heavy,
 .out.timeout {
-  color: var(--error);
+  color: var(--error-text);
   font-family: var(--sans);
 }
 .out.error {
-  color: var(--error);
+  color: var(--error-text);
 }
 .edit {
   font-size: 0.75rem;
@@ -361,7 +402,7 @@ li.selected {
   color: var(--muted);
 }
 .unsure {
-  color: var(--warning);
+  color: var(--warning-text);
 }
 .cached {
   font-style: italic;

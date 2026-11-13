@@ -3,7 +3,7 @@ import { computed, nextTick, ref, shallowRef } from 'vue'
 import { Pencil, Trash } from '@lucide/vue'
 import { FIELDS, FUNCTIONS } from '@/core'
 import { inlineMarkdown } from '@/lib/markdown'
-import { RECIPES, type Recipe } from '@/lib/recipes'
+import { RECIPES, recipeGroups, type Recipe } from '@/lib/recipes'
 import { browserStorage, renameSaved, savedFormats, updateSaved, type SavedFormat } from '@/lib/saved'
 import { expandSection, isExpanded, readCollapsed, sectionFor, toggleSection, writeCollapsed } from '@/lib/collapsed'
 import { toFormat } from '@/lib/document'
@@ -101,11 +101,7 @@ async function reveal(which: 'recipes' | 'reference', id: string): Promise<boole
 }
 defineExpose({ reveal })
 
-const groups = computed(() => {
-  const out = new Map<string, Recipe[]>()
-  for (const r of RECIPES) out.set(r.group, [...(out.get(r.group) ?? []), r])
-  return [...out]
-})
+const groups = recipeGroups(RECIPES)
 </script>
 
 <template>
@@ -214,7 +210,10 @@ const groups = computed(() => {
 
 <style scoped>
 .sidebar {
-  background: var(--sidebar);
+  background: var(--chrome-bg);
+  /* Secondary text readable on the raised chrome (see --muted-raised in style.css). */
+  --muted: var(--muted-raised);
+  --dim: var(--muted-raised);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -274,6 +273,7 @@ header button.active {
   position: absolute;
   inset: 0;
   z-index: -1;
+  border-radius: inherit;
   background: rgba(var(--tint-rgb), 0.35);
   opacity: 0;
   pointer-events: none;
@@ -330,11 +330,12 @@ dd {
   margin: 0 0 4px;
   padding: 0 8px;
 }
+/* Square, but for the card's outer corners (SidebarSection), which its button follows. */
 .saved-item {
   position: relative;
-  border-radius: 4px;
 }
 .saved-item .recipe {
+  border-radius: inherit;
   padding-right: 64px;
 }
 .saved-actions {
@@ -384,6 +385,7 @@ header button:focus-visible {
   position: absolute;
   inset: 0;
   z-index: 1;
+  border-radius: inherit;
   box-shadow: inset 0 0 0 2px var(--gold);
   background: rgba(190, 146, 8, 0.18);
   opacity: 0;

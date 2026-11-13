@@ -48,13 +48,11 @@ export function fieldsFor(track: Track, playlist?: { position: number; length: n
   return f
 }
 
-/** The track's length the way a playlist shows it (`m:ss`, or `h:mm:ss`), or '' if unknown. */
-export function durationOf(track: Track): string {
-  const raw = track.tags.length_seconds
-  if (!raw) return ''
-  const s = Number(raw)
-  return Number.isFinite(s) && s >= 0 ? formatLength(s) : ''
-}
+/**
+ * The duration column: exactly what `%length%` gives for the track (see fieldsFor), so the column
+ * and a format's own %length% never disagree. '' when %length% is empty.
+ */
+export const lengthOf = (track: Track): string => fieldsFor(track).length ?? ''
 
 /** A one-line label for a track: the title, or the file name if there's no title. */
 export function trackLabel(track: Track): string {

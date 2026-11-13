@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import MiniSearch from 'minisearch'
 import { FIELDS, FUNCTIONS } from '@core/catalog'
 import { RULES as LINT_RULES } from '@core/lint'
-import { RECIPES, showsDuration } from './recipes'
+import { RECIPES, recipeGroups, showsDuration } from './recipes'
 import { previewWindow } from './playlistWindow'
 import { toFormat } from './document'
 import { formatDoc } from './formatDoc'
@@ -321,6 +321,34 @@ describe('recipes', () => {
   })
 })
 
+describe('recipe groups', () => {
+  it('shows Song tickers third, holding exactly the ticker recipes', () => {
+    const groups = recipeGroups(RECIPES)
+    expect(groups.map(([g]) => g)).toEqual(['WACUP defaults', 'Custom recipes', 'Song tickers', 'Patchy tags', 'Only filenames', 'Showcase'])
+    expect(groups[2]![1].map((r) => r.title)).toEqual(["WACUP's default song ticker", 'Custom songticker'])
+    for (const r of RECIPES) expect(r.group === 'Song tickers', r.title).toBe(!!r.ticker)
+  })
+  it('keeps every recipe, in list order within its group, and leaves out empty groups', () => {
+    expect(recipeGroups(RECIPES).flatMap(([, list]) => list)).toHaveLength(RECIPES.length)
+    const mini = [
+      { title: 'b', group: 'Showcase' },
+      { title: 'a', group: 'Song tickers' },
+      { title: 'c', group: 'WACUP defaults' },
+      { title: 'd', group: 'Song tickers' },
+    ] as const
+    expect(recipeGroups(mini).map(([g, list]) => [g, list.map((r) => r.title)])).toEqual([
+      ['WACUP defaults', ['c']],
+      ['Song tickers', ['a', 'd']],
+      ['Showcase', ['b']],
+    ])
+  })
+  it('keeps both ticker formats as they were, %length% and all', () => {
+    const f = (t: string) => RECIPES.find((r) => r.title === t)!.format
+    expect(f("WACUP's default song ticker")).toBe("%playlist_position%. [$ifstrequal2($fileext(%filename%),SPC,%album%,%artist%) - ]$if2(%title%,$filepart(%filename%)) '('%length%')'")
+    expect(f('Custom songticker')).toBe('[%artist% - ]$if2(%title%,$filepart(%filename%)) %length%')
+  })
+})
+
 describe('duration column and song ticker recipes', () => {
   const ticker = RECIPES.find((r) => r.title === "Custom songticker")!
   const playlist = RECIPES.find((r) => r.title === 'WACUP default')!
@@ -362,6 +390,17 @@ describe('the hero playlist window', () => {
     expect(previewWindow(1, 0)).toEqual([{ offset: 0, index: 0 }])
     expect(indices(0, 0)).toEqual([])
     for (const n of [1, 2, 3, 4]) for (let s = 0; s < n; s++) expect(previewWindow(n, s).find((r) => r.offset === 0)?.index).toBe(s)
+  })
+})
+
+describe('Taskbar thumbnail recipe', () => {
+  it('draws title, artist and album on one line with single spaces', () => {
+    const recipe = RECIPES.find((r) => r.title === 'Taskbar thumbnail')!
+    const juicy = SAMPLE_TRACKS.findIndex((t) => t.tags.title === 'Juicy')
+    expect(juicy).toBeGreaterThanOrEqual(0)
+    const row = oneLine(evaluate(recipe.format, fieldsFor(SAMPLE_TRACKS[juicy]!, { position: juicy + 1, length: SAMPLE_TRACKS.length })).text)
+    expect(row).toBe('Juicy The Notorious B.I.G. Ready to Die (1994)')
+    expect(recipe.format).not.toContain('$crlf(')
   })
 })
 

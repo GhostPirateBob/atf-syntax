@@ -14,7 +14,7 @@ const counts = computed(() => {
   for (const f of props.findings) c[f.severity]++
   return c
 })
-const icon = { error: '●', warning: '▲', info: '◆', hint: '·' } as const
+const icon = { error: '✘', warning: '▲', info: '◆', hint: '·' } as const
 const verdicts = computed(() => [
   { key: 'wacup', ok: 'WACUP will accept this', name: 'WACUP', errors: props.accept.wacup },
   { key: 'winamp', ok: 'Winamp will accept this', name: 'Winamp 5', errors: props.accept.winamp },
@@ -25,15 +25,15 @@ const plural = (n: number) => `${n} error${n === 1 ? '' : 's'}`
 <template>
   <section class="diag" aria-live="polite">
     <p class="lights">
-      <span :class="counts.error ? 'sev-error' : 'muted'">● {{ counts.error }} error{{ counts.error === 1 ? '' : 's' }}</span>
-      <span :class="counts.warning ? 'sev-warning' : 'muted'">▲ {{ counts.warning }} warning{{ counts.warning === 1 ? '' : 's' }}</span>
-      <span :class="counts.info + counts.hint ? 'sev-info' : 'muted'">◆ {{ counts.info + counts.hint }} note{{ counts.info + counts.hint === 1 ? '' : 's' }}</span>
+      <span :class="counts.error ? 'sev-error' : 'muted'"><span class="mark">✘</span> {{ counts.error }} error{{ counts.error === 1 ? '' : 's' }}</span>
+      <span :class="counts.warning ? 'sev-warning' : 'muted'"><span class="mark">▲</span> {{ counts.warning }} warning{{ counts.warning === 1 ? '' : 's' }}</span>
+      <span :class="counts.info + counts.hint ? 'sev-info' : 'muted'"><span class="mark">◆</span> {{ counts.info + counts.hint }} note{{ counts.info + counts.hint === 1 ? '' : 's' }}</span>
       <span class="verdicts">
         <template v-for="v in verdicts" :key="v.key">
           <span v-if="!v.errors.length" class="verdict ok"><span class="tick" aria-hidden="true">✓</span> {{ v.ok }}</span>
           <!-- The first error's message is the tooltip; a click selects it in the editor. -->
           <button v-else class="verdict bad" :title="v.errors[0]!.message" @click="emit('pick', v.errors[0]!)">
-            <span aria-hidden="true">✗</span> {{ v.name }}: {{ plural(v.errors.length) }}
+            <span class="mark" aria-hidden="true">✘</span> {{ v.name }}: {{ plural(v.errors.length) }}
           </button>
         </template>
       </span>
@@ -41,7 +41,7 @@ const plural = (n: number) => `${n} error${n === 1 ? '' : 's'}`
     <ul v-if="findings.length">
       <li v-for="(f, i) in findings" :key="i">
         <button class="finding" @click="emit('pick', f)">
-          <span :class="`sev-${f.severity}`">{{ icon[f.severity] }}</span>
+          <span class="mark" :class="`sev-${f.severity}`">{{ icon[f.severity] }}</span>
           <span class="msg">{{ f.message }}</span>
           <span class="rule mono">{{ f.rule }}</span>
         </button>
@@ -84,13 +84,16 @@ const plural = (n: number) => `${n} error${n === 1 ? '' : 's'}`
   border: 0;
   border-radius: 2px;
   background: none;
-  color: var(--error);
+  color: var(--verdict-bad-text);
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
+.bad .mark {
+  color: var(--error);
+}
 .bad:hover,
 .bad:focus-visible {
-  color: var(--error);
+  color: var(--verdict-bad-text);
   text-decoration-style: solid;
 }
 .bad:focus-visible {
