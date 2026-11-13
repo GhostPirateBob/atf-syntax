@@ -24,6 +24,8 @@
     <!-- The ▸ ▹ in the default format: without it the editor re-wraps when it arrives (a layout shift on phones). -->
     <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource/iosevka-charon-mono/files/iosevka-charon-mono-symbols-400-normal.woff2" />
     <link rel="icon" type="image/png" href="./favicon.png" />
+    <!-- Browsers that take SVG icons prefer this one: the dark- or light-theme .atf icon to match the browser. -->
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <!-- The saved light/dark choice, applied before first paint so the page never flashes the other
          theme (inline: one request fewer before first paint). No saved choice: style.css follows the
          system preference. The key is the one in src/lib/theme.ts. -->

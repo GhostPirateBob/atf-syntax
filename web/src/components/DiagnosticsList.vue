@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Check, CircleX, Diamond, Info, TriangleAlert } from '@lucide/vue'
 import type { Finding } from '@/core'
 
 /**
@@ -14,7 +15,9 @@ const counts = computed(() => {
   for (const f of props.findings) c[f.severity]++
   return c
 })
-const icon = { error: '✘', warning: '▲', info: '◆', hint: '·' } as const
+// Severity marks are SVG icons, not ✘ ▲ ◆ characters: the same on every OS, sized up front, and no
+// system font-fallback lookup (Exo has none of those glyphs). Hints share info's icon, smaller.
+const icon = { error: CircleX, warning: TriangleAlert, info: Info, hint: Diamond } as const
 const verdicts = computed(() => [
   { key: 'wacup', ok: 'WACUP will accept this', name: 'WACUP', errors: props.accept.wacup },
   { key: 'winamp', ok: 'Winamp will accept this', name: 'Winamp 5', errors: props.accept.winamp },
@@ -25,15 +28,15 @@ const plural = (n: number) => `${n} error${n === 1 ? '' : 's'}`
 <template>
   <section class="diag" aria-label="Problems" aria-live="polite">
     <p class="lights">
-      <span :class="counts.error ? 'sev-error' : 'muted'"><span class="mark">✘</span> {{ counts.error }} error{{ counts.error === 1 ? '' : 's' }}</span>
-      <span :class="counts.warning ? 'sev-warning' : 'muted'"><span class="mark">▲</span> {{ counts.warning }} warning{{ counts.warning === 1 ? '' : 's' }}</span>
-      <span :class="counts.info + counts.hint ? 'sev-info' : 'muted'"><span class="mark">◆</span> {{ counts.info + counts.hint }} note{{ counts.info + counts.hint === 1 ? '' : 's' }}</span>
+      <span :class="counts.error ? 'sev-error' : 'muted'"><CircleX :size="14" class="mark" aria-hidden="true" /> {{ counts.error }} error{{ counts.error === 1 ? '' : 's' }}</span>
+      <span :class="counts.warning ? 'sev-warning' : 'muted'"><TriangleAlert :size="14" class="mark" aria-hidden="true" /> {{ counts.warning }} warning{{ counts.warning === 1 ? '' : 's' }}</span>
+      <span :class="counts.info + counts.hint ? 'sev-info' : 'muted'"><Info :size="14" class="mark" aria-hidden="true" /> {{ counts.info + counts.hint }} note{{ counts.info + counts.hint === 1 ? '' : 's' }}</span>
       <span class="verdicts">
         <template v-for="v in verdicts" :key="v.key">
-          <span v-if="!v.errors.length" class="verdict ok"><span class="tick" aria-hidden="true">✓</span> {{ v.ok }}</span>
+          <span v-if="!v.errors.length" class="verdict ok"><Check :size="14" class="mark tick" aria-hidden="true" /> {{ v.ok }}</span>
           <!-- The first error's message is the tooltip; a click selects it in the editor. -->
           <button v-else class="verdict bad" :title="v.errors[0]!.message" @click="emit('pick', v.errors[0]!)">
-            <span class="mark" aria-hidden="true">✘</span> {{ v.name }}: {{ plural(v.errors.length) }}
+            <CircleX :size="14" class="mark" aria-hidden="true" /> {{ v.name }}: {{ plural(v.errors.length) }}
           </button>
         </template>
       </span>
@@ -41,7 +44,7 @@ const plural = (n: number) => `${n} error${n === 1 ? '' : 's'}`
     <ul v-if="findings.length">
       <li v-for="(f, i) in findings" :key="i">
         <button class="finding" @click="emit('pick', f)">
-          <span class="mark" :class="`sev-${f.severity}`">{{ icon[f.severity] }}</span>
+          <component :is="icon[f.severity]" :size="f.severity === 'hint' ? 10 : 14" class="mark" :class="`sev-${f.severity}`" aria-hidden="true" />
           <span class="msg">{{ f.message }}</span>
           <span class="rule mono">{{ f.rule }}</span>
         </button>

@@ -139,11 +139,14 @@
 
   --mono: 'Iosevka Charon Mono', ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Monaco, Consolas,
     'Liberation Mono', 'DejaVu Sans Mono', 'Courier New', Courier, monospace;
-  --sans: 'Exo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-    'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+  /* 'Iosevka Charon Mono' straight after each primary face: it's self-hosted with symbols and math
+     subsets, so characters the primary lacks (the ⇢ ▸ ▹ that recipes print) come from a font we
+     ship instead of a system font-fallback lookup, which on a font-heavy machine can be slow. */
+  --sans: 'Exo', 'Iosevka Charon Mono', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
   /* Playlist titles: a condensed face, like a real playlist column. */
-  --title-font: 'Roboto Condensed', 'Arial Narrow', 'Liberation Sans Narrow', 'Nimbus Sans Narrow',
-    'Helvetica Neue', Arial, sans-serif;
+  --title-font: 'Roboto Condensed', 'Iosevka Charon Mono', 'Arial Narrow', 'Liberation Sans Narrow',
+    'Nimbus Sans Narrow', 'Helvetica Neue', Arial, sans-serif;
   --title-weight: 350;
   --editor-size: 1.15rem;
   /* The sticky header on both pages; anchors and search targets scroll clear of it. */
@@ -522,12 +525,12 @@ code {
   border-radius: 2px;
 }
 
-/* Severity words in the -text colours; a .mark (an icon: ✘ ▲ ◆) in the exact colour. Exo has none
-   of these glyphs, so the marks name symbol fonts that do, one face for all three, so they share a
-   size and baseline (and stay text, never emoji). */
+/* Severity words in the -text colours; a .mark (a Lucide icon: circle-x, triangle-alert, info) in the
+   exact colour. SVG rather than ✘ ▲ ◆ characters: the same on every OS, sized before anything
+   loads, and no system font-fallback lookup. Sat on the text's middle so it lines up with it. */
 .mark {
-  font-family: 'Segoe UI Symbol', 'Apple Symbols', 'Noto Sans Symbols 2', 'Noto Sans Symbols', 'DejaVu Sans', sans-serif;
-  font-variant-emoji: text;
+  flex-shrink: 0;
+  vertical-align: -0.15em;
 }
 .sev-error {
   color: var(--error-text);
