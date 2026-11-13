@@ -8,6 +8,7 @@ import { EvalRunner, type RunOutcome } from '@/lib/runner'
 import type { EvalResult } from '@core/evaluate'
 import { previewWindow } from '@/lib/playlistWindow'
 import { whenIdle, yieldToMain } from '@/lib/timing'
+import { useScrolled } from '@/lib/scrolled'
 import type { ShareState } from '@/lib/share'
 import { loadShare } from '@/lib/shareLink'
 import { RECIPES, showsDuration, type Recipe } from '@/lib/recipes'
@@ -99,7 +100,7 @@ const drawerOpen = computed(() => isDrawer.value && sidebarOpen.value)
 const menuButton = ref<InstanceType<typeof IconButton>>()
 /** Off for the first frames, so a sidebar opened while the page loads (a #ref= link) doesn't slide in on wide screens. */
 const motion = ref(false)
-const scrolled = ref(false)
+const scrolled = useScrolled()
 /** Phones: the footer's doc links are icons (named by aria-label and the tooltip). */
 const narrow = useMedia('(max-width: 640px)')
 /** The brand link's tooltip (the tagline used to show beside the title). */
@@ -434,7 +435,6 @@ watch(sidebarOpen, (open) => {
   cancelUnspace = stop
 })
 
-const onScroll = () => (scrolled.value = window.scrollY > 4)
 onMounted(() => {
   // Load the lazy parts when the page is idle, through each one's own loader, so that once loaded
   // the components render at once (and the settings strip's entrance plays on the first open).
@@ -447,13 +447,10 @@ onMounted(() => {
   requestAnimationFrame(() => requestAnimationFrame(() => (motion.value = true)))
   document.addEventListener('keydown', onDrawerKey)
   document.addEventListener('keydown', onUndoKey)
-  window.addEventListener('scroll', onScroll, { passive: true })
-  onScroll()
 })
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDrawerKey)
   document.removeEventListener('keydown', onUndoKey)
-  window.removeEventListener('scroll', onScroll)
   document.documentElement.classList.remove('scroll-locked')
 })
 

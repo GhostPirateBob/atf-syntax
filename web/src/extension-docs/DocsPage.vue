@@ -7,6 +7,7 @@ import { FIELDS, FUNCTIONS, REMOVED, RULES } from '@/core'
 import type { FunctionInfo } from '@/core'
 import { docMarkdown } from '@/lib/markdown'
 import { settingsFrom } from '@/lib/settings'
+import { useScrolled } from '@/lib/scrolled'
 import HighlightedFormat from '@/components/HighlightedFormat.vue'
 import OmniSearch from '@/components/OmniSearch.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
@@ -58,17 +59,9 @@ function showHashTarget() {
   // :target is fixed when the hash changes, so navigate to it again now that the entry exists.
   void nextTick(() => location.replace(`#${encodeURIComponent(id)}`))
 }
-const scrolled = ref(false)
-const onScroll = () => (scrolled.value = window.scrollY > 4)
-onMounted(() => {
-  window.addEventListener('hashchange', showHashTarget)
-  window.addEventListener('scroll', onScroll, { passive: true })
-  onScroll()
-})
-onBeforeUnmount(() => {
-  window.removeEventListener('hashchange', showHashTarget)
-  window.removeEventListener('scroll', onScroll)
-})
+const scrolled = useScrolled()
+onMounted(() => window.addEventListener('hashchange', showHashTarget))
+onBeforeUnmount(() => window.removeEventListener('hashchange', showHashTarget))
 
 const SAMPLE = '[%artist% ▸ ]$if2(%title%,$filepart(%filename%))'
 const MARKETPLACE = 'https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax'
