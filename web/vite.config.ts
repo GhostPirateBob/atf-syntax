@@ -12,10 +12,21 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@core': fileURLToPath(new URL('../src', import.meta.url)),
+      // The extension's manifest: settings and commands for the docs page.
+      '@pkg': fileURLToPath(new URL('../package.json', import.meta.url)),
     },
   },
   server: {
     fs: { allow: ['..'] },
+  },
+  build: {
+    // Two pages: the playground and the extension's documentation.
+    rolldownOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        extension: fileURLToPath(new URL('./extension/index.html', import.meta.url)),
+      },
+    },
   },
   worker: {
     format: 'es',

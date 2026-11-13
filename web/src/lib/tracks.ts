@@ -48,17 +48,24 @@ export const newId = () => `t${nextId++}`
 
 const sample = (tags: Record<string, string>): Track => ({ id: newId(), tags, source: 'sample' })
 
-/** Built-in tracks: tidy tags, patchy tags, and none at all, so recipes can show their fallbacks. */
+/**
+ * Built-in tracks: tidy tags, patchy tags, and none at all, so recipes can show their fallbacks.
+ * The tags are what mediainfo reads from real files, quirks included (track numbers like `0172`
+ * from a downloader, full release dates, a title still carrying its download ID, no artist).
+ * Dogs has no file behind it; it's the hand-made "complete tags" case.
+ */
 export const SAMPLE_TRACKS: Track[] = [
   sample({
     artist: 'Alfie Templeman', title: 'Things I Thought Were Mine', album: 'Happiness in Liquid Form', albumartist: 'Alfie Templeman',
-    tracknumber: '2', year: '2022', genre: 'Indie Pop', length_seconds: '193',
+    tracknumber: '0172', disc: '1', year: '2020-07-17', length_seconds: '193',
+    bitrate: '320', samplerate: '48000', vbr: '0', encoder: 'Lavc61.8.',
     filename: 'D:\\Music\\Alfie Templeman\\Happiness in Liquid Form\\02 Alfie Templeman - Things I Thought Were Mine.mp3',
   }),
   sample({
     artist: 'JAY-Z feat. Frank Ocean', title: 'Oceans', album: 'Magna Carta... Holy Grail', albumartist: 'JAY-Z',
-    tracknumber: '5', year: '2013', genre: 'Hip-Hop', length_seconds: '238',
-    filename: 'D:\\Music\\JAY-Z\\Magna Carta... Holy Grail\\05 JAY-Z - Oceans.mp3',
+    tracknumber: '0683', disc: '1', year: '2013-07-08', length_seconds: '238',
+    bitrate: '320', samplerate: '48000', vbr: '0',
+    filename: 'D:\\Music\\JAY-Z\\Magna Carta... Holy Grail\\05 JAY-Z feat. Frank Ocean - Oceans.mp3',
   }),
   sample({
     artist: 'Pink Floyd', title: 'Dogs', album: 'Animals', albumartist: 'Pink Floyd',
@@ -66,13 +73,15 @@ export const SAMPLE_TRACKS: Track[] = [
     filename: 'D:\\Music\\Pink Floyd\\Animals\\02 Pink Floyd - Dogs.flac',
   }),
   sample({
-    artist: 'The Notorious B.I.G.', title: 'Juicy', album: 'Ready to Die', year: '1994', length_seconds: '305',
-    filename: 'D:\\Music\\The Notorious B.I.G\\Ready to Die\\Juicy.mp3',
+    artist: 'The Notorious B.I.G.', title: 'Juicy', album: 'Ready to Die', albumartist: 'The Notorious B.I.G.',
+    tracknumber: '1457', disc: '1', year: '1994-09-13', length_seconds: '303',
+    bitrate: '216', samplerate: '44100', vbr: '1', encoder: 'LAME3.90.',
+    filename: 'D:\\Music\\The Notorious B.I.G_\\Ready to Die\\10 Juicy.mp3',
   }),
   sample({
-    artist: 'Kristian Pedersen', title: 'Kaptein Frosk', album: 'SoundCloud', albumartist: 'Kristian Pedersen',
-    year: '2016', length_seconds: '101',
-    filename: 'D:\\Music\\__ASSORTED\\Kaptein Frosk (music video in description).mp3',
+    title: 'Kaptein Frosk (music video in description)-291000340', comment: 'b', length_seconds: '102',
+    bitrate: '320', samplerate: '44100', vbr: '0', encoder: 'Lavc61.8.',
+    filename: 'D:\\Music\\ZZ_LOOSE\\Kaptein Frosk (music video in description)-291000340.mp3',
   }),
   sample({
     filename: 'C:\\Users\\Joe\\Downloads\\artist_-_song_title_(official_audio).mp3', length_seconds: '214',

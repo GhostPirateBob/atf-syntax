@@ -304,6 +304,7 @@ function hoverRange(range: { start: number; end: number } | null) {
 
       <footer>
         <span>The checking here is the same as the <a href="https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax" target="_blank" rel="noopener">ATF extension for VS Code</a>.</span>
+        <span><a href="./extension/">Extension docs</a></span>
         <span><a href="https://github.com/GhostPirateBob/atf-syntax" target="_blank" rel="noopener">Source on GitHub</a></span>
         <span class="muted">Not affiliated with or endorsed by WACUP or Winamp.</span>
       </footer>
@@ -376,7 +377,6 @@ function hoverRange(range: { start: number; end: number } | null) {
 }
 .quote {
   font-size: clamp(1.3rem, 3.2vw, 2.1rem);
-  font-style: italic;
   color: var(--bright);
   margin: 0;
   white-space: pre-wrap;

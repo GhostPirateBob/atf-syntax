@@ -10,3 +10,12 @@ export function inlineMarkdown(md: string): string {
     )
     .join('')
 }
+
+/** inlineMarkdown plus `[text](url)` links (http(s) and `#anchor` only), for longer docs text. */
+export function docMarkdown(md: string): string {
+  return inlineMarkdown(md).replace(
+    /\[([^\]]+)\]\(((?:https?:\/\/|#)[^)\s"]+)\)/g,
+    (_, text: string, url: string) =>
+      url.startsWith('#') ? `<a href="${url}">${text}</a>` : `<a href="${url}" target="_blank" rel="noopener">${text}</a>`,
+  )
+}
