@@ -285,7 +285,7 @@
                 "off"
               ],
               "default": "warning",
-              "markdownDescription": "WACUP: `$if($strstr(…),…)` and similar always take the first branch, because the result is never empty."
+              "markdownDescription": "WACUP: `$if($strchr(…),…)` and similar always take the first branch, because the result is never empty."
             },
             "always-false-condition": {
               "type": "string",

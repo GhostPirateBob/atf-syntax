@@ -58,10 +58,18 @@ test('argument counts WACUP accepts are not flagged', () => {
   }
   assert.deepEqual(rules('$split(a/b,/)'), ['arity-min']);
   assert.deepEqual(rules('$split(a/b,/,1,x)'), ['arity-max']);
+  // Exactly 2 (or 3) arguments, otherwise they output nothing (WACUP 1.99.57 and Winamp 5).
+  for (const f of ['$strstr(a,b,c)', '$strchr(a,b,c)', '$strrchr(a,b,c)', '$num(5,3,1)', '$hex(255,4,1)', '$muldiv(10,6,3,1)']) {
+    assert.deepEqual(rules(f), ['arity-max'], f);
+    assert.deepEqual(rules(f, 'winamp'), ['arity-max'], f);
+  }
 });
 
 test('dialect-specific $if truth', () => {
-  assert.deepEqual(rules('$if($strstr(%artist%,feat),y,n)', 'wacup'), ['always-true-condition']);
+  assert.deepEqual(rules('$if($strchr(%artist%,/),y,n)', 'wacup'), ['always-true-condition']);
+  assert.deepEqual(rules('$if($num(%track%,2),y,n)', 'wacup'), ['always-true-condition']);
+  // $strstr is empty when either argument is, e.g. an empty %artist%.
+  assert.deepEqual(rules('$if($strstr(%artist%,feat),y,n)', 'wacup'), []);
   assert.deepEqual(rules('$if($get(x),y,n)', 'winamp'), ['always-false-condition', 'get-before-put']);
   assert.deepEqual(rules('$puts(x,1)$if($get(x),y,n)', 'wacup'), []);
 });
@@ -83,6 +91,9 @@ test('formats that freeze WACUP', () => {
   assert.deepEqual(rules('$padcut(%title%,-1)'), ['negative-count']);
   assert.deepEqual(rules('$padcut(,-20)'), ['negative-count']);
   assert.deepEqual(rules('$padcut(%title%,0)$padcut(%title%,20)'), []);
+  // Winamp 5 evaluates both $if branches, so a freeze in the untaken one still counts.
+  assert.deepEqual(rules('$if(,$tab(-1),x)', 'winamp'), ['negative-count']);
+  assert.deepEqual(rules('$replace(%title%,$strstr(%artist%,x),)'), ['replace-search-may-be-empty']);
 });
 
 test('freeze messages name the WACUP build that fixed them, under wacup only', () => {

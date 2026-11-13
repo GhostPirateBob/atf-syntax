@@ -59,7 +59,7 @@ export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
       ['replace-empty-search', 'error', '`$replace(a,,b)`: an empty search string never advances, so WACUP freezes and has to be killed. Fixed in WACUP 1.99.56.25334.'],
       ['replace-search-may-be-empty', 'warning', '`$replace` search made only of fields or calls (e.g. `%artist%`); if it is empty for a track, WACUP freezes. Fixed in WACUP 1.99.56.25334.'],
       ['negative-count', 'error', '`$tab(-1)`, `$directory(path,-1)` or `$padcut(a,-1)`: a negative count never finishes, so WACUP freezes. `$tab`/`$directory` fixed in WACUP 1.99.57.25452; `$padcut` still freezes in 1.99.57.25464.'],
-      ['always-true-condition', 'warning', 'WACUP: `$if($strstr(…),…)` and similar always take the first branch, because the result is never empty.'],
+      ['always-true-condition', 'warning', 'WACUP: `$if($strchr(…),…)` and similar always take the first branch, because the result is never empty.'],
       ['always-false-condition', 'warning', 'Winamp 5: a condition with no `%field%` always takes the else branch.'],
       ['get-before-put', 'warning', '`$get(x)` before any `$puts`/`$put` sets `x`.'],
       ['unknown-field', 'hint', 'Field not known to WACUP (input plugins may still provide it).'],
