@@ -33,7 +33,7 @@ export const RECIPES: Recipe[] = [
   {
     title: 'Taskbar thumbnail',
     group: 'WACUP defaults',
-    note: "gen_win10shell's taskbar thumbnail format on one line. The original puts title, artist and album on separate lines with $crlf(), which a one-line playlist row draws as two spaces each, and has three spaces before the rating; both are left out here.",
+    note: "gen_win10shell's taskbar format on one line, minus its $crlf() breaks and rating spaces.",
     format: "$if2(%title%,$filepart(%filename%))$if(%artist%, ,)%artist%[$if(%rating%,$rating(%filename%),)]$if(%album%, ,)%album%[$if(%year%,' ('%year%')',)]",
   },
   {
@@ -51,7 +51,7 @@ export const RECIPES: Recipe[] = [
   {
     title: 'Long albums to initials',
     group: 'Custom recipes',
-    note: 'Each part is shortened by its own length, never the whole line\'s, so a column looks the same on every row.',
+    note: 'Shortens each part by its own length, not the whole line, so columns line up on every row.',
     format: '[$abbr(%artist%,20) ▸ ][$abbr(%album%,24) ▹ ]%title%',
   },
   {
@@ -63,7 +63,7 @@ export const RECIPES: Recipe[] = [
   {
     title: "WACUP's default song ticker",
     group: 'Song tickers',
-    note: 'Playlist number, artist (the album for SPC game music), title and length. %playlist_position% is a Taskbar Text field, so this belongs there, not in playlist titles.',
+    note: 'For Taskbar Text, where %playlist_position% works: number, artist (SPC: album), title, length.',
     format: "%playlist_position%. [$ifstrequal2($fileext(%filename%),SPC,%album%,%artist%) - ]$if2(%title%,$filepart(%filename%)) '('%length%')'",
     ticker: true,
   },
