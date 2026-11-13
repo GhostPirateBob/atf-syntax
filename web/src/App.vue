@@ -104,7 +104,7 @@ const scrolled = useScrolled()
 /** Phones: the footer's doc links are icons (named by aria-label and the tooltip). */
 const narrow = useMedia('(max-width: 640px)')
 /** The brand link's tooltip (the tagline used to show beside the title). */
-const TAGLINE = 'atf playground - Advanced Title Formatting for WACUP & Winamp, live'
+const TAGLINE = 'atf-playground - Advanced Title Formatting for WACUP & Winamp, live'
 const view = ref<ViewSettings>(loadView())
 const editor = ref<InstanceType<typeof AtfEditor>>()
 const toast = ref<{ text: string; action?: { label: string; run: () => void } }>()
@@ -880,7 +880,7 @@ function hoverRange(range: { start: number; end: number } | null) {
           />
           <h1 class="brand-h">
             <a v-tip="TAGLINE" class="brand" href="./">
-              <span class="title">atf<span class="title-rest"> playground</span></span>
+              <span class="title">atf<span class="title-rest">-playground</span></span>
             </a>
           </h1>
         </div>
@@ -1509,7 +1509,7 @@ footer a:focus-visible {
   .title {
     font-size: 1.15rem;
   }
-  /* "atf" on phones; screen readers still hear "atf playground" from the visually hidden rest of
+  /* "atf" on phones; screen readers still hear "atf-playground" from the visually hidden rest of
      the title. */
   .title-rest {
     position: absolute;

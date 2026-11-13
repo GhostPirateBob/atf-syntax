@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GLYPH_ROWS, TICKER_MAX_CHARS, TICKER_SEPARATOR, glyphCell, nextStep, stripOffset, tickerChars, tickerStrip, totalAdvance, type TickerItem } from './ticker'
+import { GLYPH_ROWS, TICKER_MAX_CHARS, TICKER_MIN_GAP, glyphCell, tickerGap, nextStep, stripOffset, tickerChars, tickerStrip, totalAdvance, type TickerItem } from './ticker'
 import { DEFAULT_TICKER_METRICS, cleanMetrics, parseTickerFont, presetForMetrics, presetForSheet } from './tickerFont'
 
 const mono = (s: string, w = 9): TickerItem[] => Array.from(s).map((ch) => ({ ch, advance: w }))
@@ -53,9 +53,19 @@ describe('bitmap font glyph map', () => {
 })
 
 describe('ticker steps', () => {
-  it('loops on the text then the separator', () => {
-    expect(TICKER_SEPARATOR).toBe('  ***  ')
-    const unit = mono(`Dogs${TICKER_SEPARATOR}`)
+  it('pads a short title with spaces to fill the box, and a long one with at least the minimum gap', () => {
+    // 'JAY-Z - Oceans 3:58' is 19 glyphs of 9 px (171 px) in a 360 px box: 21 spaces make 360.
+    expect(tickerGap(171, 360, 9)).toBe(21)
+    expect(tickerGap(171, 364, 9)).toBe(22) // rounded up: the unit always covers the box
+    expect(tickerGap(900, 360, 9)).toBe(TICKER_MIN_GAP)
+    expect(tickerGap(171, 360, 0)).toBe(TICKER_MIN_GAP)
+    const unit = mono(`JAY-Z - Oceans 3:58${' '.repeat(tickerGap(171, 360, 9))}`)
+    expect(totalAdvance(unit)).toBe(360)
+    // The title appears once per unit, so a box-wide window never shows it twice.
+    expect(text(unit).split('JAY-Z').length - 1).toBe(1)
+  })
+  it('loops on the text then its gap', () => {
+    const unit = mono(`Dogs${' '.repeat(TICKER_MIN_GAP)}`)
     expect(nextStep(0, unit.length)).toBe(1)
     expect(nextStep(unit.length - 1, unit.length)).toBe(0)
     expect(nextStep(5, 0)).toBe(0)
@@ -68,7 +78,7 @@ describe('ticker steps', () => {
     expect([0, 1, 2, 3].map((s) => stripOffset(mixed, s))).toEqual([0, 9, 25, 34])
   })
   it('repeats the unit enough that the line never runs out, and wraps seamlessly', () => {
-    const unit = mono(`Pink Floyd - Dogs${TICKER_SEPARATOR}`)
+    const unit = mono(`Pink Floyd - Dogs${" ".repeat(TICKER_MIN_GAP)}`)
     const width = totalAdvance(unit)
     for (const visible of [50, width - 1, width, width * 2.5]) {
       const strip = tickerStrip(unit, visible)

@@ -71,7 +71,7 @@ const WIKI = `${REPO}/wiki`
 
 <template>
   <header class="docs-top" :class="{ scrolled }">
-    <a class="docs-brand" href="../" aria-label="ATF for VS Code: extension docs. Back to the atf playground" title="Back to the atf playground">
+    <a class="docs-brand" href="../" aria-label="ATF for VS Code: extension docs. Back to the atf-playground" title="Back to the atf playground">
       <span class="docs-title">ATF for VS Code</span>
       <span class="docs-tagline">Extension docs</span>
     </a>
@@ -80,7 +80,7 @@ const WIKI = `${REPO}/wiki`
   </header>
   <div class="docs">
     <nav class="toc" aria-label="Contents">
-      <a class="home" href="../">← atf playground</a>
+      <a class="home" href="../">← atf-playground</a>
       <p class="toc-title">ATF for VS Code <span class="muted">v{{ version }}</span></p>
       <a href="#install">Install</a>
       <a href="#features">Features</a>

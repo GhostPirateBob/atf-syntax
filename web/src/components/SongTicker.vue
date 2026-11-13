@@ -7,15 +7,15 @@ import { measureText } from '@/lib/measure'
 import { fontsLoaded, useWidth } from '@/lib/rowFit'
 import { theme } from '@/lib/theme'
 import { ROW_STATE_TEXT } from '@/lib/playlistWindow'
-import { TICKER_SEPARATOR, TICKER_STEP_MS, glyphCell, nextStep, stripOffset, tickerChars, tickerStrip, totalAdvance, type TickerItem } from '@/lib/ticker'
+import { TICKER_STEP_MS, glyphCell, nextStep, stripOffset, tickerChars, tickerGap, tickerStrip, totalAdvance, type TickerItem } from '@/lib/ticker'
 import { tickerFont } from '@/lib/tickerFont'
 
 /**
  * The preview while a song ticker recipe is loaded: the selected track's title on one line,
- * scrolled left one character every TICKER_STEP_MS like Winamp's ticker, then `  ***  ` and round
+ * scrolled left one character every TICKER_STEP_MS like Winamp's ticker, then blank space and round
  * again. The strip of glyphs moves by a stepped transform (no transition), so each step is a
- * compositor-only change. Like a stock ticker it always runs, a short title too (the strip repeats
- * to fill the box, so it wraps in from the right seamlessly). It stands still while hovered (WCAG
+ * compositor-only change. Like a stock ticker it always runs, a short title too: the gap after it
+ * fills the box, so the title shows once, its start coming back in on the right as its end leaves. It stands still while hovered (WCAG
  * 2.2.2's pause) and while the page is hidden. Not while focused: a click on it, or a ticker recipe picked just
  * before, would leave focus there and stop it for good. With less motion it still steps (it only
  * ever jumps a glyph at a time, nothing glides), since a ticker that never moves isn't a preview. Drawn in the user's skin
@@ -91,10 +91,16 @@ const items = (s: string): TickerItem[] => {
   return tickerChars(s).map((ch) => ({ ch, advance: advanceOf(ch) }))
 }
 const textItems = computed(() => items(text.value))
-const unit = computed(() => [...textItems.value, ...items(TICKER_SEPARATOR)])
 
 const clipEl = ref<HTMLElement>()
 const boxWidth = useWidth(clipEl)
+/** The title then blank space to fill the box, so it shows once per box width (see tickerGap). */
+const unit = computed(() => {
+  const space = items(' ')[0]
+  if (!space) return textItems.value
+  const gap = tickerGap(totalAdvance(textItems.value), boxWidth.value, space.advance)
+  return [...textItems.value, ...Array.from({ length: gap }, () => space)]
+})
 const scrolls = computed(() => !props.message && boxWidth.value > 0 && textItems.value.length > 0)
 const strip = computed(() => (scrolls.value ? tickerStrip(unit.value, boxWidth.value) : textItems.value))
 

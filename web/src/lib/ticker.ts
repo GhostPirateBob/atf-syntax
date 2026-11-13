@@ -1,13 +1,22 @@
 /**
- * The song ticker preview: one line, scrolled left one character at a time, the text followed by a
- * separator and repeating, like Winamp's main-window ticker. Pure functions; SongTicker.vue runs
- * the timer and draws.
+ * The song ticker preview: one line, scrolled left one character at a time, the text followed by
+ * blank space and coming round again. Pure functions; SongTicker.vue runs the timer and draws.
  */
 
 import { frames } from './timing'
 
-/** What follows the title before it starts again: Winamp 2's (and Webamp's) `  ***  `. */
-export const TICKER_SEPARATOR = '  ***  '
+/** The fewest blank characters after a title longer than the box, before it starts again. */
+export const TICKER_MIN_GAP = 7
+
+/**
+ * How many spaces follow the title: enough that the title plus the gap fills the box, so the title
+ * shows once per box width (its start comes back in on the right as its end leaves on the left, with
+ * nothing repeated in between), and at least TICKER_MIN_GAP for a title wider than the box.
+ */
+export function tickerGap(textWidth: number, visible: number, spaceAdvance: number): number {
+  if (spaceAdvance <= 0) return TICKER_MIN_GAP
+  return Math.max(TICKER_MIN_GAP, Math.ceil((visible - textWidth) / spaceAdvance))
+}
 /** One glyph every 20 frames (333 ms), in the owner's 250 to 500 ms range for a readable ticker. */
 export const TICKER_STEP_MS = frames(20)
 /** Longer titles are cut here, so the strip stays a sane size (a canvas has a width limit). */
@@ -25,7 +34,7 @@ export const tickerChars = (text: string): string[] => Array.from(text).slice(0,
 export const totalAdvance = (items: readonly TickerItem[]): number => items.reduce((sum, it) => sum + it.advance, 0)
 
 /**
- * The strip for a loop `unit` (the title then the separator): the unit repeated until it covers
+ * The strip for a loop `unit` (the title then its gap): the unit repeated until it covers
  * `visible` px from any step inside the first unit, so the line never runs out as it scrolls.
  */
 export function tickerStrip<T extends TickerItem>(unit: readonly T[], visible: number): T[] {
