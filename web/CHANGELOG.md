@@ -17,6 +17,7 @@ Changes to the [ATF playground](https://ghostpiratebob.me/atf-syntax/). The exte
 
 - On phones, **random recipe** is an icon, like format and reset beside it (the words stay for screen readers, with a tooltip).
 - Every form field has a `name`, as Chrome's autofill check asks.
+- The search waits for 2 characters before it searches (one shows your recent searches and a "keep typing" hint).
 - Errors for each dialect are written to the browser console in full (`[WACUP]` / `[Winamp 5]`, rule and column), a second after you stop typing: the verdicts only count them.
 
 ### Tags from your files, matched to WACUP's fields
