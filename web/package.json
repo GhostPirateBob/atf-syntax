@@ -9,11 +9,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "preview:dist": "vite preview --port 4174 --host 127.0.0.1 --strictPort",
-    "serve:dist": "npm run build && vite preview --port 4174 --host 127.0.0.1 --strictPort",
+    "serve:dist": "npm run build && vite preview --port 4174 --host 127.0.0.1 --strictPort --open",
     "dev:vapor": "vite --mode vapor --open",
     "build:vapor": "vite build --mode vapor",
     "preview:vapor": "vite preview --outDir dist-vapor --port 4180 --host 127.0.0.1 --strictPort",
-    "serve:vapor": "npm run build:vapor && vite preview --outDir dist-vapor --port 4180 --host 127.0.0.1 --strictPort",
+    "serve:vapor": "npm run build:vapor && vite preview --outDir dist-vapor --port 4180 --host 127.0.0.1 --strictPort --open",
     "type-check": "vue-tsc --build",
     "test": "vitest run"
   },
