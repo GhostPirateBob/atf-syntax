@@ -183,8 +183,26 @@ describe('mediainfo', () => {
     )
     expect(tags).toEqual({
       filename: 'D:\\Music\\Juicy.mp3', title: 'Juicy', artist: 'The Notorious B.I.G.', tracknumber: '1457', year: '1994',
-      length_seconds: '303', bitrate: '216', samplerate: '44100', vbr: '1',
+      length_seconds: '303', bitrate: '216', samplerate: '44100', vbr: '1', type: '0',
     })
+  })
+  it('maps the tool, encoder, label, producer, director, disc and type fields as WACUP documents them', () => {
+    const tags = (general: Record<string, string>, audio: Record<string, string> = {}, extra: Record<string, string>[] = []) =>
+      tagsFromMediaInfo({ media: { track: [{ '@type': 'General', ...general }, { '@type': 'Audio', ...audio }, ...extra] } }, 'x')
+    // %tool%: the ripping/encoding software; %encoder%: the codec library, on the Audio track for FLAC/Opus/Ogg.
+    expect(tags({ Encoded_Application: 'Lavf63.18.100' }, { Encoded_Library: 'libopus 1.5' })).toMatchObject({ tool: 'Lavf63.18.100', encoder: 'libopus 1.5' })
+    expect(tags({ Encoded_Library: 'LAME3.100' }, { Encoded_Library: 'other' }).encoder).toBe('LAME3.100')
+    // %publisher% falls back to the LABEL tag.
+    expect(tags({ Label: 'PMEDIA' }).publisher).toBe('PMEDIA')
+    expect(tags({ Publisher: 'Death Row Records', Label: 'x' }).publisher).toBe('Death Row Records')
+    expect(tags({ Producer: 'Nigel Godrich', Director: 'Spike Jonze' })).toMatchObject({ producer: 'Nigel Godrich', director: 'Spike Jonze' })
+    // No padding on numbers; %disc% as position/total when the total is known.
+    expect(tags({ Track_Position: '007', Part_Position: '01', Part_Position_Total: '02' })).toMatchObject({ tracknumber: '7', disc: '1/2' })
+    expect(tags({ Track_Position: '0', Part_Position: '3' })).toMatchObject({ tracknumber: '0', disc: '3' })
+    expect(tags({ Track_Position: 'A1' }).tracknumber).toBe('A1') // vinyl sides stay as written
+    // %type%: 1 for video; a cover picture (an Image track) doesn't count.
+    expect(tags({}, {}, [{ '@type': 'Image' }]).type).toBe('0')
+    expect(tags({}, {}, [{ '@type': 'Video' }]).type).toBe('1')
   })
   it("takes %year% from the date's four-digit year, falling back to the original release date", () => {
     const year = (general: Record<string, string>) => tagsFromMediaInfo({ media: { track: [{ '@type': 'General', ...general }] } }, 'x.mp3').year
@@ -194,7 +212,8 @@ describe('mediainfo', () => {
     expect(year({})).toBeUndefined()
   })
   it('builds the real-file samples from the shipped JSON', () => {
-    expect(SAMPLE_TRACKS[0].tags).toMatchObject({ artist: 'Alfie Templeman', tracknumber: '0172', publisher: 'Chess Club Records', bitrate: '320' })
+    // Its file says track 0172; WACUP shows %tracknumber% with no padding.
+    expect(SAMPLE_TRACKS[0].tags).toMatchObject({ artist: 'Alfie Templeman', tracknumber: '172', publisher: 'Chess Club Records', bitrate: '320' })
     expect(SAMPLE_TRACKS.map((t) => t.tags.year)).toEqual(['2020', '2013', '1994', '1977', '2001'])
     expect(SAMPLE_TRACKS.every(Boolean)).toBe(true)
   })
@@ -205,7 +224,7 @@ describe('mediainfo', () => {
   it('reads the Daft Punk sample with tidy tags (the script replaces its downloader track number and reissue date)', () => {
     expect(SAMPLE_TRACKS[4]!.tags).toMatchObject({
       artist: 'Daft Punk', title: 'One More Time', album: 'Discovery', albumartist: 'Daft Punk',
-      year: '2001', tracknumber: '1', disc: '1', length_seconds: '320', bitrate: '320',
+      year: '2001', tracknumber: '1', disc: '1/2', length_seconds: '320', bitrate: '320',
       filename: 'D:\\Music\\Daft Punk\\Discovery\\1-01 One More Time.mp3',
     })
   })

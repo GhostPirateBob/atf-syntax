@@ -1,0 +1,29 @@
+{
+  "id": "/atf-syntax/",
+  "name": "atf-playground: Advanced Title Formatting for WACUP & Winamp",
+  "short_name": "atf-playground",
+  "description": "Live ATF (Advanced Title Formatting) playground for WACUP and Winamp: type a title format, see it render for real tracks.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#00080c",
+  "theme_color": "#00080c",
+  "categories": ["music", "utilities", "developer"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "screenshots": [
+    { "src": "screenshots/desktop.webp", "sizes": "1920x1080", "type": "image/webp", "form_factor": "wide", "label": "The format editor, live playlist preview and breakdown on a desktop" },
+    { "src": "screenshots/mobile.webp", "sizes": "1080x2340", "type": "image/webp", "form_factor": "narrow", "label": "The playground on a phone" }
+  ],
+  "shortcuts": [
+    { "name": "Extension docs", "short_name": "Docs", "url": "./extension/", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}

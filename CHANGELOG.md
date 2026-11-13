@@ -2,6 +2,10 @@
 
 Changes to the extension. The web playground has its own changelog: [web/CHANGELOG.md](web/CHANGELOG.md).
 
+## Unreleased
+
+- The `%trackartist%` hover says where it comes from: in WACUP only CD audio (`in_cdda`) and portable devices (`ml_pmp`) provide it, so it is empty for tagged files (checked against every plugin in a WACUP 1.99.57 install).
+
 ## 0.5.0 — 2026-11-13
 
 - New: the [ATF playground](https://ghostpiratebob.me/atf-syntax/), a web page where you type a format and see it render live for sample tracks or your own playlist, with the same checking as this extension. Its evaluator was checked against WACUP 1.99.57.25464's own: every decided case of 65,940 generated formats matches, behaviour it can't confirm shows `?`, and formats that would freeze WACUP are flagged instead of run.

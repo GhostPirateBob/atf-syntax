@@ -189,7 +189,7 @@ const WIKI = `${REPO}/wiki`
 
       <section id="functions">
         <h2><a href="#functions">Functions</a></h2>
-        <input v-model="query" class="filter" type="search" placeholder="Filter functions and fields…" aria-label="Filter functions and fields" />
+        <input name="docs-filter" v-model="query" class="filter" type="search" placeholder="Filter functions and fields…" aria-label="Filter functions and fields" />
         <template v-for="g in groups" :key="g.kind">
           <h3 class="group">{{ g.title }} <span class="muted">({{ g.items.length }})</span></h3>
           <div v-for="f in g.items" :id="`fn-${f.name}`" :key="f.name" class="entry">

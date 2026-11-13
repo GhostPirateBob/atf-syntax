@@ -236,8 +236,8 @@ function importPasted() {
         <IconButton :icon="ListMusic" label="Save .m3u8" show-icon :icon-size="14" :title="exportTitle" :disabled="source !== 'playlist'" @click="emit('export')" />
         <IconButton v-if="source !== 'sample'" :icon="ListRestart" label="Back to samples" show-icon :icon-size="14" @click="emit('samples')" />
       </span>
-      <input ref="fileInput" type="file" :accept="ACCEPT" multiple hidden @change="onPick" />
-      <input ref="folderInput" type="file" webkitdirectory hidden @change="onPick" />
+      <input name="audio-files" ref="fileInput" type="file" :accept="ACCEPT" multiple hidden @change="onPick" />
+      <input name="audio-folder" ref="folderInput" type="file" webkitdirectory hidden @change="onPick" />
     </header>
 
     <div v-if="untagged" class="notice" role="status">
@@ -255,7 +255,7 @@ function importPasted() {
     </div>
 
     <div v-if="pasting" class="paste">
-      <textarea v-model="pasted" rows="5" placeholder="#EXTM3U&#10;#EXTINF:223,Artist - Title&#10;D:\Music\Artist\Album\01 Title.mp3" />
+      <textarea name="pasted-playlist" v-model="pasted" rows="5" placeholder="#EXTM3U&#10;#EXTINF:223,Artist - Title&#10;D:\Music\Artist\Album\01 Title.mp3" />
       <div class="paste-actions">
         <button class="primary" :disabled="!pasted.trim()" @click="importPasted">Use these tracks</button>
         <span class="muted">Stays in your browser. Share links never include playlist data.</span>
@@ -300,7 +300,7 @@ function importPasted() {
           <div v-if="editing === i" class="editor">
             <label v-for="key in EDITABLE_TAGS" :key="key">
               <span class="mono">%{{ key }}%</span>
-              <input type="text" :value="t.tags[key] ?? ''" @input="emit('setTag', i, key, ($event.target as HTMLInputElement).value)" />
+              <input type="text" :name="`tag-${key}`" :value="t.tags[key] ?? ''" @input="emit('setTag', i, key, ($event.target as HTMLInputElement).value)" />
             </label>
           </div>
         </li>

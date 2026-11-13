@@ -80,10 +80,13 @@ interface OptionGroup {
 
 const MONO = new Set(['function', 'field', 'rule', 'setting'])
 const q = computed(() => props.query.trim())
-const hits = computed<Hit[]>(() => (searcher.value && q.value ? searcher.value.search(q.value) : []))
+/** Searching starts at 2 characters (code points); with fewer, the recent searches stay up. */
+const MIN_CHARS = 2
+const searching = computed(() => Array.from(q.value).length >= MIN_CHARS)
+const hits = computed<Hit[]>(() => (searcher.value && searching.value ? searcher.value.search(q.value) : []))
 
 const groups = computed<OptionGroup[]>(() => {
-  if (q.value) {
+  if (searching.value) {
     return groupHits(hits.value).map((g) => ({
       key: g.kind,
       label: g.label,
@@ -122,7 +125,7 @@ const flat = computed(() => groups.value.flatMap((g) => g.options))
 const activeId = computed(() => flat.value[active.value]?.id)
 watch([activeId, () => flat.value.length > 0], ([id, expanded]) => emit('state', { activeId: id, expanded }), { immediate: true })
 const countText = computed(() => {
-  if (!q.value || loading.value) return ''
+  if (!searching.value || loading.value) return ''
   const n = flat.value.length
   return n ? `${n} result${n === 1 ? '' : 's'}. Use Up and Down to choose, Enter to open.` : 'No results.'
 })
@@ -136,7 +139,7 @@ let keyMove = false
 watch(
   q,
   () => {
-    active.value = q.value ? 0 : -1
+    active.value = searching.value ? 0 : -1
     if (pop.value) pop.value.scrollTop = 0
   },
   { immediate: true },
@@ -169,7 +172,7 @@ onBeforeUnmount(() => onOptionMove.cancel())
 
 // ---- going to a result ------------------------------------------------------------------------
 function go(doc: SearchDoc) {
-  if (q.value) remember({ type: 'query', text: q.value })
+  if (searching.value) remember({ type: 'query', text: q.value })
   remember({ type: 'pick', id: doc.id, title: doc.title, kind: doc.kind })
   emit('picked')
   const route = routeFor(doc, props.page, props.refListed)
@@ -193,8 +196,9 @@ defineExpose({ onKey })
 
 <template>
   <div ref="pop" class="omni-pop" @mousedown.prevent>
-    <p v-if="loading && q" class="omni-msg">Loading the index…</p>
-    <p v-else-if="q && !flat.length" class="omni-msg">No matches for “{{ q }}”.</p>
+    <p v-if="loading && searching" class="omni-msg">Loading the index…</p>
+    <p v-else-if="searching && !flat.length" class="omni-msg">No matches for “{{ q }}”.</p>
+    <p v-else-if="q && !flat.length" class="omni-msg">Keep typing: searching starts at 2 characters.</p>
     <p v-else-if="!q && !flat.length" class="omni-msg">Search recipes, functions, fields, lint rules, settings and the wiki. Press <kbd>/</kbd> or <kbd>{{ hint }}</kbd> from anywhere.</p>
     <div id="omni-list" role="listbox" aria-label="Search results" class="omni-list" :hidden="!flat.length">
       <div v-for="g in groups" :key="g.key" role="group" :aria-labelledby="`omni-g-${g.key}`" class="omni-group">

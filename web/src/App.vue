@@ -682,23 +682,29 @@ async function readFiles(files: PickedFile[], seq: number): Promise<{ tags: Reco
       reader = undefined
       say("Couldn't load the tag reader, so only file names are shown.")
     }
-    const tags: Record<string, string>[] = []
+    // The reader's workers parse side by side: keep one file in flight per worker, in order.
+    const tags: Record<string, string>[] = new Array(files.length)
     let failed = 0
-    for (const f of files) {
-      if (seq !== readSeq) return undefined
-      let t: Record<string, string> = { filename: f.path }
-      if (reader) {
-        try {
-          t = await reader.readTags(f.file, f.path)
-        } catch {
-          failed++
+    let done = 0
+    let next = 0
+    const lane = async () => {
+      while (next < files.length && seq === readSeq) {
+        const i = next++
+        const f = files[i]!
+        let t: Record<string, string> = { filename: f.path }
+        if (reader) {
+          try {
+            t = await reader.readTags(f.file, f.path)
+          } catch {
+            failed++
+          }
         }
+        tags[i] = t
+        done++
+        if (seq === readSeq) reading.value = { done, total: files.length }
       }
-      tags.push(t)
-      if (seq === readSeq) reading.value = { done: tags.length, total: files.length }
-      // MediaInfo parses on this thread: yield between files so the page stays responsive.
-      await yieldToMain()
     }
+    await Promise.all(Array.from({ length: reader ? reader.concurrency : 1 }, lane))
     return seq === readSeq ? { tags, failed } : undefined
   } finally {
     if (seq === readSeq) reading.value = null
@@ -891,7 +897,7 @@ function hoverRange(range: { start: number; end: number } | null) {
           <IconButton :icon="Link" label="Share link" collapse="header" show-icon :icon-size="14" @click="shareLink" />
           <ThemeToggle />
         </div>
-        <input ref="atfInput" type="file" accept=".atf,.txt" hidden @change="onAtfPicked" />
+        <input name="atf-file" ref="atfInput" type="file" accept=".atf,.txt" hidden @change="onAtfPicked" />
       </header>
 
       <nav v-if="atfChoices.length" class="choices" aria-label="Formats in this file">
@@ -936,7 +942,9 @@ function hoverRange(range: { start: number; end: number } | null) {
             <button type="button" @click="closeSave">Cancel</button>
             <p class="muted">Kept in this browser only. Find it under Recipes.</p>
           </form>
-          <button class="random" @click="randomRecipe"><Shuffle :size="14" aria-hidden="true" class="tab-lead" />random recipe</button>
+          <button v-tip="'Load a random recipe'" class="random" aria-label="Random recipe" @click="randomRecipe">
+            <Shuffle :size="14" aria-hidden="true" class="tab-lead" /><span class="tab-text">random recipe</span>
+          </button>
           <div class="split" role="group" aria-label="Format or reset">
             <button v-tip="'Format: wrap at top-level boundaries (Shift+Alt+F)'" class="format" aria-label="Format (wrap at top-level boundaries)" @click="formatEditor">
               <TextWrap :size="16" aria-hidden="true" class="tab-icon" />
@@ -1536,13 +1544,12 @@ footer a:focus-visible {
   .box-actions {
     flex-direction: column;
   }
-  .tab-icon {
+  /* On phones the tabs below the box are icons only (random recipe too); the words stay for
+     screen readers, and each has a tooltip. */
+  .tab-icon,
+  .tab-lead {
     width: 16px;
     height: 16px;
-  }
-  /* random recipe keeps its words on phones, without the icon. */
-  .tab-lead {
-    display: none;
   }
   .tab-text {
     position: absolute;

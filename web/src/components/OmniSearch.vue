@@ -121,6 +121,7 @@ defineExpose({ open: openSearch })
       <input
         ref="input"
         v-model="query"
+        name="omni-search"
         type="search"
         role="combobox"
         aria-label="Search recipes, functions and docs"
