@@ -1,0 +1,16 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "include": ["env.d.ts", "src/**/*", "src/**/*.vue"],
+  "exclude": ["src/**/*.test.ts"],
+  "compilerOptions": {
+    // The shared core in ../src is written for the extension's Node16 build: it imports types
+    // without `import type`. Keep it compiling unchanged here.
+    "verbatimModuleSyntax": false,
+
+    "paths": {
+      "@/*": ["./src/*"],
+      "@core/*": ["../src/*"]
+    },
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
+  }
+}

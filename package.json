@@ -129,7 +129,7 @@
                 "off"
               ],
               "default": "error",
-              "markdownDescription": "A syntax error. WACUP replaces the whole title with `[SYNTAX ERROR IN FORMATTING STRING (n)]`."
+              "markdownDescription": "A syntax error. WACUP shows `[SYNTAX ERROR IN FORMATTING STRING (n)]` in place of the whole title, or of just the function argument or `[…]` section the error is in."
             },
             "too-deep": {
               "type": "string",
@@ -373,6 +373,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
+    "dev": "npm --prefix web run dev --",
     "test": "tsc -p . && node --test \"test/*.test.js\"",
     "package": "vsce package",
     "publish": "vsce publish --oidc"

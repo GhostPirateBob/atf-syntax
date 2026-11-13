@@ -46,7 +46,7 @@ export interface RuleInfo {
 export const RULES: Record<RuleId, RuleInfo> = Object.fromEntries(
   (
     [
-      ['syntax', 'error', 'A syntax error. WACUP replaces the whole title with `[SYNTAX ERROR IN FORMATTING STRING (n)]`.'],
+      ['syntax', 'error', 'A syntax error. WACUP shows `[SYNTAX ERROR IN FORMATTING STRING (n)]` in place of the whole title, or of just the function argument or `[…]` section the error is in.'],
       ['too-deep', 'warning', `Nested more than ${MAX_DEPTH} levels deep, so the format isn't checked.`],
       ['unknown-function', 'error', 'Function not in the WACUP/tagz function table; prints `[UNKNOWN FUNCTION -> $name]`.'],
       ['removed-function', 'error', 'Documented but not callable (`$and`, `$greater`, `$fill`).'],
@@ -100,7 +100,7 @@ const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 function syntaxMessage(code: SyntaxErrorCode, reason: string): string {
   if (code === SyntaxErrorCode.Internal) return `[INTERNAL ERROR] — ${reason}`;
   if (code === SyntaxErrorCode.UnterminatedField) return `[TRUNCATED FORMATTING STRING -> MISSING END TAG] — ${reason}`;
-  return `[SYNTAX ERROR IN FORMATTING STRING (${code})] — ${reason}. WACUP replaces the whole title with this error.`;
+  return `[SYNTAX ERROR IN FORMATTING STRING (${code})] — ${reason}. WACUP shows this error in place of the whole title, or of just the function argument or […] section the error is in.`;
 }
 
 /** Index of the first item whose `start` is ≥ `pos`, in an array sorted by `start`. */

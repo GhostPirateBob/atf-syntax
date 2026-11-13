@@ -1,0 +1,196 @@
+/* Colours from the Solarized Dark Cursive REMIX theme (gpb-solarized-dark). */
+:root {
+  --bg: #010f17;
+  --sidebar: #06121c;
+  --panel: #021821;
+  --raised: #073642;
+  --border: #0f3340;
+  --teal: #1c6a68;
+  --glow: rgba(42, 161, 152, 0.28);
+  --selection: #0d2c32;
+  --caret: #af0f0f;
+
+  --text: #93a1a1;
+  --bright: #eee8d5;
+  --muted: #586e75;
+  --dim: #657b83;
+
+  --magenta: #d33682;
+  --gold: #be9208;
+  --cyan: #2aa198;
+  --sky: #29b6f6;
+  --blue: #268bd2;
+  --green: #849900;
+  --red: #dc322f;
+  --orange: #cb4b16;
+  --violet: #6c71c4;
+
+  --error: #eb2f06;
+  --warning: #feca57;
+  --info: #0abde3;
+
+  --mono: 'Iosevka Charon Mono', ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  --sans: 'Exo', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  /* Playlist titles: a condensed face, like a real playlist column. */
+  --title-font: 'Roboto Condensed', 'Arial Narrow', sans-serif;
+  --title-weight: 350;
+  --editor-size: 1.15rem;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--blue);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: var(--text);
+}
+
+button:hover,
+button:focus-visible {
+  border-color: var(--teal);
+  color: var(--bright);
+  outline: none;
+}
+
+button.primary {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: var(--bright);
+}
+
+input[type='text'],
+input[type='number'],
+input[type='search'],
+textarea {
+  background: #051820;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--teal);
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  color: var(--bright);
+  background: rgba(7, 54, 66, 0.6);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ATF token colours, shared by the editor and static snippets. */
+.tok-field {
+  color: var(--gold);
+}
+.tok-fn {
+  color: var(--magenta);
+  font-style: italic;
+}
+.tok-fn-unknown {
+  color: var(--orange);
+  font-style: italic;
+  text-decoration: underline wavy var(--orange);
+}
+.tok-paren {
+  color: var(--text);
+}
+.tok-bracket {
+  color: var(--blue);
+  font-weight: 600;
+}
+.tok-quote {
+  color: var(--cyan);
+}
+.tok-escape {
+  color: var(--red);
+}
+.tok-comma {
+  color: var(--dim);
+}
+.tok-broken {
+  color: var(--error);
+  text-decoration: underline wavy var(--error);
+}
+.tok-comment {
+  color: #637b83;
+  font-style: italic;
+}
+.atf-text {
+  color: var(--bright);
+}
+
+.atf-focus {
+  background: rgba(190, 146, 8, 0.22);
+  outline: 1px solid rgba(190, 146, 8, 0.55);
+  border-radius: 2px;
+}
+
+.sev-error {
+  color: var(--error);
+}
+.sev-warning {
+  color: var(--warning);
+}
+.sev-info {
+  color: var(--info);
+}
+.sev-hint {
+  color: var(--dim);
+}
+
+.toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--raised);
+  color: var(--bright);
+  border: 1px solid var(--teal);
+  padding: 8px 16px;
+  border-radius: 6px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  max-width: calc(100vw - 32px);
+}

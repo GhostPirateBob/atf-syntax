@@ -69,7 +69,10 @@ export enum SyntaxErrorCode {
   StrayBracket = 9,
 }
 
-/** The first syntax error. WACUP stops here and replaces the whole output with its message. */
+/**
+ * The first syntax error. WACUP shows its message in place of the scope the error is in: the whole
+ * output at the top level, otherwise just that function argument or `[…]` section.
+ */
 export interface ParseError extends Span {
   code: SyntaxErrorCode;
   /** Human-readable explanation, naming the offending construct and its column. */
