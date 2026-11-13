@@ -89,3 +89,21 @@ describe('remembered playlist', () => {
     expect(readTracks(store)).toBeNull()
   })
 })
+
+describe('serialiseTracks in one pass', () => {
+  it('writes the same JSON as stringifying the whole record', () => {
+    const r = list(5)
+    const stored = r.tracks.map((t) => ({ tags: t.tags, ...(t.path !== undefined && { path: t.path }), ...(t.cachedTitle !== undefined && { cachedTitle: t.cachedTitle }) }))
+    expect(serialiseTracks(r).json).toBe(JSON.stringify({ v: TRACKS_VERSION, source: r.source, selected: r.selected, tagged: r.tagged, tracks: stored }))
+  })
+
+  it('keeps the longest prefix that fits: one more track would not', () => {
+    const big = list(300)
+    for (const max of [5_000, 12_345, 40_000]) {
+      const cut = serialiseTracks(big, max)
+      expect(cut.json!.length).toBeLessThanOrEqual(max)
+      const more = serialiseTracks({ ...big, tracks: big.tracks.slice(0, cut.kept + 1) }, Infinity)
+      expect(more.json!.length).toBeGreaterThan(max)
+    }
+  })
+})

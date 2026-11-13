@@ -1,4 +1,4 @@
-/** Default face for rendered playlist titles (loaded from Google Fonts in index.html). */
+/** Default face for rendered playlist titles (self-hosted: see src/fonts.css). */
 export const TITLE_FAMILY =
   "'Roboto Condensed', 'Arial Narrow', 'Liberation Sans Narrow', 'Nimbus Sans Narrow', 'Helvetica Neue', Arial, sans-serif"
 export const TITLE_WEIGHT = 350

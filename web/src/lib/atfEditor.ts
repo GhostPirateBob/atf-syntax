@@ -181,6 +181,10 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
   ]
   const view = new EditorView({ parent, state: EditorState.create({ doc, extensions }) })
   const formatView = () => toFormat(view.state.doc.toString())
+  /** The horizontal padding of a line, in px (read on first use by charsPerLine). */
+  let linePadding: number | undefined
+  /** How many findings the editor shows. */
+  let shownFindings = -1
 
   return {
     view,
@@ -205,6 +209,10 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
       view.dispatch({ effects: setFocus.of(r) })
     },
     setFindings(findings) {
+      // Typing a valid format leaves no findings, keystroke after keystroke: then there's nothing to
+      // dispatch, and CodeMirror is spared an update and its measure cycle.
+      if (!findings.length && !shownFindings) return
+      shownFindings = findings.length
       const fv = formatView()
       const len = view.state.doc.length
       const diagnostics: Diagnostic[] = findings.map((f) => {
@@ -236,10 +244,13 @@ export function createAtfEditor(parent: HTMLElement, doc: string, onChange: (doc
       })
     },
     charsPerLine() {
-      const line = view.contentDOM.querySelector('.cm-line')
-      const style = line ? getComputedStyle(line) : undefined
-      const padding = style ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) : 36
-      return Math.floor((view.contentDOM.clientWidth - padding) / view.defaultCharacterWidth)
+      // The line padding comes from the theme and never changes: read it once.
+      if (linePadding === undefined) {
+        const line = view.contentDOM.querySelector('.cm-line')
+        const style = line ? getComputedStyle(line) : undefined
+        if (style) linePadding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+      }
+      return Math.floor((view.contentDOM.clientWidth - (linePadding ?? 36)) / view.defaultCharacterWidth)
     },
     setShowSpaces(on) {
       view.dispatch({ effects: spaces.reconfigure(spaceMarks(on)) })

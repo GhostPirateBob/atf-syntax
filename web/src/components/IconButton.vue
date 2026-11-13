@@ -85,11 +85,13 @@ withDefaults(defineProps<{ icon: Component; label: string; title?: string; colla
     padding: 0;
   }
 }
+/* Dimmed with solid colours rather than opacity (no group-opacity layer, and a contrast that can be
+   checked): the label and icon 65 % of the way from the panel to --text, 3.56:1 on the panel in dark
+   and 3.02:1 in light (enabled: about 6.8:1); the border half way. */
 .icon-btn:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
-  border-color: var(--border);
-  color: var(--text);
+  border-color: color-mix(in srgb, var(--border) 50%, var(--panel));
+  color: color-mix(in srgb, var(--text) 65%, var(--panel));
 }
 .icon-btn:focus-visible {
   outline: 2px solid var(--teal);

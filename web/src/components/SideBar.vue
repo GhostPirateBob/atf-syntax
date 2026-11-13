@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, shallowRef } from 'vue'
+import { computed, nextTick, onMounted, ref, shallowRef } from 'vue'
 import { Pencil, Trash } from '@lucide/vue'
 import { FIELDS, FUNCTIONS } from '@/core'
 import { inlineMarkdown } from '@/lib/markdown'
@@ -8,6 +8,7 @@ import { browserStorage, renameSaved, savedFormats, updateSaved, type SavedForma
 import { expandSection, isExpanded, readCollapsed, sectionFor, toggleSection, writeCollapsed } from '@/lib/collapsed'
 import { toFormat } from '@/lib/document'
 import { reducedMotion } from '@/lib/media'
+import { yieldToMain } from '@/lib/timing'
 import HighlightedFormat from './HighlightedFormat.vue'
 import SidebarSection from './SidebarSection.vue'
 
@@ -73,6 +74,21 @@ async function cancelRename(s: SavedFormat) {
 }
 const flatFormat = (doc: string) => toFormat(doc).format
 
+// ---- staged start ----------------------------------------------------------------------------------
+// The lists are most of the page's DOM: they render after the first paint (one frame, then a yield),
+// so the editor and the preview show first.
+const ready = ref(false)
+let markReady: () => void = () => {}
+const untilReady = new Promise<void>((resolve) => (markReady = resolve))
+onMounted(() =>
+  requestAnimationFrame(async () => {
+    await yieldToMain()
+    ready.value = true
+    await nextTick()
+    markReady()
+  }),
+)
+
 // ---- jumping to an entry from the search ---------------------------------------------------------
 const root = ref<HTMLElement>()
 /**
@@ -80,6 +96,7 @@ const root = ref<HTMLElement>()
  * clears the filter, scrolls it into view, focuses it and flashes an outline. False if not listed.
  */
 async function reveal(which: 'recipes' | 'reference', id: string): Promise<boolean> {
+  await untilReady
   tab.value = which
   query.value = ''
   // A target in a collapsed section: expand it (and remember that) before scrolling to it.
@@ -113,7 +130,9 @@ const groups = recipeGroups(RECIPES)
       <button class="close" aria-label="Close sidebar" @click="emit('close')">✕</button>
     </header>
 
-    <div v-if="tab === 'recipes'" class="scroll">
+    <!-- The lists render just after the first paint (see `ready`); the header shows at once. -->
+    <div v-if="!ready" class="scroll" />
+    <div v-else-if="tab === 'recipes'" class="scroll">
       <SidebarSection
         v-if="savedFormats.length"
         :id="sectionId('recipes:saved')"
@@ -261,27 +280,17 @@ header button.active {
 .saved-item + .saved-item {
   border-top: 1px solid var(--border);
 }
-/* The hover tint is an overlay under the text that fades in (opacity only). */
+/* List items hover instantly (see the motion rule in style.css): the card's colour changes to the
+   35 % tint over the card, as a solid colour, so sweeping the pointer down the list repaints one
+   card at a time with no layer to promote per card. Paint containment keeps that repaint inside. */
 .recipe,
 .item {
   position: relative;
-  isolation: isolate;
+  contain: paint;
 }
-.recipe::before,
-.item::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: rgba(var(--tint-rgb), 0.35);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s;
-}
-.recipe:hover::before,
-.item:hover::before {
-  opacity: 1;
+.recipe:hover,
+.item:hover {
+  background-color: color-mix(in srgb, rgb(var(--tint-rgb)) 35%, var(--recipe-bg));
 }
 .recipe:hover,
 .item:hover {

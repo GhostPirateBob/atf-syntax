@@ -7,7 +7,8 @@ import vue from '@vitejs/plugin-vue'
 // from ../src, so the VS Code extension and the web page always agree.
 export default defineConfig({
   base: './',
-  plugins: [vue()],
+  // No component (ours or @lucide/vue's functional icons) uses the Options API: leave it out.
+  plugins: [vue({ features: { optionsAPI: false } })],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -20,6 +21,9 @@ export default defineConfig({
     fs: { allow: ['..'] },
   },
   build: {
+    // Source maps as separate .map files beside each chunk (the worker's too: it is built with the
+    // same setting), linked by a sourceMappingURL comment; never inlined.
+    sourcemap: true,
     // Two pages: the playground and the extension's documentation.
     rolldownOptions: {
       input: {

@@ -29,22 +29,31 @@ const toStored = (t: Track): StoredTrack => ({ tags: t.tags, ...(t.path !== unde
 
 /**
  * The JSON to store, and how many tracks it holds: all of them, or the first ones that fit in
- * `max` characters. Zero tracks fit: `json` is undefined.
+ * `max` characters. Zero tracks fit: `json` is undefined. Each track is stringified once and the
+ * lengths added up, so a list too big to keep whole is cut in one pass (no re-stringifying the
+ * whole list to search for the cut).
  */
 export function serialiseTracks(r: RememberedTracks, max = MAX_TRACKS_JSON): { json?: string; kept: number } {
-  const build = (n: number) =>
-    JSON.stringify({ v: TRACKS_VERSION, source: r.source, selected: Math.min(r.selected, Math.max(0, n - 1)), tagged: Math.min(r.tagged, n), tracks: r.tracks.slice(0, n).map(toStored) })
-  const all = build(r.tracks.length)
-  if (all.length <= max) return { json: all, kept: r.tracks.length }
-  // The longest prefix that fits, by bisection.
-  let lo = 0
-  let hi = r.tracks.length - 1
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1
-    if (build(mid).length <= max) lo = mid
-    else hi = mid - 1
+  const head = (n: number) =>
+    JSON.stringify({ v: TRACKS_VERSION, source: r.source, selected: Math.min(r.selected, Math.max(0, n - 1)), tagged: Math.min(r.tagged, n), tracks: [] }).slice(0, -3)
+  // `{"v":1,…,"tracks":[` + the tracks joined by commas + `]}`; the head's numbers depend on n, so
+  // budget for the longest head (all tracks) and check the result.
+  const budget = max - head(r.tracks.length).length - 3
+  const pieces: string[] = []
+  let used = 0
+  for (const t of r.tracks) {
+    const piece = JSON.stringify(toStored(t))
+    const next = used + piece.length + (pieces.length ? 1 : 0)
+    if (next > budget) break
+    pieces.push(piece)
+    used = next
   }
-  return lo > 0 ? { json: build(lo), kept: lo } : { kept: 0 }
+  while (pieces.length) {
+    const json = `${head(pieces.length)}[${pieces.join(',')}]}`
+    if (json.length <= max) return { json, kept: pieces.length }
+    pieces.pop()
+  }
+  return { kept: 0 }
 }
 
 const isStrings = (v: unknown): v is Record<string, string> =>

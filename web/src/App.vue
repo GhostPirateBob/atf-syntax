@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
 import { Copy, Menu, Download, FolderOpen, Link, RotateCcw, Save, Settings, Shuffle, TextWrap } from '@lucide/vue'
 import { FIELD_MAP, FUNCTION_MAP, lint, parse, splitBlocks, type Finding } from '@/core'
 import { toFormat } from '@/lib/document'
 import { applyDisplay, oneLine } from '@/lib/display'
 import { EvalRunner, type RunOutcome } from '@/lib/runner'
+import type { EvalResult } from '@core/evaluate'
+import { previewWindow } from '@/lib/playlistWindow'
+import { whenIdle, yieldToMain } from '@/lib/timing'
 import { decodeShare, encodeShare } from '@/lib/share'
 import { RECIPES, showsDuration, type Recipe } from '@/lib/recipes'
 import type { Origin } from '@/lib/docHistory'
@@ -26,10 +29,14 @@ import PartsTable from './components/PartsTable.vue'
 import DiagnosticsList from './components/DiagnosticsList.vue'
 import TrackList, { type Row } from './components/TrackList.vue'
 import MiniPlaylist from './components/MiniPlaylist.vue'
-import SongTicker from './components/SongTicker.vue'
-import SettingsPanel from './components/SettingsPanel.vue'
+import type SettingsPanelType from './components/SettingsPanel.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 import SideBar from './components/SideBar.vue'
+
+// Not needed for the first render: the settings strip (on the gear) and the song ticker (ticker
+// recipes only) load on their own, fetched once the page is idle so the first open is instant.
+const SettingsPanel = defineAsyncComponent(() => import('./components/SettingsPanel.vue'))
+const SongTicker = defineAsyncComponent(() => import('./components/SongTicker.vue'))
 
 // The format a fresh visit opens with: a recipe, so it shows off more than one function.
 const DEFAULT_RECIPE = RECIPES.find((r) => r.title === 'Long albums to initials')
@@ -38,7 +45,8 @@ const recipeOrigin = (r: Recipe): Origin => ({ label: r.title, text: r.format, r
 /** What Reset goes back to when the format's own origin isn't known (an autosave, typing from scratch). */
 const DEFAULT_ORIGIN: Origin = DEFAULT_RECIPE ? recipeOrigin(DEFAULT_RECIPE) : { label: 'the default format', text: DEFAULT_DOC }
 const VIEW_KEY = 'atf-playground:view'
-const MAX_PLAYLIST = 500
+/** Tracks kept from a playlist or a set of files: the list is virtualised and evaluated in chunks, so this is about memory, not speed. */
+const MAX_PLAYLIST = 5000
 
 const cloneSamples = (): Track[] => SAMPLE_TRACKS.map((t) => ({ ...t, id: newId(), tags: { ...t.tags } }))
 
@@ -78,7 +86,8 @@ let readSeq = 0
 /** The sample a fresh visit opens on (by title, so reordering the samples doesn't change it). */
 const DEFAULT_SAMPLE = Math.max(0, SAMPLE_TRACKS.findIndex((t) => t.tags.title === 'Oceans'))
 const selected = ref(remembered ? remembered.selected : Math.min(shared?.sample ?? DEFAULT_SAMPLE, tracks.value.length - 1))
-const sidebarOpen = ref(window.innerWidth >= 1100)
+// matchMedia, not innerWidth: reading innerWidth during setup forces a layout of the page.
+const sidebarOpen = ref(window.matchMedia('(min-width: 1100px)').matches)
 /** Narrow screens: the sidebar is a drawer over the page, with a backdrop, focus kept inside. */
 const isDrawer = useMedia('(max-width: 760px)')
 const drawerOpen = computed(() => isDrawer.value && sidebarOpen.value)
@@ -103,74 +112,166 @@ function loadView(): ViewSettings {
     return parseView(null)
   }
 }
+// Saved when the page is idle (a slider drag changes it many times a second).
+let cancelViewSave: (() => void) | undefined
 watch(
   view,
   (v) => {
-    try {
-      localStorage.setItem(VIEW_KEY, JSON.stringify(v))
-    } catch {
-      /* private window: settings just won't persist */
-    }
+    cancelViewSave?.()
+    cancelViewSave = whenIdle(() => {
+      try {
+        localStorage.setItem(VIEW_KEY, JSON.stringify(v))
+      } catch {
+        /* private window: settings just won't persist */
+      }
+    })
   },
   { deep: true },
 )
 
 // ---- format, parse, lint ------------------------------------------------------------------
 const format = computed(() => toFormat(doc.value).format)
-const parsed = computed(() => parse(format.value))
+/**
+ * The format the parse, lint, parts table and problems list follow: `format`, one yield later, so
+ * a keystroke or a recipe pick paints the editor (and starts the preview) before that work runs.
+ */
+const lintFormat = shallowRef(format.value)
+let lintSeq = 0
+watch(format, async (f) => {
+  const seq = ++lintSeq
+  await yieldToMain()
+  if (seq === lintSeq) lintFormat.value = f
+})
+const parsed = computed(() => parse(lintFormat.value))
 // Both dialects, for the summary of what each will accept; the list and squiggles use the setting's.
-const lintIn = (dialect: ViewSettings['dialect']) => (format.value ? lint(format.value, { dialect, result: parsed.value }) : [])
+const lintIn = (dialect: ViewSettings['dialect']) => (lintFormat.value ? lint(lintFormat.value, { dialect, result: parsed.value }) : [])
 const wacupFindings = computed(() => lintIn('wacup'))
 const winampFindings = computed(() => lintIn('winamp'))
 // Plus a warning at a NUL, which the extension's linter doesn't know about (see lib/nulChar.ts).
 const findings = computed<Finding[]>(() =>
-  format.value ? [...nulFindings(format.value), ...(view.value.dialect === 'winamp' ? winampFindings : wacupFindings).value].sort((a, b) => a.start - b.start) : [],
+  lintFormat.value ? [...nulFindings(lintFormat.value), ...(view.value.dialect === 'winamp' ? winampFindings : wacupFindings).value].sort((a, b) => a.start - b.start) : [],
 )
+/**
+ * The editor's squiggles: the findings once they're for the format in the editor. Until then the
+ * same array as before, so nothing is dispatched and CodeMirror keeps mapping the old marks through
+ * the edit.
+ */
+let editorShown: Finding[] = []
+const editorFindings = computed(() => (lintFormat.value === format.value ? (editorShown = findings.value) : editorShown))
 const errorsOnly = (list: Finding[]) => list.filter((f) => f.severity === 'error')
 const acceptance = computed(() => ({ wacup: errorsOnly(wacupFindings.value), winamp: errorsOnly(winampFindings.value) }))
 
 // ---- evaluation in a worker -------------------------------------------------------------------
+// The worker keeps the playlist (sent when it changes); typing sends only the format. Results stream
+// back in chunks, the selected track and those on screen first, and are applied once per frame.
+// Until a track's new result arrives, its row keeps the last one, so nothing blanks while typing.
 const runner = new EvalRunner(1000)
+/** The final state of the newest run that finished (undefined while the first one runs). */
 const outcome = shallowRef<RunOutcome>()
+/** The latest result for each track: from the current run where it has arrived, else from the one before. */
+const results = shallowRef<(EvalResult | undefined)[]>([])
+/** Whether a run is still streaming in. */
+const running = ref(false)
+/** Rows in the track list's view, evaluated first (from TrackList). */
+const listView = shallowRef<number[]>([])
 let runSeq = 0
 let evalTimer: ReturnType<typeof setTimeout> | undefined
+/** What the evaluator sees for each track; rebuilt only when the tracks change, not on every keystroke. */
+const trackFields = computed(() => tracks.value.map((t, i, all) => fieldsFor(t, { position: i + 1, length: all.length })))
+watch(trackFields, (fields) => runner.setTracks(fields), { immediate: true })
+// A different playlist: the old results belong to other tracks.
 watch(
-  [format, tracks],
+  () => tracks.value,
+  () => (results.value = []),
+)
+watch(
+  [format, trackFields],
   () => {
     clearTimeout(evalTimer)
     evalTimer = setTimeout(runNow, 60)
   },
-  { deep: true, immediate: true },
+  { immediate: true },
 )
+/** Chunks waiting to be shown: one per frame, so no frame renders a whole playlist's results. */
+let incoming: [number, EvalResult][][] = []
+let frame = 0
+/** The finished run's outcome, applied once its last chunk is shown. */
+let finished: RunOutcome | undefined
+function applyNext() {
+  frame = 0
+  const chunk = incoming.shift()
+  if (chunk) {
+    const list = results.value
+    for (const [i, r] of chunk) list[i] = r
+    triggerRef(results)
+  }
+  if (incoming.length) frame = requestAnimationFrame(applyNext)
+  else if (finished) {
+    running.value = false
+    outcome.value = finished
+    finished = undefined
+  }
+}
 async function runNow() {
   const seq = ++runSeq
   if (!format.value) {
     outcome.value = undefined
+    running.value = false
     return
   }
-  const result = await runner.run(format.value, tracks.value.map((t, i, all) => fieldsFor(t, { position: i + 1, length: all.length })))
-  if (seq === runSeq) outcome.value = result
+  const n = tracks.value.length
+  const first = [selected.value, ...(n ? previewWindow(n, selected.value).map((s) => s.index) : []), ...listView.value]
+  running.value = true
+  incoming = []
+  finished = undefined
+  // After a time-out or a failure the old results are unreliable: start from pending rows.
+  if (outcome.value?.kind === 'timeout' || outcome.value?.kind === 'failed') {
+    outcome.value = undefined
+    results.value = []
+  }
+  const result = await runner.run(format.value, {
+    first,
+    onChunk: (items) => {
+      if (seq !== runSeq) return
+      incoming.push(items)
+      if (!frame) frame = requestAnimationFrame(applyNext)
+    },
+  })
+  if (seq !== runSeq || result.kind === 'superseded') return
+  finished = result
+  if (!frame) applyNext()
 }
 onBeforeUnmount(() => runner.dispose())
 
-const rows = computed<Row[]>(() =>
-  tracks.value.map((t, i) => {
-    const base = { label: trackLabel(t), duration: durationShown.value ? lengthOf(t) : '', cached: t.cachedTitle, unsure: false }
-    const o = outcome.value
-    if (!format.value) return { ...base, text: '', state: 'ok' }
-    if (!o) return { ...base, text: '', state: 'pending' }
-    if (o.kind === 'timeout') return { ...base, text: '', state: 'timeout' }
-    if (o.kind === 'failed') return { ...base, text: '', state: 'pending' }
-    const r = o.results[i]
-    if (!r) return { ...base, text: '', state: 'pending' }
+/** Each track's label, length and cached title: rebuilt when the tracks change, not per result. */
+const rowBase = computed(() => tracks.value.map((t) => ({ label: trackLabel(t), duration: durationShown.value ? lengthOf(t) : '', cached: t.cachedTitle })))
+/** Displayed text per result, so a chunk only works out the rows it brings. New when the display settings change. */
+const shownText = computed(() => {
+  const opts = { trimLeading: view.value.trimLeading, underscoresToSpaces: view.value.underscoresToSpaces, pct20ToSpaces: view.value.pct20ToSpaces }
+  const cache = new WeakMap<EvalResult, string>()
+  return (r: EvalResult) => {
+    let t = cache.get(r)
+    if (t === undefined) cache.set(r, (t = r.error ? oneLine(r.text) : oneLine(applyDisplay(r.text, opts))))
+    return t
+  }
+})
+const rows = computed<Row[]>(() => {
+  const o = outcome.value
+  const list = results.value
+  const text = shownText.value
+  return rowBase.value.map((base, i): Row => {
+    if (!format.value) return { ...base, text: '', state: 'ok', unsure: false }
+    if (o?.kind === 'timeout') return { ...base, text: '', state: 'timeout', unsure: false }
+    const r = list[i]
+    if (!r) return { ...base, text: '', state: 'pending', unsure: false }
     if (r.freeze) return { ...base, text: '', state: 'freeze', unsure: r.unsure.length > 0 }
-    if (r.tooHeavy) return { ...base, text: '', state: 'heavy' }
-    if (r.error) return { ...base, text: oneLine(r.text), state: 'error' }
-    return { ...base, text: oneLine(applyDisplay(r.text, view.value)), state: 'ok', unsure: r.unsure.length > 0 }
-  }),
-)
+    if (r.tooHeavy) return { ...base, text: '', state: 'heavy', unsure: false }
+    if (r.error) return { ...base, text: text(r), state: 'error', unsure: false }
+    return { ...base, text: text(r), state: 'ok', unsure: r.unsure.length > 0 }
+  })
+})
 
-const current = computed(() => (outcome.value?.kind === 'ok' ? outcome.value.results[selected.value] : undefined))
+const current = computed(() => (outcome.value?.kind === 'timeout' ? undefined : results.value[selected.value]))
 const unsureFns = computed(() => {
   if (outcome.value?.kind !== 'ok') return []
   return [...new Set(outcome.value.results.flatMap((r) => r.unsure))].sort()
@@ -183,7 +284,7 @@ const heroMessage = computed<{ text: string; tone: 'warn' | 'muted' } | undefine
   return undefined
 })
 
-const settingsPanel = ref<InstanceType<typeof SettingsPanel>>()
+const settingsPanel = ref<InstanceType<typeof SettingsPanelType>>()
 const panelEl = () => settingsPanel.value?.$el as HTMLElement | undefined
 
 /** Closes the settings, returning focus to the gear only if it was inside the panel. */
@@ -319,6 +420,13 @@ watch(sidebarOpen, (open) => {
 
 const onScroll = () => (scrolled.value = window.scrollY > 4)
 onMounted(() => {
+  // Load the lazy parts when the page is idle, through each one's own loader, so that once loaded
+  // the components render at once (and the settings strip's entrance plays on the first open).
+  const prefetch = () => {
+    for (const c of [SettingsPanel, SongTicker]) void c.__asyncLoader?.()
+  }
+  if (window.requestIdleCallback) window.requestIdleCallback(prefetch, { timeout: 4000 })
+  else setTimeout(prefetch, 2000)
   requestAnimationFrame(() => requestAnimationFrame(() => (motion.value = true)))
   document.addEventListener('keydown', onDrawerKey)
   document.addEventListener('keydown', onUndoKey)
@@ -340,15 +448,20 @@ watch(
   [tracks, source, selected, tagged],
   () => {
     clearTimeout(tracksTimer)
-    tracksTimer = setTimeout(() => {
-      if (source.value === 'sample') return clearTracks(store)
-      const list = tracks.value
-      const kept = writeTracks(store, { source: source.value, tracks: list, selected: selected.value, tagged: tagged.value })
-      if (kept < list.length && warnedFor !== list) {
-        warnedFor = list
-        if (kept > 0) say(`Only the first ${plural(kept, 'track')} of ${list.length} will be remembered: the rest is too much for this browser's storage.`)
-      }
-    }, 400)
+    // After 400 ms of quiet, when the page is idle: writing a big playlist takes a while.
+    tracksTimer = setTimeout(
+      () =>
+        whenIdle(() => {
+          if (source.value === 'sample') return clearTracks(store)
+          const list = tracks.value
+          const kept = writeTracks(store, { source: source.value, tracks: list, selected: selected.value, tagged: tagged.value })
+          if (kept < list.length && warnedFor !== list) {
+            warnedFor = list
+            if (kept > 0) say(`Only the first ${plural(kept, 'track')} of ${list.length} will be remembered: the rest is too much for this browser's storage.`)
+          }
+        }),
+      400,
+    )
   },
   { deep: true },
 )
@@ -362,7 +475,8 @@ function autosaveNow() {
 }
 watch(doc, () => {
   clearTimeout(autosaveTimer)
-  autosaveTimer = setTimeout(autosaveNow, 800)
+  // After 800 ms of quiet, when the page is idle (pagehide below still writes at once).
+  autosaveTimer = setTimeout(() => whenIdle(() => autosaveTimer !== undefined && autosaveNow()), 800)
 })
 const flushAutosave = () => autosaveTimer !== undefined && autosaveNow()
 addEventListener('pagehide', flushAutosave)
@@ -561,6 +675,8 @@ async function readFiles(files: PickedFile[], seq: number): Promise<{ tags: Reco
       }
       tags.push(t)
       if (seq === readSeq) reading.value = { done: tags.length, total: files.length }
+      // MediaInfo parses on this thread: yield between files so the page stays responsive.
+      await yieldToMain()
     }
     return seq === readSeq ? { tags, failed } : undefined
   } finally {
@@ -673,6 +789,7 @@ function saveAtf() {
  */
 function saveM3u8(confirmed = false) {
   if (source.value !== 'playlist') return
+  if (running.value) return say('Still rendering the titles. Try again in a moment.')
   const untagged = tracks.value.length - tagged.value
   if (untagged > 0 && !confirmed) {
     const one = untagged === 1
@@ -741,7 +858,7 @@ function hoverRange(range: { start: number; end: number } | null) {
             @click="sidebarOpen ? closeSidebar() : openSidebar()"
           />
           <h1 class="brand-h">
-            <a class="brand" href="./" :aria-label="`atf playground: ${TAGLINE}`" :title="narrow ? TAGLINE : undefined">
+            <a class="brand" href="./" :title="narrow ? TAGLINE : undefined">
               <span class="title">atf<span class="title-rest"> playground</span></span>
               <span class="tagline">{{ TAGLINE }}</span>
             </a>
@@ -757,7 +874,7 @@ function hoverRange(range: { start: number; end: number } | null) {
         <input ref="atfInput" type="file" accept=".atf,.txt" hidden @change="onAtfPicked" />
       </header>
 
-      <nav v-if="atfChoices.length" class="choices">
+      <nav v-if="atfChoices.length" class="choices" aria-label="Formats in this file">
         <button v-for="c in atfChoices" :key="c.label" :class="{ active: c.text === doc }" @click="replaceDoc(c.text, c.origin)">{{ c.label }}</button>
         <button class="dismiss" aria-label="Close format picker" @click="atfChoices = []">✕</button>
       </nav>
@@ -777,7 +894,7 @@ function hoverRange(range: { start: number; end: number } | null) {
             <Settings :size="20" aria-hidden="true" />
           </button>
           <div class="box">
-            <AtfEditor ref="editor" v-model:doc="doc" v-model:origin="origin" :findings="findings" :spaces="view.spaces" class="box-editor" @format="formatEditor" />
+            <AtfEditor ref="editor" v-model:doc="doc" v-model:origin="origin" :findings="editorFindings" :spaces="view.spaces" class="box-editor" @format="formatEditor" />
             <div class="box-actions">
               <IconButton :icon="Copy" label="Copy" :icon-size="14" show-icon class="copy primary" title="Copy the format as one line, ready for WACUP" @click="copyFormat" />
               <IconButton
@@ -822,10 +939,10 @@ function hoverRange(range: { start: number; end: number } | null) {
           <SettingsPanel v-if="settingsOpen" ref="settingsPanel" v-model="view" @close="closeSettings" />
         </Transition>
 
-        <section class="hero">
+        <section class="hero" aria-label="Preview">
           <SongTicker v-if="tickerMode" :row="rows[selected]" :selected="selected" :count="rows.length" :view="view" :message="heroMessage" @select="selected = $event" />
           <MiniPlaylist v-else :rows="rows" :selected="selected" :view="view" :message="heroMessage" @select="selected = $event" />
-          <p v-if="format && outcome?.kind === 'timeout'" class="sub">It didn't finish within a second, so the playground stopped it. In WACUP you'd have to end the task.</p>
+          <p v-if="format && outcome?.kind === 'timeout'" class="sub">A track didn't finish within a second, so the playground stopped it. In WACUP you'd have to end the task.</p>
           <p v-else-if="format && outcome?.kind === 'failed'" class="sub">{{ outcome.message }}</p>
           <p v-else-if="current?.freeze" class="sub">
             <a href="#" @click.prevent="pickRange(current.freeze)">${{ current.freeze.fn }}()</a> never finishes on WACUP 1.99.57.25464.
@@ -836,14 +953,14 @@ function hoverRange(range: { start: number; end: number } | null) {
           <p v-if="view.dialect === 'winamp'" class="dialect-note">Preview shows WACUP 1.99.57. Winamp 5 differs: for example <code>$if</code> tests whether a field resolved.</p>
         </section>
 
-        <PartsTable :format="format" :parsed="parsed" @hover="hoverRange" @pick="pickRange" />
-        <DiagnosticsList v-if="format" :findings="findings" :accept="acceptance" @pick="pickRange" />
+        <PartsTable :format="lintFormat" :parsed="parsed" @hover="hoverRange" @pick="pickRange" />
+        <DiagnosticsList v-if="lintFormat" :findings="findings" :accept="acceptance" @pick="pickRange" />
         <p v-if="unsureFns.length" class="unsure-note">
           <strong>?</strong> marks output from <code v-for="f in unsureFns" :key="f">${{ f }}()</code>, which hasn't been checked against WACUP's own evaluator yet.
         </p>
       </main>
 
-      <section class="lower">
+      <div class="lower">
         <TrackList
           :tracks="tracks"
           :rows="rows"
@@ -853,12 +970,13 @@ function hoverRange(range: { start: number; end: number } | null) {
           :tagged="tagged"
           :reading="reading"
           @select="selected = $event"
+          @view="listView = $event"
           @set-tag="setTag"
           @open="openPicked"
           @samples="useSamples"
           @export="saveM3u8()"
         />
-      </section>
+      </div>
 
       <footer>
         <span>The checking here is the same as the <a href="https://marketplace.visualstudio.com/items?itemName=gpb.atf-syntax" target="_blank" rel="noopener">ATF extension for VS Code</a>.</span> <span><a href="./extension/">Extension docs</a></span> <span><a href="https://github.com/GhostPirateBob/atf-syntax/wiki" target="_blank" rel="noopener">Wiki</a></span> <span><a href="https://github.com/GhostPirateBob/atf-syntax" target="_blank" rel="noopener">Source on GitHub</a></span> <span><a href="./third-party-notices.txt">Third-party notices</a></span> <span>Not affiliated with or endorsed by WACUP or Winamp.</span>
@@ -888,7 +1006,6 @@ function hoverRange(range: { start: number; end: number } | null) {
   width: 340px;
   z-index: 16;
   contain: layout paint;
-  will-change: transform;
   /* Closed: off to the left (with less motion: faded out), then hidden so it can't take focus. */
   transform: translate3d(calc(-100% * var(--motion)), 0, 0);
   opacity: var(--motion);
@@ -1181,6 +1298,8 @@ function hoverRange(range: { start: number; end: number } | null) {
   height: 14px;
 }
 .box {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1191,8 +1310,21 @@ function hoverRange(range: { start: number; end: number } | null) {
   padding-right: 12px;
   text-align: left;
 }
-.box:focus-within {
+/* The brighter glow while the editor has focus: a shadow on an overlay that fades in (opacity only,
+   per the motion rule), so focusing never repaints a blurred shadow. */
+.box::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: inherit;
   box-shadow: 0 0 24px rgba(42, 161, 152, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.box:focus-within::after {
+  opacity: 1;
 }
 .box-editor {
   flex: 1;
@@ -1227,7 +1359,7 @@ function hoverRange(range: { start: number; end: number } | null) {
   background: var(--sidebar);
   border: 1px solid var(--teal);
   border-radius: 6px;
-  box-shadow: 0 8px 24px var(--shadow);
+  box-shadow: 0 6px 16px var(--shadow);
   text-align: left;
   font-size: 0.88rem;
 }
@@ -1270,6 +1402,8 @@ function hoverRange(range: { start: number; end: number } | null) {
   padding: 0 20px;
 }
 footer {
+  /* Secondary text readable on the page (see --muted-text in style.css). */
+  --muted: var(--muted-text);
   display: block;
   text-align: center;
   padding: 26px 20px 30px;
@@ -1300,7 +1434,7 @@ footer a:focus-visible {
   .side {
     width: min(340px, 88vw);
     z-index: 20;
-    box-shadow: 4px 0 24px var(--shadow);
+    box-shadow: 4px 0 16px var(--shadow);
   }
   .top {
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1330,7 +1464,8 @@ footer a:focus-visible {
   .title {
     font-size: 1.15rem;
   }
-  /* "atf" on phones; the tagline moves to the tooltip, and screen readers hear both. */
+  /* "atf" on phones; the tagline moves to the tooltip (the link's title), and screen readers still hear
+     "atf playground" from the visually hidden rest of the title. */
   .tagline {
     display: none;
   }

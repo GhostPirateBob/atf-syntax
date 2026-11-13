@@ -213,10 +213,13 @@ function onWheel(e: WheelEvent) {
 .pl-row.error .t {
   color: var(--error-text);
 }
+/* (70 % of the way from the playlist's background, as solid colours rather than opacity.) */
 .pl-row:not(.current).freeze .t,
-.pl-row:not(.current).heavy .t,
+.pl-row:not(.current).heavy .t {
+  color: color-mix(in srgb, var(--warning-text) 70%, var(--playlist-bg));
+}
 .pl-row:not(.current).error .t {
-  opacity: 0.7;
+  color: color-mix(in srgb, var(--error-text) 70%, var(--playlist-bg));
 }
 .pl-message {
   margin: 0;

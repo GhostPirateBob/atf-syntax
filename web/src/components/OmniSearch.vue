@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { History, Search, X } from '@lucide/vue'
+import throttle from 'lodash-es/throttle'
+import { frames } from '@/lib/timing'
 import { browserStorage, savedFormats } from '@/lib/saved'
 import {
   addRecent,
@@ -35,6 +37,8 @@ const searcher = shallowRef<Searcher>()
 const root = ref<HTMLElement>()
 const input = ref<HTMLInputElement>()
 const iconButton = ref<HTMLButtonElement>()
+/** Narrow screens, where the field is a search icon (keep in step with the @media rule in the styles). */
+const ICON_ONLY = '(max-width: 760px)'
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 const hint = isMac ? '⌘ K' : 'Ctrl K'
 
@@ -148,8 +152,19 @@ const countText = computed(() => {
   return n ? `${n} result${n === 1 ? '' : 's'}. Use Up and Down to choose, Enter to open.` : 'No results.'
 })
 
-watch(query, () => (active.value = q.value ? 0 : -1))
+/** The results' scrolling box. */
+const pop = ref<HTMLElement>()
+/** Set by Up and Down: only a move by key needs the active option scrolled into view. */
+let keyMove = false
+// New results start at the top: a scroll write, no layout read (scrollIntoView on every keystroke
+// forced a layout each time).
+watch(query, () => {
+  active.value = q.value ? 0 : -1
+  if (pop.value) pop.value.scrollTop = 0
+})
 watch(activeId, async (id) => {
+  if (!keyMove) return
+  keyMove = false
   await nextTick()
   if (id) document.getElementById(id)?.scrollIntoView({ block: 'nearest' })
 })
@@ -166,7 +181,8 @@ function close(refocus = false) {
   open.value = false
   active.value = -1
   // The overlay hid the field: give focus back to the icon that opened it.
-  if (refocus && iconButton.value && getComputedStyle(iconButton.value).display !== 'none') iconButton.value.focus()
+  // The icon only shows on narrow screens (the same query as the CSS below): no style read needed.
+  if (refocus && iconButton.value && window.matchMedia(ICON_ONLY).matches) iconButton.value.focus()
 }
 function setQuery(text: string) {
   query.value = text
@@ -175,6 +191,7 @@ function setQuery(text: string) {
 
 function onKeydown(e: KeyboardEvent) {
   const n = flat.value.length
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') keyMove = true
   if (e.key === 'ArrowDown') {
     if (!open.value) void openSearch()
     else if (n) active.value = (active.value + 1) % n
@@ -211,6 +228,9 @@ function onGlobalKey(e: KeyboardEvent) {
 }
 onMounted(() => document.addEventListener('keydown', onGlobalKey))
 onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKey))
+/** The pointer over an option makes it the active one: at most once a frame, the last move always applied. */
+const onOptionMove = throttle((o: (typeof flat.value)[number]) => (active.value = flat.value.indexOf(o)), frames(1), { leading: true, trailing: true })
+onBeforeUnmount(() => onOptionMove.cancel())
 
 // ---- going to a result ------------------------------------------------------------------------
 function go(doc: SearchDoc) {
@@ -267,7 +287,7 @@ defineExpose({ open: openSearch })
       <kbd class="omni-hint" aria-hidden="true">{{ hint }}</kbd>
       <button class="omni-close" aria-label="Close search" @click="close(true)"><X :size="18" aria-hidden="true" /></button>
 
-      <div v-if="open" class="omni-pop" @mousedown.prevent>
+      <div v-if="open" ref="pop" class="omni-pop" @mousedown.prevent>
         <p v-if="loading && q" class="omni-msg">Loading the index…</p>
         <p v-else-if="q && !flat.length" class="omni-msg">No matches for “{{ q }}”.</p>
         <p v-else-if="!q && !flat.length" class="omni-msg">Search recipes, functions, fields, lint rules, settings and the wiki. Press <kbd>/</kbd> or <kbd>{{ hint }}</kbd> from anywhere.</p>
@@ -282,7 +302,7 @@ defineExpose({ open: openSearch })
               class="omni-opt"
               :class="{ active: o.id === activeId }"
               :aria-selected="o.id === activeId"
-              @mousemove="active = flat.indexOf(o)"
+              @mousemove="onOptionMove(o)"
               @click="o.pick()"
             >
               <span class="omni-title-line">
@@ -375,7 +395,7 @@ kbd {
   background: var(--sidebar);
   border: 1px solid var(--teal);
   border-radius: 6px;
-  box-shadow: 0 10px 32px var(--shadow);
+  box-shadow: 0 8px 16px var(--shadow);
   z-index: 40;
   text-align: left;
   padding: 4px 0 6px;
@@ -414,7 +434,8 @@ kbd {
   cursor: pointer;
 }
 .omni-opt.active {
-  background: rgba(var(--tint-rgb), 0.55);
+  /* The 55 % tint over the results' panel, solid. */
+  background: color-mix(in srgb, rgb(var(--tint-rgb)) 55%, var(--sidebar));
   border-left-color: var(--teal);
 }
 .omni-title-line {

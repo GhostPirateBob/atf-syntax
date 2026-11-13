@@ -2,6 +2,10 @@
    - Transitions animate only transform and opacity, so they stay on the compositor. Colour and
      layout changes are instant, FLIP (move with a transform, then ease it back), or overlay fades
      (a ::before/::after tint whose opacity fades). Never `transition: all`.
+   - List items (recipe cards, sidebar headings, reference entries, track rows) hover instantly: a
+     background change on the item, no transition and no overlay, so sweeping the pointer down a
+     list costs one small repaint per item. Fading overlays are kept for the few prominent controls
+     (the editor box's tabs, the gear, header buttons).
    - State changes (drawer, sidebar, settings, popovers) use CSS transitions, so they reverse
      smoothly mid-way; keyframes only for one-shot effects. Entrances on insertion use
      @starting-style. Nothing animates on first load, and nothing runs longer than about 300 ms.
@@ -28,7 +32,10 @@
   --muted: #586e75;
   --dim: #657b83;
 
-  --magenta: #d33682;
+  /* Solarized magenta (#d33682) with 9 % white, the least (in 1 % steps) that reads at 4.5:1 as
+     code text on every surface code sits on: 4.50:1 on --panel (#021821, the docs page sample),
+     5.00:1 on --bg (#00080c, the editor and parts table; the plain #d33682 gave 4.44). */
+  --magenta: #d7488d;
   --gold: #be9208;
   --cyan: #2aa198;
   --sky: #29b6f6;
@@ -76,13 +83,37 @@
   --sb-list-bg: #041f26;
   --muted-raised: #8c9c9d;
   --sb-rule: #1d5866;
-  --sb-tint-rgb: 88, 110, 117;
+  /* The cards' hover tint (at 35 %, see SideBar.vue): base01 diluted to 43 % into the card, so a
+     hovered card is #0d3841 (1.15:1 on the card) and --text stays 4.71:1 on it (base01 itself gave
+     #1f454d and 3.89:1). */
+  --sb-tint-rgb: 38, 74, 82;
   --sb-head-tint-rgb: 4, 31, 38;
   /* Each sidebar card's items rest on this, under the hover tint and the search flash: #001e24 lifted
      to HSL lightness 11 % (from 7.1 %), 2.7 points above the list (1.19:1), so the card and its
      rounded corners read as raised. --bright 11.71:1, --text 5.37:1, --muted-raised 5.03:1 on it;
      hovered (≈ #1f454d, 1.38:1) --text is 3.89:1. */
   --recipe-bg: #002f38;
+  /* Token colours on the sidebar's cards (recipe previews, saved formats, the reference lists):
+     each the editor's colour with the least white mixed in (1 % steps) that reaches 4.5:1 on both
+     the card (#002f38) and a hovered card (#0d3841). The editor keeps its own. Card / hovered:
+     magenta #d33682 + 27 % white 5.17 / 4.53 (was 3.16 / 2.58 for #d33682); gold + 3 % 5.16 /
+     4.52; blue + 20 % 5.15 / 4.52 (was 3.90 / 2.83); cyan + 11 % 5.18 / 4.54; red + 36 % 5.21 /
+     4.57; orange + 32 % 5.17 / 4.54; comment + 27 % 5.21 / 4.57; error words + 3 % 5.14 / 4.51;
+     warning words + 3 % 5.14 / 4.51; secondary text (--muted-raised + 2 %) 5.15 / 4.52. */
+  --sb-magenta: #e279ac;
+  --sb-gold: #c0950f;
+  --sb-blue: #51a2db;
+  --sb-cyan: #41aba3;
+  --sb-red: #e97c7a;
+  --sb-orange: #dc8561;
+  --sb-comment: #8d9fa4;
+  --sb-error-text: #e97a78;
+  --sb-warning-text: #bd9366;
+  --sb-muted: #8e9e9f;
+  /* Secondary text in the track list, the problems summary and the footer: base01 (#586e75, only
+     3.04:1 on a selected track row) with 19 % white, the least that reaches 4.5:1 there: 4.54:1 on
+     the selected row (#04232d), 5.05:1 on --panel, 5.61:1 on --bg. */
+  --muted-text: #788a8f;
   /* Scrollbars (and the preview playlist's drawn one): a base02 thumb on a base03 track, rounded.
      That pair is only 1.2:1, so the thumb lights up to base01 under the pointer. */
   --scroll-track: #002b36;
@@ -115,8 +146,8 @@
   color-scheme: dark;
 }
 
-/* The light theme: picked with the header switch (data-theme, see public/theme-init.js), or the
-   system preference until the user picks. */
+/* The light theme: picked with the header switch (data-theme, set before first paint by the inline
+   script in index.html), or the system preference until the user picks. */
 :root[data-theme='light'] {
   /* Light: neutral grey surfaces (page #efefef, raised surfaces white) with Solarized text and
      accents, kept in hue but darkened for at least 4.5:1 on #efefef and white (the plain Solarized
@@ -176,6 +207,18 @@
   /* Sidebar cards rest a step lighter than the list (1.20:1): --bright 7.45:1, --text 5.82:1,
      --muted-raised 5.62:1, rules 1.85:1; hover ≈ #d4d9db (1.22:1, --text 4.76:1). */
   --recipe-bg: #eceeee;
+  /* Sidebar token colours: the light ones pass on the cards as they are. */
+  --sb-magenta: var(--magenta);
+  --sb-gold: var(--gold);
+  --sb-blue: var(--blue);
+  --sb-cyan: var(--cyan);
+  --sb-red: var(--red);
+  --sb-orange: var(--orange);
+  --sb-comment: var(--comment);
+  --sb-error-text: var(--error-text);
+  --sb-warning-text: var(--warning-text);
+  --sb-muted: var(--muted-raised);
+  --muted-text: var(--muted);
   /* Scrollbars: a mid-grey thumb on a pale track, darker under the pointer. */
   --scroll-track: #e3e6e7;
   --scroll-thumb: #c5cbcd;
@@ -255,6 +298,18 @@
     /* Sidebar cards rest a step lighter than the list (1.20:1): --bright 7.45:1, --text 5.82:1,
        --muted-raised 5.62:1, rules 1.85:1; hover ≈ #d4d9db (1.22:1, --text 4.76:1). */
     --recipe-bg: #eceeee;
+    /* Sidebar token colours: the light ones pass on the cards as they are. */
+    --sb-magenta: var(--magenta);
+    --sb-gold: var(--gold);
+    --sb-blue: var(--blue);
+    --sb-cyan: var(--cyan);
+    --sb-red: var(--red);
+    --sb-orange: var(--orange);
+    --sb-comment: var(--comment);
+    --sb-error-text: var(--error-text);
+    --sb-warning-text: var(--warning-text);
+    --sb-muted: var(--muted-raised);
+    --muted-text: var(--muted);
     /* Scrollbars: a mid-grey thumb on a pale track, darker under the pointer. */
     --scroll-track: #e3e6e7;
     --scroll-thumb: #c5cbcd;

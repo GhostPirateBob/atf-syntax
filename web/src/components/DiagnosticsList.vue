@@ -23,7 +23,7 @@ const plural = (n: number) => `${n} error${n === 1 ? '' : 's'}`
 </script>
 
 <template>
-  <section class="diag" aria-live="polite">
+  <section class="diag" aria-label="Problems" aria-live="polite">
     <p class="lights">
       <span :class="counts.error ? 'sev-error' : 'muted'"><span class="mark">✘</span> {{ counts.error }} error{{ counts.error === 1 ? '' : 's' }}</span>
       <span :class="counts.warning ? 'sev-warning' : 'muted'"><span class="mark">▲</span> {{ counts.warning }} warning{{ counts.warning === 1 ? '' : 's' }}</span>
@@ -51,6 +51,10 @@ const plural = (n: number) => `${n} error${n === 1 ? '' : 's'}`
 </template>
 
 <style scoped>
+/* Secondary text readable on the page (see --muted-text in style.css). */
+.diag {
+  --muted: var(--muted-text);
+}
 .diag {
   max-width: 820px;
   margin: 10px auto 0;
@@ -117,7 +121,8 @@ ul {
 }
 .finding:hover {
   border-left-color: var(--teal);
-  background: rgba(var(--tint-rgb), 0.35);
+  /* The 35 % tint over the page, solid. */
+  background: color-mix(in srgb, rgb(var(--tint-rgb)) 35%, var(--bg));
 }
 .msg {
   flex: 1;

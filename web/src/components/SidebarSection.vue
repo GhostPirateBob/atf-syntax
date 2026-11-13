@@ -1,19 +1,27 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ChevronDown } from '@lucide/vue'
 
 /**
  * A sidebar group with a heading that collapses it. The list shows or hides at once (no height
  * animation); `entering` is set just after an expand, so its items fade and drop in.
  */
-defineProps<{ id: string; title: string; count?: number; expanded: boolean; entering?: boolean }>()
+const props = defineProps<{ id: string; title: string; count?: number; expanded: boolean; entering?: boolean }>()
 defineEmits<{ toggle: [] }>()
+
+/**
+ * The section's height until the browser has laid it out once (see content-visibility below): the
+ * heading, plus about 120 px a card when open (measured: 85 to 170). Once laid out, the browser
+ * remembers the real height (`auto`), so the sidebar's scrollbar doesn't jump.
+ */
+const estimate = computed(() => `auto ${props.expanded ? 40 + 120 * (props.count ?? 3) : 40}px`)
 </script>
 
 <template>
-  <section class="sb-section">
+  <section class="sb-section" :aria-labelledby="`${id}-title`" :style="{ containIntrinsicSize: estimate }">
     <h3 class="sb-head">
       <button :id="`${id}-btn`" class="sb-toggle" :aria-expanded="expanded" :aria-controls="`${id}-list`" @click="$emit('toggle')">
-        <span class="sb-title">{{ title }}</span>
+        <span :id="`${id}-title`" class="sb-title">{{ title }}</span>
         <span v-if="count !== undefined" class="sb-count">· {{ count }}</span>
         <ChevronDown :size="16" aria-hidden="true" class="sb-chev" />
       </button>
@@ -27,6 +35,10 @@ defineEmits<{ toggle: [] }>()
 <!-- Not scoped: the entrance applies to the slotted items, which carry SideBar's scope. -->
 <style>
 .sb-section {
+  /* Sections scrolled out of the sidebar's view skip layout and paint until they come near it (the
+     sidebar is most of the page's DOM). Search, focus, find-in-page and scrollIntoView still reach
+     them. The size it assumes until then is set in script. */
+  content-visibility: auto;
   border-top: 1px solid var(--border);
 }
 .sb-section:first-child {
@@ -38,8 +50,6 @@ defineEmits<{ toggle: [] }>()
   font-weight: 600;
 }
 .sb-toggle {
-  position: relative;
-  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -47,25 +57,17 @@ defineEmits<{ toggle: [] }>()
   padding: 8px 8px;
   border: 0;
   border-radius: 0;
-  background: rgba(var(--sb-head-tint-rgb), 0.12);
+  /* The heading tint (12 %) over the sidebar, as the solid colour it gives. */
+  background: color-mix(in srgb, rgb(var(--sb-head-tint-rgb)) 12%, var(--chrome-bg));
   color: var(--text);
   text-align: left;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
-/* Hover tint: an overlay that fades in (opacity only), per the motion rule in style.css. */
-.sb-toggle::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: rgba(var(--tint-rgb), 0.35);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s;
-}
-.sb-toggle:hover::before {
-  opacity: 1;
+/* Hover tint, instant like every list item's (see the motion rule in style.css): 35 % tint over the
+   heading's colour, solid. */
+.sb-toggle:hover {
+  background: color-mix(in srgb, rgb(var(--tint-rgb)) 35%, color-mix(in srgb, rgb(var(--sb-head-tint-rgb)) 12%, var(--chrome-bg)));
 }
 .sb-toggle:hover,
 .sb-toggle:focus-visible {
@@ -97,10 +99,20 @@ defineEmits<{ toggle: [] }>()
   padding: 4px 0 10px;
   background: var(--sb-list-bg);
   /* Secondary text, rules between items and the hover tint, retuned for the list's surface. */
-  --muted: var(--muted-raised);
-  --dim: var(--muted-raised);
+  --muted: var(--sb-muted);
+  --dim: var(--sb-muted);
   --border: var(--sb-rule);
   --tint-rgb: var(--sb-tint-rgb);
+  /* Token colours that read at 4.5:1 on the cards, hovered or not (see --sb-magenta in style.css). */
+  --magenta: var(--sb-magenta);
+  --gold: var(--sb-gold);
+  --blue: var(--sb-blue);
+  --cyan: var(--sb-cyan);
+  --red: var(--sb-red);
+  --orange: var(--sb-orange);
+  --comment: var(--sb-comment);
+  --error-text: var(--sb-error-text);
+  --warning-text: var(--sb-warning-text);
 }
 .sb-section .sb-list > * {
   background: var(--recipe-bg);

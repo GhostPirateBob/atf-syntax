@@ -2,7 +2,7 @@ import { nextTick, ref } from 'vue'
 
 export type Theme = 'light' | 'dark'
 
-/** Kept in sync with public/theme-init.js, which applies the saved choice before first paint. */
+/** Kept in sync with the inline script in index.html (both pages), which applies the saved choice before first paint. */
 const KEY = 'atf-playground:theme'
 
 function saved(): Theme | undefined {

@@ -44,7 +44,7 @@ function describe(text: string): { label: string; meaning: string } {
 
 <template>
   <div v-if="parts.length" class="parts">
-    <nav class="chips">
+    <nav class="chips" aria-label="Parts of the format">
       <button
         v-for="(p, i) in parts"
         :key="i"
@@ -107,7 +107,8 @@ tr:last-child {
   border-bottom: 1px solid var(--border);
 }
 tr:hover {
-  background: rgba(var(--tint-rgb), 0.45);
+  /* The 45 % tint over the page, solid. */
+  background: color-mix(in srgb, rgb(var(--tint-rgb)) 45%, var(--bg));
 }
 td {
   padding: 5px 10px;
