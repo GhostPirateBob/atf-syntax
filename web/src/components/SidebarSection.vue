@@ -26,8 +26,10 @@ const estimate = computed(() => `auto ${props.expanded ? 40 + 120 * (props.count
         <ChevronDown :size="16" aria-hidden="true" class="sb-chev" />
       </button>
     </h3>
+    <!-- The wrapper always exists (the heading's aria-controls names it); its items render only
+         while open, so a collapsed section costs one empty element, not its whole list. -->
     <div v-show="expanded" :id="`${id}-list`" class="sb-list" :class="{ entering }">
-      <div class="sb-card"><slot /></div>
+      <div v-if="expanded" class="sb-card"><slot /></div>
     </div>
   </section>
 </template>

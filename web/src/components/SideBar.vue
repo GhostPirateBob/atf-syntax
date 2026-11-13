@@ -5,7 +5,7 @@ import { FIELDS, FUNCTIONS } from '@/core'
 import { inlineMarkdown } from '@/lib/markdown'
 import { RECIPES, recipeGroups, type Recipe } from '@/lib/recipes'
 import { browserStorage, renameSaved, savedFormats, updateSaved, type SavedFormat } from '@/lib/saved'
-import { expandSection, isExpanded, readCollapsed, sectionFor, toggleSection, writeCollapsed } from '@/lib/collapsed'
+import { isExpanded, openOnly, readCollapsed, sectionFor, toggleSection, writeCollapsed } from '@/lib/collapsed'
 import { toFormat } from '@/lib/document'
 import { NARROW, reducedMotion, useMedia } from '@/lib/media'
 import { vTip } from '@/lib/tooltip'
@@ -35,9 +35,17 @@ const functions = computed(() =>
   FUNCTIONS.filter((f) => !q.value || f.name.includes(q.value.replace(/^\$/, '')) || f.doc.toLowerCase().includes(q.value)),
 )
 // ---- collapsible sections --------------------------------------------------------------------
-// Keys: recipes:saved, recipes:<group>, reference:syntax|fields|functions. All expanded by default.
+// Keys: recipes:saved, recipes:<group>, reference:syntax|fields|functions. Each tab's sections are an
+// accordion: opening one closes the others (Saved, the visitor's own list, stays independent). On a
+// first visit only the first of each is open. Collapsed lists aren't rendered (see SidebarSection),
+// which matters: the sidebar was two thirds of the page's elements. The state is remembered.
 const store = browserStorage()
-const collapsed = shallowRef<ReadonlySet<string>>(readCollapsed(store))
+const groups = recipeGroups(RECIPES)
+const RECIPE_KEYS = groups.map(([g]) => `recipes:${g}`)
+const REFERENCE_KEYS = ['reference:syntax', 'reference:fields', 'reference:functions']
+const siblingsOf = (key: string) => (key.startsWith('reference:') ? REFERENCE_KEYS : RECIPE_KEYS.includes(key) ? RECIPE_KEYS : [key])
+const DEFAULT_COLLAPSED = [...RECIPE_KEYS.slice(1), ...REFERENCE_KEYS.slice(1)]
+const collapsed = shallowRef<ReadonlySet<string>>(readCollapsed(store, DEFAULT_COLLAPSED))
 /** The section just expanded, for ~300 ms, so its items animate in (not on load or tab switches). */
 const entering = ref<string | null>(null)
 let enterTimer: ReturnType<typeof setTimeout> | undefined
@@ -45,14 +53,25 @@ let enterTimer: ReturnType<typeof setTimeout> | undefined
 const filtering = (key: string) => key.startsWith('reference:') && q.value !== ''
 const expanded = (key: string) => isExpanded(collapsed.value, key, filtering(key))
 const sectionId = (key: string) => `sb-${key.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-function toggle(key: string) {
+async function toggle(key: string) {
   if (filtering(key)) return
   const opening = !expanded(key)
-  collapsed.value = toggleSection(collapsed.value, key)
+  collapsed.value = opening ? openOnly(collapsed.value, key, siblingsOf(key)) : toggleSection(collapsed.value, key)
   writeCollapsed(store, collapsed.value)
   clearTimeout(enterTimer)
   entering.value = opening ? key : null
-  if (opening) enterTimer = setTimeout(() => (entering.value = null), 300)
+  if (!opening) return
+  enterTimer = setTimeout(() => (entering.value = null), 300)
+  // Bring the opened section's heading to the top of the sidebar, so its list shows below it (a
+  // section above may also just have closed and moved it). Only the sidebar's own scroller moves,
+  // never the page, as scrollIntoView would.
+  await nextTick()
+  const section = document.getElementById(`${sectionId(key)}-btn`)?.closest('section')
+  const scroller = section?.closest<HTMLElement>('.scroll')
+  if (!section || !scroller) return
+  const pad = parseFloat(getComputedStyle(scroller).paddingTop) || 0
+  const top = scroller.scrollTop + section.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pad
+  scroller.scrollTo({ top, behavior: reducedMotion() ? 'auto' : 'smooth' })
 }
 
 // ---- saved formats --------------------------------------------------------------------------
@@ -102,10 +121,11 @@ async function reveal(which: 'recipes' | 'reference', id: string): Promise<boole
   await untilReady
   tab.value = which
   query.value = ''
-  // A target in a collapsed section: expand it (and remember that) before scrolling to it.
+  // A target in a collapsed section: open it (closing its siblings, and remembering that) before
+  // scrolling to it. Its list renders on the nextTick below.
   const key = sectionFor(id, RECIPES)
   if (key && !expanded(key)) {
-    collapsed.value = expandSection(collapsed.value, key)
+    collapsed.value = openOnly(collapsed.value, key, siblingsOf(key))
     writeCollapsed(store, collapsed.value)
   }
   await nextTick()
@@ -120,8 +140,6 @@ async function reveal(which: 'recipes' | 'reference', id: string): Promise<boole
   return true
 }
 defineExpose({ reveal })
-
-const groups = recipeGroups(RECIPES)
 </script>
 
 <template>

@@ -3,13 +3,18 @@ import type { StorageLike } from './saved'
 
 export const COLLAPSED_KEY = 'atf-playground:collapsed'
 
-/** The collapsed section keys. Missing, unreadable or malformed storage: none (all expanded). */
-export function readCollapsed(store: Pick<StorageLike, 'getItem'> | undefined): Set<string> {
+/**
+ * The collapsed section keys. Nothing stored yet (a first visit), or storage that is unreadable or
+ * malformed: `defaults`. Once the visitor toggles a section their choice is stored, `[]` included.
+ */
+export function readCollapsed(store: Pick<StorageLike, 'getItem'> | undefined, defaults: Iterable<string> = []): Set<string> {
   try {
-    const list: unknown = JSON.parse(store?.getItem(COLLAPSED_KEY) ?? '[]')
-    return new Set(Array.isArray(list) ? list.filter((k): k is string => typeof k === 'string') : [])
+    const raw = store?.getItem(COLLAPSED_KEY)
+    if (raw == null) return new Set(defaults)
+    const list: unknown = JSON.parse(raw)
+    return Array.isArray(list) ? new Set(list.filter((k): k is string => typeof k === 'string')) : new Set(defaults)
   } catch {
-    return new Set()
+    return new Set(defaults)
   }
 }
 
@@ -29,10 +34,10 @@ export function toggleSection(collapsed: ReadonlySet<string>, key: string): Set<
   return next
 }
 
-/** A copy with `key` expanded (the same set if it already was). */
-export function expandSection(collapsed: ReadonlySet<string>, key: string): ReadonlySet<string> {
-  if (!collapsed.has(key)) return collapsed
+/** A copy with `key` expanded and every other key in `siblings` collapsed: an accordion. */
+export function openOnly(collapsed: ReadonlySet<string>, key: string, siblings: readonly string[]): Set<string> {
   const next = new Set(collapsed)
+  for (const s of siblings) if (s !== key) next.add(s)
   next.delete(key)
   return next
 }
