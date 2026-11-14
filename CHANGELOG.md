@@ -2,7 +2,7 @@
 
 Changes to the extension. The web playground has its own changelog: [web/CHANGELOG.md](web/CHANGELOG.md).
 
-## Unreleased
+## 0.5.1 — 2026-11-14
 
 - The `%trackartist%` hover says where it comes from: in WACUP only CD audio (`in_cdda`) and portable devices (`ml_pmp`) provide it, so it is empty for tagged files (checked against every plugin in a WACUP 1.99.57 install).
 
