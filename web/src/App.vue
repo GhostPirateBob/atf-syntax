@@ -666,7 +666,7 @@ function randomRecipe() {
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /**
- * Tags for each file, read in the browser by MediaInfo.js. The library and its .wasm load only
+ * Tags for each file, read in the browser by vuio-media-info's wasm. The reader and its .wasm load only
  * now, on first use. A file that can't be read keeps just its name. Undefined if a newer drop
  * (or Back to samples) took over.
  */

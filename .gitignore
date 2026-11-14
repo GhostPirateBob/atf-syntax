@@ -7,3 +7,6 @@ docs/
 # web playground
 web/dist/
 web/dist-vapor/
+
+# tag reader (Rust)
+web/tag-reader/target/

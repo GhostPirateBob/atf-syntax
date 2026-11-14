@@ -1,5 +1,6 @@
-// MediaInfo JSON (the `mediainfo --Output=JSON` CLI, or MediaInfo.js in the browser) to ATF tags.
-// The sample tracks ship as mediainfo output; files dropped on the page will use the same path.
+// MediaInfo JSON (the `mediainfo --Output=JSON` CLI, or vuio-media-info's wasm in the browser, which
+// writes the same schema) to ATF tags. The sample tracks ship as mediainfo output; files dropped on
+// the page take the same path.
 
 /** One `track` object from mediainfo's JSON: string values keyed by mediainfo's field names. */
 export type MediaInfoTrack = Record<string, unknown> & { '@type'?: string }

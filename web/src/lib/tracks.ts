@@ -100,7 +100,7 @@ export function tracksFromPlaylist(entries: PlaylistEntry[], fileTags: (Record<s
   })
 }
 
-/** Tracks from the user's own audio files, with the tags MediaInfo.js read from them. */
+/** Tracks from the user's own audio files, with the tags the wasm tag reader read from them. */
 export function tracksFromFiles(fileTags: Record<string, string>[]): Track[] {
   return fileTags.map((tags) => ({ id: newId(), source: 'files', tags: { ...tags } }))
 }
