@@ -2,7 +2,7 @@
 
 Changes to the [ATF playground](https://ghostpiratebob.me/atf-syntax/). The extension has its own changelog: [../CHANGELOG.md](../CHANGELOG.md). The playground was first released with extension 0.5.0.
 
-## Unreleased
+## 0.7.0 — 2026-11-14
 
 ### A new tag reader
 
