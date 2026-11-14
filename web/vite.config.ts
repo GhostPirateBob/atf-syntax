@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig, runnerImport, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { visualizer } from 'rollup-plugin-visualizer'
 import { VAPOR_COMPONENTS } from './vapor.config.ts'
 
 const alias = {
@@ -81,7 +82,13 @@ function vaporComponents(files: readonly string[]): Plugin {
 export default defineConfig(({ mode }) => ({
   base: './',
   // No component (ours or @lucide/vue's functional icons) uses the Options API: leave it out.
-  plugins: [...(mode === 'vapor' ? [vaporComponents(VAPOR_COMPONENTS)] : []), vue({ features: { optionsAPI: false } }), searchIndex()],
+  // `ANALYZE=1 npm run build` also writes stats.html, a treemap of the bundle (gzip/brotli sizes).
+  plugins: [
+    ...(mode === 'vapor' ? [vaporComponents(VAPOR_COMPONENTS)] : []),
+    vue({ features: { optionsAPI: false } }),
+    searchIndex(),
+    ...(process.env.ANALYZE || mode === 'analyze' ? [visualizer({ filename: 'stats.html', template: 'treemap', gzipSize: true, brotliSize: true }) as Plugin] : []),
+  ],
   // false except in vapor mode, so every other build drops the Vapor interop (and runtime) entirely.
   define: { __VAPOR__: JSON.stringify(mode === 'vapor') },
   resolve: { alias },

@@ -10,3 +10,4 @@ web/dist-vapor/
 
 # tag reader (Rust)
 web/tag-reader/target/
+web/stats.html
