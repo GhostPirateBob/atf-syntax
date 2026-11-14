@@ -1,7 +1,7 @@
-// Reads tags from the user's own audio files with MediaInfo.js, in a small pool of workers (see
-// worker/tags.worker.ts): MediaInfo spends about 100 ms of solid work on each MP3, so off the page
-// it can't freeze typing or scrolling, and side by side a big folder reads several times faster.
-// App imports this module only when files arrive, so neither the library nor its .wasm is part of
+// Reads tags from the user's own audio files with vuio-media-info's wasm, in a small pool of
+// workers (see worker/tags.worker.ts): the file reads (FileReaderSync) happen off the page, so a
+// slow disk can't freeze typing or scrolling, and side by side a big folder reads faster.
+// App imports this module only when files arrive, so neither the reader nor its .wasm is part of
 // the page until then. Nothing leaves the browser.
 import type { TagsRequest, TagsResponse } from '@/worker/tags.worker'
 
@@ -27,9 +27,9 @@ interface Slot {
   worker: TagWorker
   loaded: Promise<void>
   job?: Job
-  /** Loaded MediaInfo and said so. */
+  /** Loaded the tag reader and said so. */
   started?: boolean
-  /** Couldn't start (MediaInfo or the worker script didn't load): never given work. */
+  /** Couldn't start (the tag reader or the worker script didn't load): never given work. */
   dead?: boolean
 }
 
@@ -72,7 +72,7 @@ export function createTagPool(create: () => TagWorker, size = poolSize()) {
       }
       worker.onerror = () => {
         const job = slot.job
-        // It never loaded (the script or MediaInfo didn't): don't retry it.
+        // It never loaded (the script or the tag reader didn't): don't retry it.
         if (!slot.started || !job) return fail('The tag reader failed to start')
         // A crash mid-file: fail that file, replace the worker, carry on with the rest.
         slot.job = undefined
@@ -102,7 +102,7 @@ export function createTagPool(create: () => TagWorker, size = poolSize()) {
 
   return {
     size,
-    /** Starts the workers and resolves once the first has loaded MediaInfo (rejects if it can't). */
+    /** Starts the workers and resolves once the first has loaded the tag reader (rejects if it can't). */
     ready(): Promise<void> {
       while (slots.length < size) slots.push(spawn())
       return Promise.any(slots.map((s) => s.loaded)).catch((e: unknown) => {

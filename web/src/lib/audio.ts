@@ -1,7 +1,7 @@
 // Which dropped or picked files are audio or playlists, and which audio file a playlist entry names.
 // Pure: no DOM, so the tests can run it.
 
-/** Extensions read as audio files (MediaInfo.js reads their tags). */
+/** Extensions read as audio files (vuio-media-info's wasm reads their tags). */
 export const AUDIO_EXTENSIONS = ['mp3', 'flac', 'm4a', 'mp4', 'aac', 'ogg', 'opus', 'wav', 'wma', 'ape', 'wv', 'mpc', 'aiff', 'aif', 'dsf'] as const
 
 /** Extensions read as playlists. */
