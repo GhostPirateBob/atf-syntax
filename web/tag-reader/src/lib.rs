@@ -20,7 +20,6 @@ pub mod container;
 pub mod core;
 mod json;
 pub mod tags;
-pub mod video;
 
 pub use core::error::{MediaInfoError, Result};
 pub use core::models::*;

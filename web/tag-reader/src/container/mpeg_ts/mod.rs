@@ -4,7 +4,6 @@ use crate::core::{
     models::*,
     types::*,
 };
-use crate::video::{AvcSps, HevcSps, Mpeg2SequenceHeader};
 use std::collections::{HashMap, HashSet};
 
 /// MPEG-TS (Transport Stream / M2TS) packet demuxer.
@@ -18,74 +17,6 @@ impl MpegTsDemuxer {
         }
         let header_len = payload[8] as usize;
         payload.get(9 + header_len..)
-    }
-
-    /// Finds the first SPS NAL unit in an Annex B stream and applies it.
-    fn apply_avc(data: &[u8], v: &mut VideoTrack) {
-        let Some(sps) = Self::find_nal(data, 0x1F, 7) else {
-            return;
-        };
-        let Ok(sps) = AvcSps::parse(sps) else {
-            return;
-        };
-        v.width = sps.width;
-        v.height = sps.height;
-        v.format_profile = Some(sps.profile_name.to_string());
-        v.format_level = Some(sps.level_name);
-        v.bit_depth = sps.bit_depth;
-        v.chroma_subsampling = Some(sps.chroma_subsampling);
-        v.color_range = sps.color_range.or(v.color_range);
-        v.color_primaries = sps.color_primaries;
-        v.transfer_characteristics = sps.transfer_characteristics;
-        v.matrix_coefficients = sps.matrix_coefficients;
-        v.frame_rate = sps.frame_rate;
-        v.scan_type = Some(
-            if sps.progressive {
-                "Progressive"
-            } else {
-                "Interlaced"
-            }
-            .to_string(),
-        );
-    }
-
-    fn apply_hevc(data: &[u8], v: &mut VideoTrack) {
-        // HEVC NAL type is bits 6..1 of the first header byte; SPS is type 33.
-        let Some(sps) = Self::find_nal(data, 0x7E, 33 << 1) else {
-            return;
-        };
-        let Ok(sps) = HevcSps::parse(sps) else {
-            return;
-        };
-        v.width = sps.width;
-        v.height = sps.height;
-        v.format_profile = Some(sps.profile_name.to_string());
-        v.format_level = Some(sps.level_name);
-        v.format_tier = Some(sps.tier.to_string());
-        v.bit_depth = sps.bit_depth;
-        v.chroma_subsampling = Some(sps.chroma_subsampling);
-        v.color_range = sps.color_range.or(v.color_range);
-        v.color_primaries = sps.color_primaries;
-        v.transfer_characteristics = sps.transfer_characteristics;
-        v.matrix_coefficients = sps.matrix_coefficients;
-        v.hdr_format = sps.hdr_format;
-        v.frame_rate = sps.frame_rate;
-    }
-
-    /// Scans Annex B start codes for a NAL whose masked header byte matches `want`.
-    fn find_nal(data: &[u8], mask: u8, want: u8) -> Option<&[u8]> {
-        let mut i = 0;
-        while i + 4 < data.len() {
-            if data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1 {
-                if data[i + 3] & mask == want {
-                    return Some(&data[i + 3..]);
-                }
-                i += 3;
-            } else {
-                i += 1;
-            }
-        }
-        None
     }
 
     pub fn parse_buffer(data: &[u8]) -> Result<MediaReport> {
@@ -290,12 +221,10 @@ impl MpegTsDemuxer {
                         0x1B => {
                             v.format = VideoCodec::AVC;
                             v.format_info = Some("Advanced Video Coding".to_string());
-                            Self::apply_avc(head, &mut v);
                         }
                         0x24 => {
                             v.format = VideoCodec::HEVC;
                             v.format_info = Some("High Efficiency Video Coding".to_string());
-                            Self::apply_hevc(head, &mut v);
                         }
                         0x10 => {
                             v.format = VideoCodec::MPEG4Visual;
@@ -308,14 +237,6 @@ impl MpegTsDemuxer {
                         _ => {
                             v.format = VideoCodec::MPEG2Video;
                             v.format_info = Some("MPEG Video".to_string());
-                            if let Ok(seq) = Mpeg2SequenceHeader::parse(head) {
-                                v.width = seq.width;
-                                v.height = seq.height;
-                                v.frame_rate = Some(seq.frame_rate);
-                                v.chroma_subsampling = Some(seq.chroma_subsampling);
-                                v.format_profile = seq.profile.clone();
-                                v.format_level = seq.level.clone();
-                            }
                         }
                     }
 

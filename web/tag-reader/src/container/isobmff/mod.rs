@@ -6,7 +6,6 @@ use crate::core::{
     types::*,
 };
 use crate::tags::itunes;
-use crate::video::{AvcSps, HevcSps};
 
 /// Per-track state gathered from `tkhd`, `mdhd` and the sample tables before the
 /// sample description is decoded.
@@ -637,12 +636,6 @@ impl IsobmffDemuxer {
             }
         }
 
-        match codec {
-            VideoCodec::AVC => Self::decode_avcc(entry_data, &mut v),
-            VideoCodec::HEVC => Self::decode_hvcc(entry_data, &mut v),
-            _ => {}
-        }
-
         // colr overrides bitstream colorimetry when the container carries a tag.
         if let Some(colr) = Self::find_sample_entry_child(entry_data, b"colr") {
             Self::apply_colr(colr, &mut v);
@@ -832,102 +825,6 @@ impl IsobmffDemuxer {
     }
 
     /// AVC decoder configuration record -> SPS.
-    fn decode_avcc(entry_data: &[u8], v: &mut VideoTrack) {
-        let Some(avcc) = Self::find_sample_entry_child(entry_data, b"avcC") else {
-            return;
-        };
-        if avcc.len() < 8 {
-            return;
-        }
-        let sps_len = u16::from_be_bytes([avcc[6], avcc[7]]) as usize;
-        if avcc.len() < 8 + sps_len || sps_len == 0 {
-            return;
-        }
-        if let Ok(sps) = AvcSps::parse(&avcc[8..8 + sps_len]) {
-            if sps.width > 0 && sps.height > 0 {
-                v.stored_width = Some(sps.width);
-                v.stored_height = Some(sps.height);
-                if v.width == 0 || v.height == 0 {
-                    v.width = sps.width;
-                    v.height = sps.height;
-                }
-            }
-            v.format_profile = Some(sps.profile_name.to_string());
-            v.format_level = Some(sps.level_name);
-            v.bit_depth = sps.bit_depth;
-            v.chroma_subsampling = Some(sps.chroma_subsampling);
-            v.color_range = sps.color_range.or(v.color_range);
-            v.color_primaries = sps.color_primaries;
-            v.transfer_characteristics = sps.transfer_characteristics;
-            v.matrix_coefficients = sps.matrix_coefficients;
-            if let Some(fps) = sps.frame_rate {
-                if v.frame_rate.is_none() {
-                    v.frame_rate = Some(fps);
-                }
-            }
-        }
-    }
-
-    fn decode_hvcc(entry_data: &[u8], v: &mut VideoTrack) {
-        let Some(hvcc) = Self::find_sample_entry_child(entry_data, b"hvcC") else {
-            return;
-        };
-        if hvcc.len() >= 23 {
-            // General profile / chroma / bit depth are already in the config record.
-            v.chroma_subsampling = Some(match hvcc[18] & 0x03 {
-                0 => ChromaSubsampling::Monochrome,
-                1 => ChromaSubsampling::YUV420,
-                2 => ChromaSubsampling::YUV422,
-                _ => ChromaSubsampling::YUV444,
-            });
-            let luma_depth = (hvcc[19] & 0x07) + 8;
-            if (8..=16).contains(&luma_depth) {
-                v.bit_depth = luma_depth;
-            }
-
-            let num_arrays = hvcc[22];
-            let mut arr_off = 23;
-            for _ in 0..num_arrays {
-                if arr_off + 3 > hvcc.len() {
-                    break;
-                }
-                let nal_type = hvcc[arr_off] & 0x3F;
-                let num_nalus = u16::from_be_bytes([hvcc[arr_off + 1], hvcc[arr_off + 2]]) as usize;
-                arr_off += 3;
-                for _ in 0..num_nalus {
-                    if arr_off + 2 > hvcc.len() {
-                        break;
-                    }
-                    let nalu_len = u16::from_be_bytes([hvcc[arr_off], hvcc[arr_off + 1]]) as usize;
-                    arr_off += 2;
-                    if nal_type == 33 && arr_off + nalu_len <= hvcc.len() {
-                        if let Ok(sps) = HevcSps::parse(&hvcc[arr_off..arr_off + nalu_len]) {
-                            if sps.width > 0 && sps.height > 0 {
-                                v.stored_width = Some(sps.width);
-                                v.stored_height = Some(sps.height);
-                                if v.width == 0 || v.height == 0 {
-                                    v.width = sps.width;
-                                    v.height = sps.height;
-                                }
-                            }
-                            v.format_profile = Some(sps.profile_name.to_string());
-                            v.format_level = Some(sps.level_name);
-                            v.format_tier = Some(sps.tier.to_string());
-                            v.bit_depth = sps.bit_depth;
-                            v.chroma_subsampling = Some(sps.chroma_subsampling);
-                            v.color_range = sps.color_range.or(v.color_range);
-                            v.color_primaries = sps.color_primaries;
-                            v.transfer_characteristics = sps.transfer_characteristics;
-                            v.matrix_coefficients = sps.matrix_coefficients;
-                            v.hdr_format = sps.hdr_format;
-                        }
-                    }
-                    arr_off += nalu_len;
-                }
-            }
-        }
-    }
-
     fn apply_colr(colr: &[u8], v: &mut VideoTrack) {
         if colr.len() < 4 {
             return;

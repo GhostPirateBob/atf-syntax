@@ -4,7 +4,6 @@ use crate::core::{
     models::*,
     types::*,
 };
-use crate::video::{AvcSps, Mpeg2SequenceHeader};
 use std::collections::HashMap;
 
 const PACK_START: [u8; 4] = [0x00, 0x00, 0x01, 0xBA];
@@ -319,44 +318,8 @@ impl MpegPsDemuxer {
                 v.stream_size = Some(stream.bytes);
                 v.bit_rate = bit_rate;
 
-                if let Ok(seq) = Mpeg2SequenceHeader::parse(&stream.head) {
-                    v.format = if seq.is_mpeg2 {
-                        VideoCodec::MPEG2Video
-                    } else {
-                        VideoCodec::MPEG1Video
-                    };
-                    v.format_info = Some(
-                        if seq.is_mpeg2 {
-                            "MPEG-2 Video"
-                        } else {
-                            "MPEG-1 Video"
-                        }
-                        .to_string(),
-                    );
-                    v.width = seq.width;
-                    v.height = seq.height;
-                    v.frame_rate = Some(seq.frame_rate);
-                    v.frame_rate_mode = Some(FrameRateMode::Constant);
-                    v.chroma_subsampling = Some(seq.chroma_subsampling);
-                    v.format_profile = seq.profile.clone();
-                    v.format_level = seq.level.clone();
-                    if seq.bit_rate > 0 && v.bit_rate.is_none() {
-                        v.bit_rate = Some(seq.bit_rate);
-                    }
-                } else if let Some(sps) = Self::find_avc_sps(&stream.head) {
-                    v.format = VideoCodec::AVC;
-                    v.format_info = Some("Advanced Video Coding".to_string());
-                    v.width = sps.width;
-                    v.height = sps.height;
-                    v.format_profile = Some(sps.profile_name.to_string());
-                    v.format_level = Some(sps.level_name);
-                    v.bit_depth = sps.bit_depth;
-                    v.chroma_subsampling = Some(sps.chroma_subsampling);
-                    v.frame_rate = sps.frame_rate;
-                } else {
-                    v.format = VideoCodec::MPEG2Video;
-                    v.format_info = Some("MPEG Video".to_string());
-                }
+                v.format = VideoCodec::MPEG2Video;
+                v.format_info = Some("MPEG Video".to_string());
 
                 v.color_space = Some("YUV".to_string());
                 if v.width > 0 && v.height > 0 {
@@ -454,22 +417,5 @@ impl MpegPsDemuxer {
             }
             _ => {}
         }
-    }
-
-    /// Scans an elementary stream for an SPS NAL unit (type 7).
-    fn find_avc_sps(data: &[u8]) -> Option<AvcSps> {
-        let mut i = 0;
-        while i + 4 < data.len() {
-            if data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1 {
-                let nal_type = data[i + 3] & 0x1F;
-                if nal_type == 7 {
-                    return AvcSps::parse(&data[i + 3..]).ok();
-                }
-                i += 3;
-            } else {
-                i += 1;
-            }
-        }
-        None
     }
 }

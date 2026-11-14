@@ -7,7 +7,6 @@
 use crate::audio::{AacInfo, Ac3Header, DtsHeader, FlacStreamInfo, OpusHead};
 use crate::core::{bitstream::EbmlVint, error::Result, models::*, source::Source, types::*};
 use crate::tags::push_named;
-use crate::video::{AvcSps, HevcSps};
 use std::collections::{HashMap, HashSet};
 
 const EBML: u32 = 0x1A45DFA3;
@@ -564,32 +563,8 @@ fn read_track_entry(data: &[u8], report: &mut MediaReport) -> (u32, Option<u64>)
 
 fn apply_video_codec(codec_id: &str, private: &[u8], v: &mut VideoTrack) {
     match codec_id {
-        "V_MPEG4/ISO/AVC" => {
-            v.format = VideoCodec::AVC;
-            if private.len() >= 8 {
-                let sps_len = u16::from_be_bytes([private[6], private[7]]) as usize;
-                if let Some(sps) = private
-                    .get(8..8 + sps_len)
-                    .and_then(|s| AvcSps::parse(s).ok())
-                {
-                    v.width = sps.width;
-                    v.height = sps.height;
-                    v.format_profile = Some(sps.profile_name.to_string());
-                    v.format_level = Some(sps.level_name);
-                    v.bit_depth = sps.bit_depth;
-                    v.chroma_subsampling = Some(sps.chroma_subsampling);
-                    v.color_range = sps.color_range.or(v.color_range);
-                    v.color_primaries = sps.color_primaries.or(v.color_primaries);
-                    v.transfer_characteristics =
-                        sps.transfer_characteristics.or(v.transfer_characteristics);
-                    v.matrix_coefficients = sps.matrix_coefficients.or(v.matrix_coefficients);
-                }
-            }
-        }
-        "V_MPEGH/ISO/HEVC" => {
-            v.format = VideoCodec::HEVC;
-            apply_hvcc(private, v);
-        }
+        "V_MPEG4/ISO/AVC" => v.format = VideoCodec::AVC,
+        "V_MPEGH/ISO/HEVC" => v.format = VideoCodec::HEVC,
         "V_MS/VFW/FOURCC" => {
             // CodecPrivate is a BITMAPINFOHEADER; the real codec is its biCompression.
             if private.len() >= 20 {
@@ -687,54 +662,6 @@ fn apply_audio_codec(codec_id: &str, private: &[u8], a: &mut AudioTrack) {
     };
     if a.channels > 0 {
         a.channel_layout = AudioChannelLayout::from_channel_count(a.channels);
-    }
-}
-
-/// Walks an HEVCDecoderConfigurationRecord's NAL arrays to its SPS.
-fn apply_hvcc(hvcc: &[u8], v: &mut VideoTrack) {
-    if hvcc.len() < 23 {
-        return;
-    }
-    let mut off = 23;
-    for _ in 0..hvcc[22] {
-        let Some(head) = hvcc.get(off..off + 3) else {
-            return;
-        };
-        let nal_type = head[0] & 0x3F;
-        let count = u16::from_be_bytes([head[1], head[2]]) as usize;
-        off += 3;
-        for _ in 0..count {
-            let Some(len) = hvcc
-                .get(off..off + 2)
-                .map(|b| u16::from_be_bytes([b[0], b[1]]) as usize)
-            else {
-                return;
-            };
-            off += 2;
-            if nal_type == 33 {
-                if let Some(sps) = hvcc
-                    .get(off..off + len)
-                    .and_then(|n| HevcSps::parse(n).ok())
-                {
-                    if sps.width > 0 && sps.height > 0 {
-                        v.width = sps.width;
-                        v.height = sps.height;
-                    }
-                    v.format_profile = Some(sps.profile_name.to_string());
-                    v.format_level = Some(sps.level_name);
-                    v.format_tier = Some(sps.tier.to_string());
-                    v.bit_depth = sps.bit_depth;
-                    v.chroma_subsampling = Some(sps.chroma_subsampling);
-                    v.color_range = sps.color_range.or(v.color_range);
-                    v.color_primaries = sps.color_primaries.or(v.color_primaries);
-                    v.transfer_characteristics =
-                        sps.transfer_characteristics.or(v.transfer_characteristics);
-                    v.matrix_coefficients = sps.matrix_coefficients.or(v.matrix_coefficients);
-                    v.hdr_format = sps.hdr_format;
-                }
-            }
-            off += len;
-        }
     }
 }
 
